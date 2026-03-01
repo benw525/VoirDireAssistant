@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users,
   UploadCloud,
   ArrowRight,
   AlertCircle,
-  Database } from
-'lucide-react';
+  Database,
+  FileUp
+} from 'lucide-react';
 import { Juror } from '../../types';
+import { useDropzone } from 'react-dropzone';
 interface StrikeListProps {
   jurors: Juror[];
   onJurorsLoaded: (jurors: Juror[]) => void;
@@ -23,6 +25,88 @@ export function StrikeList({
   const [pasteData, setPasteData] = useState('');
   const [isParsing, setIsParsing] = useState(false);
   const [error, setError] = useState('');
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (file) {
+      setIsParsing(true);
+      setError('');
+      
+      // Mock OCR process for PDFs
+      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        setTimeout(() => {
+          // Generate realistic looking mock data for the PDF
+          const mockOcrData = "1\tJohn Doe\t123 Main St\tCity, ST\tM\tW\t01/01/80\tEngineer\tAcme Corp\n2\tJane Smith\t456 Oak Ave\tCity, ST\tF\tB\t05/12/90\tTeacher\tSchool District\n3\tBob Jones\t789 Pine Ln\tCity, ST\tM\tH\t11/20/75\tManager\tTech Inc";
+          setPasteData(mockOcrData);
+          
+          setTimeout(() => {
+            handleMockOcrParse(mockOcrData);
+          }, 500);
+        }, 2500); // 2.5 second mock delay for OCR processing
+        return;
+      }
+
+      // Standard text/csv reading
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        setPasteData(text);
+        
+        // Auto parse after a short delay to show the text
+        setTimeout(() => {
+          handleMockOcrParse(text);
+        }, 600);
+      };
+      
+      reader.onerror = () => {
+        setError('Failed to read file.');
+        setIsParsing(false);
+      };
+      
+      reader.readAsText(file);
+    }
+  }, [onJurorsLoaded]);
+
+  const handleMockOcrParse = (text: string) => {
+    try {
+      if (!text.trim()) {
+        throw new Error('The uploaded file appears to be empty.');
+      }
+      // Very basic mock parser for demo purposes
+      const lines = text.split('\n').filter((l) => l.trim());
+      const parsedJurors: Juror[] = lines.map((line, index) => {
+        const parts = line.split(/[\t,]/).map((p) => p.trim());
+        return {
+          number: parseInt(parts[0]) || index + 1,
+          name: parts[1] || 'Unknown',
+          address: parts[2] || 'Unknown',
+          cityStateZip: parts[3] || 'Unknown',
+          sex: parts[4] || 'U',
+          race: parts[5] || 'U',
+          birthDate: parts[6] || 'Unknown',
+          occupation: parts[7] || 'Unknown',
+          employer: parts[8] || 'Unknown',
+          responses: [],
+          lean: 'unknown',
+          riskTier: 'unassessed',
+          notes: ''
+        };
+      });
+      onJurorsLoaded(parsedJurors);
+      setPasteData('');
+    } catch (err: any) {
+      setError(
+        err.message || 'Failed to parse data. Please check the format.'
+      );
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    multiple: false
+  });
+
   const handleParse = () => {
     setIsParsing(true);
     setError('');
@@ -112,11 +196,36 @@ export function StrikeList({
           </div>
 
           <div className="p-6 flex-1 flex flex-col">
+            <div 
+              {...getRootProps()} 
+              className={`border-2 border-dashed rounded-xl p-8 mb-4 text-center cursor-pointer transition-colors ${
+                isDragActive ? 'border-amber-500 bg-amber-50' : 'border-slate-300 hover:border-slate-400 bg-slate-50'
+              }`}
+            >
+              <input {...getInputProps()} />
+              <FileUp className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+              <p className="text-slate-600 font-medium">
+                {isDragActive ? 'Drop the file here...' : 'Drag & drop a file here, or click to upload'}
+              </p>
+              <p className="text-slate-500 text-sm mt-1">
+                Supports TXT, CSV, and PDF (mock OCR)
+              </p>
+            </div>
+
+            <div className="relative mb-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-slate-500">OR PASTE DATA</span>
+              </div>
+            </div>
+
             <textarea
             value={pasteData}
             onChange={(e) => setPasteData(e.target.value)}
             placeholder="Paste strike list data here..."
-            className="flex-1 w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-slate-50 font-mono text-sm resize-none transition-colors mb-4 min-h-[200px]" />
+            className="flex-1 w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-slate-50 font-mono text-sm resize-none transition-colors mb-4 min-h-[120px]" />
 
 
             {error &&
