@@ -28,6 +28,7 @@ export function CaseSetup({
   onProceed,
   existingInfo
 }: CaseSetupProps) {
+  const [name, setName] = useState(existingInfo?.name || '');
   const [areaOfLaw, setAreaOfLaw] = useState(existingInfo?.areaOfLaw || '');
   const [summary, setSummary] = useState(existingInfo?.summary || '');
   const [side, setSide] = useState<'plaintiff' | 'defense' | null>(
@@ -36,7 +37,7 @@ export function CaseSetup({
   const [isInitialized, setIsInitialized] = useState(!!existingInfo);
   const handleInitialize = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!areaOfLaw || !summary || !side) return;
+    if (!name || !areaOfLaw || !summary || !side) return;
     // Mock generating traits based on side
     const favorableTraits =
     side === 'plaintiff' ?
@@ -63,6 +64,7 @@ export function CaseSetup({
     'Prior negative experience with similar defendants'];
 
     onCaseSetup({
+      name,
       areaOfLaw,
       summary,
       side,
@@ -94,6 +96,21 @@ export function CaseSetup({
         }}
         onSubmit={handleInitialize}
         className="space-y-8 bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">
+
+          {/* Case Name */}
+          <div>
+            <label className="flex items-center text-sm font-semibold text-slate-900 mb-2">
+              <FileText className="w-4 h-4 mr-2 text-slate-500" />
+              Case Name
+            </label>
+            <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g., Smith v. Jones Corporation"
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-slate-50 transition-colors"
+            required />
+          </div>
 
           {/* Area of Law */}
           <div>

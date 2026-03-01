@@ -1,6 +1,7 @@
 export type AppPhase = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface CaseInfo {
+  name: string;
   areaOfLaw: string;
   summary: string;
   side: 'plaintiff' | 'defense';

@@ -300,7 +300,7 @@ export function WelcomeScreen({
                         </div>
                         <div className="min-w-0">
                           <h3 className="font-bold text-slate-900 truncate">
-                            {saved.caseInfo.areaOfLaw}
+                            {saved.caseInfo.name || saved.caseInfo.areaOfLaw}
                           </h3>
                           <p className="text-sm text-slate-500 truncate max-w-md">
                             {saved.caseInfo.summary}

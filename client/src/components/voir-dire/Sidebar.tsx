@@ -108,7 +108,7 @@ export function Sidebar({
         {caseInfo &&
         <div className="px-6 py-4 border-b border-slate-800 bg-slate-800/30">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-              Active Case
+              {caseInfo.name || 'Active Case'}
             </div>
             <div className="font-medium text-white truncate">
               {caseInfo.areaOfLaw}
