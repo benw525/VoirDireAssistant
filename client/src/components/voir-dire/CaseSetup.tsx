@@ -101,21 +101,19 @@ export function CaseSetup({
               <Briefcase className="w-4 h-4 mr-2 text-slate-500" />
               Area of Law
             </label>
-            <select
+            <input
+            type="text"
+            list="areas-of-law-options"
             value={areaOfLaw}
             onChange={(e) => setAreaOfLaw(e.target.value)}
+            placeholder="Enter or select Area of Law..."
             className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-slate-50 transition-colors"
-            required>
-
-              <option value="" disabled>
-                Select Area of Law...
-              </option>
+            required />
+            <datalist id="areas-of-law-options">
               {AREAS_OF_LAW.map((area) =>
-            <option key={area} value={area}>
-                  {area}
-                </option>
+            <option key={area} value={area} />
             )}
-            </select>
+            </datalist>
           </div>
 
           {/* Case Summary */}
