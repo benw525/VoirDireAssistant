@@ -230,6 +230,42 @@ export async function saveResponse(caseId: string, response: JurorResponse): Pro
   });
 }
 
+export async function parseStrikeList(fileOrText: File | string): Promise<Juror[]> {
+  const formData = new FormData();
+  if (typeof fileOrText === 'string') {
+    formData.append('text', fileOrText);
+  } else {
+    formData.append('file', fileOrText);
+  }
+
+  const res = await fetch(`${API_BASE}/parse-strike-list`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(err.message || 'Failed to parse strike list');
+  }
+
+  const data = await res.json();
+  return (data.jurors || []).map((j: any) => ({
+    number: j.number,
+    name: j.name || 'Unknown',
+    address: j.address || 'Unknown',
+    cityStateZip: j.cityStateZip || 'Unknown',
+    sex: j.sex || 'U',
+    race: j.race || 'U',
+    birthDate: j.birthDate || 'Unknown',
+    occupation: j.occupation || 'Unknown',
+    employer: j.employer || 'Unknown',
+    responses: [],
+    lean: 'unknown' as const,
+    riskTier: 'unassessed' as const,
+    notes: '',
+  }));
+}
+
 export async function updateJurorOnServer(caseId: string, jurorNumber: number, updates: Partial<Juror>): Promise<void> {
   const jurors = await fetchJson<DbJuror[]>(`${API_BASE}/cases/${caseId}/jurors`);
   const dbJuror = jurors.find(j => j.number === jurorNumber);

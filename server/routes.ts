@@ -3,6 +3,10 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertCaseSchema, insertJurorSchema, insertQuestionSchema, insertResponseSchema } from "@shared/schema";
 import { z } from "zod";
+import multer from "multer";
+import { extractTextFromPdf, parseStrikeListWithAI, isAllowedFileType } from "./parseStrikeList";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 export async function registerRoutes(
   httpServer: Server,
@@ -119,6 +123,39 @@ export async function registerRoutes(
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const response = await storage.createResponse(parsed.data);
     res.status(201).json(response);
+  });
+
+  // --- AI Strike List Parsing ---
+  app.post("/api/parse-strike-list", upload.single("file"), async (req, res) => {
+    try {
+      let rawText = "";
+
+      if (req.file) {
+        if (!isAllowedFileType(req.file.mimetype, req.file.originalname)) {
+          return res.status(400).json({ message: "Unsupported file type. Please upload a PDF, TXT, or CSV file." });
+        }
+        const mime = req.file.mimetype;
+        if (mime === "application/pdf" || req.file.originalname.toLowerCase().endsWith(".pdf")) {
+          rawText = await extractTextFromPdf(req.file.buffer);
+        } else {
+          rawText = req.file.buffer.toString("utf-8");
+        }
+      } else if (req.body.text) {
+        rawText = req.body.text;
+      } else {
+        return res.status(400).json({ message: "No file or text provided" });
+      }
+
+      if (!rawText.trim()) {
+        return res.status(400).json({ message: "The uploaded document appears to be empty or could not be read." });
+      }
+
+      const jurors = await parseStrikeListWithAI(rawText);
+      res.json({ jurors });
+    } catch (err: any) {
+      console.error("Strike list parse error:", err);
+      res.status(500).json({ message: err.message || "Failed to parse strike list" });
+    }
   });
 
   // --- Full case load (for resuming) ---

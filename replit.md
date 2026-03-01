@@ -7,12 +7,14 @@ A full-stack jury selection assistant application. Helps legal professionals org
 - **Frontend**: React + TypeScript with Tailwind CSS, wouter routing, framer-motion animations
 - **Backend**: Express.js server with REST API
 - **Database**: PostgreSQL with Drizzle ORM
+- **AI**: OpenAI via Replit AI Integrations (no API key needed) for strike list document parsing
 - **Build**: Vite for frontend, tsx for server
 
 ## Key Files
 - `shared/schema.ts` — Drizzle database schema (cases, jurors, questions, responses)
 - `server/routes.ts` — API routes (all prefixed with `/api`)
 - `server/storage.ts` — Database storage layer implementing IStorage interface
+- `server/parseStrikeList.ts` — AI-powered strike list document parser (OpenAI + pdf-parse)
 - `client/src/pages/VoirDireApp.tsx` — Main application component with phase-based workflow
 - `client/src/lib/api.ts` — Frontend API client with type conversions
 - `client/src/types/index.ts` — Frontend TypeScript types
@@ -21,7 +23,7 @@ A full-stack jury selection assistant application. Helps legal professionals org
 ## Application Phases
 0. Welcome Screen (past cases, new case)
 1. Case Initialization (name, area of law, summary, side)
-2. Strike List (upload/paste juror data with drag-and-drop)
+2. Strike List (upload/paste juror data — AI-powered parsing)
 3. Voir Dire Questions (enter/generate questions)
 4. Response Recording (record juror answers in real-time)
 5. Juror Review (assess leanings and risk tiers)
@@ -36,6 +38,7 @@ A full-stack jury selection assistant application. Helps legal professionals org
 - `GET/POST/DELETE /api/cases/:caseId/questions` — Question CRUD
 - `PATCH /api/questions/:id` — Update single question
 - `GET/POST /api/cases/:caseId/responses` — Response operations
+- `POST /api/parse-strike-list` — AI document parsing (multipart file or text body)
 
 ## Database Tables
 - `cases` — Case metadata (name, area of law, summary, side, traits, phase state)
@@ -48,3 +51,6 @@ A full-stack jury selection assistant application. Helps legal professionals org
 - `framer-motion` — Page transition animations
 - `lucide-react` — Icons
 - `drizzle-orm` / `drizzle-zod` — Database ORM and validation
+- `openai` — AI client for document parsing
+- `multer` — File upload middleware
+- `pdf-parse` — PDF text extraction
