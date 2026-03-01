@@ -35,7 +35,21 @@ export function StrikeList({
       if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
         setTimeout(() => {
           // Generate realistic looking mock data for the PDF
-          const mockOcrData = "1\tJohn Doe\t123 Main St\tCity, ST\tM\tW\t01/01/80\tEngineer\tAcme Corp\n2\tJane Smith\t456 Oak Ave\tCity, ST\tF\tB\t05/12/90\tTeacher\tSchool District\n3\tBob Jones\t789 Pine Ln\tCity, ST\tM\tH\t11/20/75\tManager\tTech Inc";
+          const firstNames = ['James', 'Maria', 'Robert', 'Linda', 'William', 'Elizabeth', 'David', 'Jennifer', 'Richard', 'Susan', 'Joseph', 'Margaret', 'Thomas', 'Lisa', 'Charles', 'Nancy', 'Christopher', 'Karen', 'Daniel', 'Betty', 'Matthew', 'Helen', 'Anthony', 'Sandra', 'Mark', 'Donna', 'Donald', 'Carol', 'Steven', 'Ruth', 'Paul', 'Sharon', 'Andrew', 'Michelle', 'Joshua', 'Laura'];
+          const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin', 'Lee', 'Perez', 'Thompson', 'White', 'Harris', 'Sanchez', 'Clark', 'Ramirez', 'Lewis', 'Robinson', 'Walker', 'Young', 'Allen', 'King', 'Wright', 'Scott'];
+          const occupations = ['Teacher', 'Engineer', 'Retired', 'Nurse', 'Manager', 'Accountant', 'Retail', 'Mechanic', 'Teller', 'Sales', 'Plumber', 'Electrician'];
+          
+          let mockLines = [];
+          for (let i = 1; i <= 36; i++) {
+             const name = `${firstNames[(i-1) % firstNames.length]} ${lastNames[(i-1) % lastNames.length]}`;
+             const sex = i % 2 === 0 ? 'F' : 'M';
+             const race = ['W', 'B', 'H', 'A', 'O'][(i-1) % 5];
+             const occ = occupations[(i-1) % occupations.length];
+             const year = 1950 + ((i * 2) % 40);
+             mockLines.push(`${i}\t${name}\t${100+i} Main St\tCity, ST\t${sex}\t${race}\t01/15/${year}\t${occ}\tVarious`);
+          }
+          const mockOcrData = mockLines.join('\n');
+          
           setPasteData(mockOcrData);
           
           setTimeout(() => {
