@@ -261,7 +261,10 @@ export default function VoirDireApp() {
 
     if (activeCaseId) {
       try {
-        await api.saveResponse(activeCaseId, newResponse);
+        const saved = await api.saveResponse(activeCaseId, newResponse);
+        if (saved && saved.id) {
+          setResponses(prev => prev.map(r => r.id === newResponse.id ? { ...r, id: saved.id } : r));
+        }
       } catch (err) {
         console.error('Failed to save response:', err);
       }

@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   HelpCircle,
   ArrowRight,
+  MessageSquare,
   X } from
 'lucide-react';
 import { Juror, JurorResponse, VoirDireQuestion } from '../../types';

@@ -218,8 +218,8 @@ export async function saveQuestions(caseId: string, questions: VoirDireQuestion[
   }
 }
 
-export async function saveResponse(caseId: string, response: JurorResponse): Promise<void> {
-  await fetchJson(`${API_BASE}/cases/${caseId}/responses`, {
+export async function saveResponse(caseId: string, response: JurorResponse): Promise<JurorResponse> {
+  const result = await fetchJson<DbResponse>(`${API_BASE}/cases/${caseId}/responses`, {
     method: 'POST',
     body: JSON.stringify({
       jurorNumber: response.jurorNumber,
@@ -230,6 +230,7 @@ export async function saveResponse(caseId: string, response: JurorResponse): Pro
       timestamp: response.timestamp,
     }),
   });
+  return dbResponseToResponse(result);
 }
 
 export async function addFollowUp(responseId: string, followUp: {question: string, answer: string}): Promise<JurorResponse> {
