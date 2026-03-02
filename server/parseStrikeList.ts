@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import * as pdfParse from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -34,8 +34,7 @@ export function isAllowedFileType(mimetype: string, filename: string): boolean {
 }
 
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  const pdf = (pdfParse as any).default || pdfParse;
-  const data = await pdf(buffer);
+  const data = await PDFParse(buffer);
   return data.text;
 }
 
