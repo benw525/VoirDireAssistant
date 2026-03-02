@@ -10,13 +10,17 @@ import {
   HelpCircle,
   ArrowRight,
   MessageSquare,
+  Brain,
+  Loader2,
   X } from
 'lucide-react';
-import { Juror, JurorResponse, VoirDireQuestion } from '../../types';
+import { Juror, JurorResponse, VoirDireQuestion, CaseInfo } from '../../types';
+import * as api from '../../lib/api';
 interface JurorReviewProps {
   jurors: Juror[];
   responses: JurorResponse[];
   questions: VoirDireQuestion[];
+  caseInfo: CaseInfo;
   onUpdateJuror: (jurorNumber: number, updates: Partial<Juror>) => void;
   onProceed: () => void;
 }
@@ -24,12 +28,31 @@ export function JurorReview({
   jurors,
   responses,
   questions,
+  caseInfo,
   onUpdateJuror,
   onProceed
 }: JurorReviewProps) {
   const [viewMode, setViewMode] = useState<'board' | 'table'>('board');
   const [filterLean, setFilterLean] = useState<string>('all');
   const [selectedJuror, setSelectedJuror] = useState<Juror | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<Record<number, string>>({});
+  const [analyzingJuror, setAnalyzingJuror] = useState<number | null>(null);
+
+  const handleAnalyzeJuror = async (juror: Juror) => {
+    if (analyzingJuror !== null) return;
+    setAnalyzingJuror(juror.number);
+    try {
+      const jurorResponses = responses.filter(r => r.jurorNumber === juror.number);
+      const analysis = await api.analyzeJuror(caseInfo, juror, jurorResponses, questions);
+      setAiAnalysis(prev => ({ ...prev, [juror.number]: analysis }));
+    } catch (err) {
+      console.error('Failed to analyze juror:', err);
+      setAiAnalysis(prev => ({ ...prev, [juror.number]: 'Unable to generate analysis. Please try again.' }));
+    } finally {
+      setAnalyzingJuror(null);
+    }
+  };
+
   // Calculate stats dynamically
   const jurorsWithStats = useMemo(() => {
     return jurors.map((juror) => {
@@ -341,6 +364,58 @@ export function JurorReview({
                     <option value="unassessed">Unassessed</option>
                   </select>
                 </div>
+              </div>
+
+              {/* AI Analysis */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center">
+                    <Brain className="w-4 h-4 mr-2 text-violet-500" />
+                    AI Risk Analysis
+                  </h4>
+                  <button
+                    onClick={() => handleAnalyzeJuror(selectedJuror)}
+                    disabled={analyzingJuror !== null}
+                    data-testid={`button-analyze-juror-${selectedJuror.number}`}
+                    className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-violet-100 text-violet-700 border border-violet-200 hover:bg-violet-200 disabled:opacity-50"
+                  >
+                    {analyzingJuror === selectedJuror.number ? (
+                      <>
+                        <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : aiAnalysis[selectedJuror.number] ? (
+                      <>
+                        <Brain className="w-3 h-3 mr-1.5" />
+                        Re-analyze
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="w-3 h-3 mr-1.5" />
+                        Analyze Juror
+                      </>
+                    )}
+                  </button>
+                </div>
+                {aiAnalysis[selectedJuror.number] ? (
+                  <div className="bg-violet-50 border border-violet-200 rounded-xl p-4">
+                    <div className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+                      {aiAnalysis[selectedJuror.number]}
+                    </div>
+                  </div>
+                ) : analyzingJuror === selectedJuror.number ? (
+                  <div className="bg-violet-50 border border-violet-200 rounded-xl p-6 flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 animate-spin text-violet-500 mr-3" />
+                    <span className="text-sm text-violet-600 font-medium">Generating risk analysis...</span>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-200 border-dashed">
+                    <Brain className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                    <p className="text-slate-400 text-sm">
+                      Click "Analyze Juror" for an AI-powered risk assessment.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Responses */}

@@ -320,6 +320,41 @@ export async function refineQuestions(rawText: string, caseInfo: CaseInfo, juror
   }));
 }
 
+export async function analyzeJuror(
+  caseInfo: CaseInfo,
+  juror: Juror,
+  responses: JurorResponse[],
+  questions: Array<{ id: number; originalText: string }>
+): Promise<string> {
+  const mappedResponses = responses.map(r => ({
+    questionText: r.questionId ? (questions.find(q => q.id === r.questionId)?.originalText || null) : null,
+    questionSummary: r.questionSummary || null,
+    responseText: r.responseText,
+    side: r.side,
+    followUps: r.followUps || [],
+  }));
+  const result = await fetchJson<{ analysis: string }>(`${API_BASE}/analyze-juror`, {
+    method: 'POST',
+    body: JSON.stringify({
+      caseInfo,
+      juror: {
+        number: juror.number,
+        name: juror.name,
+        sex: juror.sex,
+        race: juror.race,
+        birthDate: juror.birthDate,
+        occupation: juror.occupation,
+        employer: juror.employer,
+        lean: juror.lean,
+        riskTier: juror.riskTier,
+        notes: juror.notes,
+      },
+      responses: mappedResponses,
+    }),
+  });
+  return result.analysis;
+}
+
 export async function updateJurorOnServer(caseId: string, jurorNumber: number, updates: Partial<Juror>): Promise<void> {
   const jurors = await fetchJson<DbJuror[]>(`${API_BASE}/cases/${caseId}/jurors`);
   const dbJuror = jurors.find(j => j.number === jurorNumber);

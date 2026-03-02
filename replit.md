@@ -16,6 +16,7 @@ A full-stack jury selection assistant application. Helps legal professionals org
 - `server/storage.ts` — Database storage layer implementing IStorage interface
 - `server/parseStrikeList.ts` — AI-powered strike list document parser (OpenAI + pdf-parse)
 - `server/generateVoirDire.ts` — AI voir dire strategy agent (full generation + question refinement)
+- `server/analyzeJuror.ts` — AI juror risk assessment agent (individual juror analysis)
 - `client/src/pages/VoirDireApp.tsx` — Main application component with phase-based workflow
 - `client/src/lib/api.ts` — Frontend API client with type conversions
 - `client/src/types/index.ts` — Frontend TypeScript types
@@ -43,6 +44,7 @@ A full-stack jury selection assistant application. Helps legal professionals org
 - `POST /api/parse-strike-list` — AI document parsing (multipart file or text body)
 - `POST /api/generate-voir-dire` — AI full voir dire generation (caseInfo + jurors → strategic document)
 - `POST /api/refine-questions` — AI question refinement (raw questions + case context → enhanced questions)
+- `POST /api/analyze-juror` — AI juror risk assessment (case context + juror profile + responses → strategic analysis)
 
 ## Database Tables
 - `cases` — Case metadata (name, area of law, summary, side, traits, phase state)

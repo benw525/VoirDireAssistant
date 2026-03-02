@@ -6,6 +6,7 @@ import { z } from "zod";
 import multer from "multer";
 import { extractTextFromPdf, parseStrikeListWithAI, isAllowedFileType } from "./parseStrikeList";
 import { generateFullVoirDire, refineUserQuestions } from "./generateVoirDire";
+import { analyzeJuror } from "./analyzeJuror";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -218,6 +219,48 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Question refinement error:", err);
       res.status(500).json({ message: err.message || "Failed to refine questions" });
+    }
+  });
+
+  app.post("/api/analyze-juror", async (req, res) => {
+    try {
+      const parsed = z.object({
+        caseInfo: z.object({
+          name: z.string(),
+          areaOfLaw: z.string(),
+          summary: z.string(),
+          side: z.string(),
+          favorableTraits: z.array(z.string()),
+          riskTraits: z.array(z.string()),
+        }),
+        juror: z.object({
+          number: z.number(),
+          name: z.string(),
+          sex: z.string(),
+          race: z.string(),
+          birthDate: z.string(),
+          occupation: z.string(),
+          employer: z.string(),
+          lean: z.string(),
+          riskTier: z.string(),
+          notes: z.string(),
+        }),
+        responses: z.array(z.object({
+          questionText: z.string().nullable(),
+          questionSummary: z.string().nullable(),
+          responseText: z.string(),
+          side: z.string(),
+          followUps: z.array(z.object({ question: z.string(), answer: z.string() })).default([]),
+        })),
+      }).safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
+      }
+      const analysis = await analyzeJuror(parsed.data.caseInfo, parsed.data.juror, parsed.data.responses);
+      res.json({ analysis });
+    } catch (err: any) {
+      console.error("Juror analysis error:", err);
+      res.status(500).json({ message: err.message || "Failed to analyze juror" });
     }
   });
 
