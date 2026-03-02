@@ -45,6 +45,7 @@ A full-stack jury selection assistant application. Helps legal professionals org
 - `POST /api/generate-voir-dire` — AI full voir dire generation (caseInfo + jurors → strategic document)
 - `POST /api/refine-questions` — AI question refinement (raw questions + case context → enhanced questions)
 - `POST /api/analyze-juror` — AI juror risk assessment (case context + juror profile + responses → strategic analysis)
+- `POST /api/analyze-jurors-batch` — AI batch brief summaries for all jurors (used by Final Report)
 
 ## Database Tables
 - `cases` — Case metadata (name, area of law, summary, side, traits, phase state)

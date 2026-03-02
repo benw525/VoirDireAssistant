@@ -359,7 +359,7 @@ export default function VoirDireApp() {
       case 6:
         return (
           <EndReport
-            caseInfo={caseInfo}
+            caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
             jurors={jurors}
             responses={responses}
             questions={questions} />

@@ -355,6 +355,41 @@ export async function analyzeJuror(
   return result.analysis;
 }
 
+export async function analyzeJurorsBatch(
+  caseInfo: CaseInfo,
+  jurors: Juror[],
+  responses: JurorResponse[],
+  questions: Array<{ id: number; originalText: string }>
+): Promise<Record<number, string>> {
+  const jurorsWithResponses = jurors.map(j => {
+    const jurorResponses = responses.filter(r => r.jurorNumber === j.number);
+    return {
+      number: j.number,
+      name: j.name,
+      sex: j.sex,
+      race: j.race,
+      birthDate: j.birthDate,
+      occupation: j.occupation,
+      employer: j.employer,
+      lean: j.lean,
+      riskTier: j.riskTier,
+      notes: j.notes || '',
+      responses: jurorResponses.map(r => ({
+        questionText: r.questionId ? (questions.find(q => q.id === r.questionId)?.originalText || null) : null,
+        questionSummary: r.questionSummary || null,
+        responseText: r.responseText,
+        side: r.side,
+        followUps: r.followUps || [],
+      })),
+    };
+  });
+  const result = await fetchJson<{ summaries: Record<number, string> }>(`${API_BASE}/analyze-jurors-batch`, {
+    method: 'POST',
+    body: JSON.stringify({ caseInfo, jurors: jurorsWithResponses }),
+  });
+  return result.summaries;
+}
+
 export async function updateJurorOnServer(caseId: string, jurorNumber: number, updates: Partial<Juror>): Promise<void> {
   const jurors = await fetchJson<DbJuror[]>(`${API_BASE}/cases/${caseId}/jurors`);
   const dbJuror = jurors.find(j => j.number === jurorNumber);

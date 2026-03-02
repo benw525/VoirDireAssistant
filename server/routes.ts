@@ -6,7 +6,7 @@ import { z } from "zod";
 import multer from "multer";
 import { extractTextFromPdf, parseStrikeListWithAI, isAllowedFileType } from "./parseStrikeList";
 import { generateFullVoirDire, refineUserQuestions } from "./generateVoirDire";
-import { analyzeJuror } from "./analyzeJuror";
+import { analyzeJuror, generateBriefSummary } from "./analyzeJuror";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -261,6 +261,64 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Juror analysis error:", err);
       res.status(500).json({ message: err.message || "Failed to analyze juror" });
+    }
+  });
+
+  app.post("/api/analyze-jurors-batch", async (req, res) => {
+    try {
+      const parsed = z.object({
+        caseInfo: z.object({
+          name: z.string(),
+          areaOfLaw: z.string(),
+          summary: z.string(),
+          side: z.string(),
+          favorableTraits: z.array(z.string()),
+          riskTraits: z.array(z.string()),
+        }),
+        jurors: z.array(z.object({
+          number: z.number(),
+          name: z.string().default('Unknown'),
+          sex: z.string().default('U'),
+          race: z.string().default('U'),
+          birthDate: z.string().default('Unknown'),
+          occupation: z.string().default('Unknown'),
+          employer: z.string().default('Unknown'),
+          lean: z.string().default('unknown'),
+          riskTier: z.string().default('unassessed'),
+          notes: z.string().optional().default(''),
+          responses: z.array(z.object({
+            questionText: z.string().nullable(),
+            questionSummary: z.string().nullable(),
+            responseText: z.string(),
+            side: z.string(),
+            followUps: z.array(z.object({ question: z.string(), answer: z.string() })).default([]),
+          })).default([]),
+        })),
+      }).safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
+      }
+
+      const BATCH_SIZE = 5;
+      const summaries: Record<number, string> = {};
+      const jurorsList = parsed.data.jurors;
+
+      for (let i = 0; i < jurorsList.length; i += BATCH_SIZE) {
+        const batch = jurorsList.slice(i, i + BATCH_SIZE);
+        const results = await Promise.all(
+          batch.map(j => generateBriefSummary(
+            parsed.data.caseInfo,
+            { number: j.number, name: j.name, sex: j.sex, race: j.race, birthDate: j.birthDate, occupation: j.occupation, employer: j.employer, lean: j.lean, riskTier: j.riskTier, notes: j.notes },
+            j.responses
+          ))
+        );
+        batch.forEach((j, idx) => { summaries[j.number] = results[idx]; });
+      }
+
+      res.json({ summaries });
+    } catch (err: any) {
+      console.error("Batch juror analysis error:", err);
+      res.status(500).json({ message: err.message || "Failed to analyze jurors" });
     }
   });
 

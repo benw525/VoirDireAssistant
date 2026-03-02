@@ -268,6 +268,68 @@
 
 }
 
+@media print {
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print-controls,
+  .no-print-icon,
+  nav,
+  aside,
+  .lg\\:hidden {
+    display: none !important;
+  }
+
+  #voir-dire-report {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #voir-dire-report .print-content {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  #voir-dire-report .print-header {
+    margin-bottom: 16px !important;
+  }
+
+  #voir-dire-report section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+
+  #voir-dire-report .print-juror-row {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  #voir-dire-report .print-expanded {
+    display: block !important;
+    height: auto !important;
+    opacity: 1 !important;
+    overflow: visible !important;
+  }
+
+  .flex.h-screen {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  .flex-1.overflow-y-auto {
+    overflow: visible !important;
+    height: auto !important;
+  }
+}
+
 @layer base {
   * {
     @apply border-border;

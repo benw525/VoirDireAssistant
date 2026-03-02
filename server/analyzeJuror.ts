@@ -61,6 +61,59 @@ Rules:
 - Do not use headers, bullet points, or markdown formatting — write in flowing prose paragraphs
 - Always frame analysis from the perspective of the attorney's side`;
 
+const BRIEF_SUMMARY_PROMPT = `You are a Juror Risk Assessment Analyst. Given case context and a juror's profile with their voir dire responses, produce a brief 1-2 sentence summary explaining why this juror is classified at their current lean and risk tier. Be specific — reference their occupation, key responses, or demographic factors that drive the classification. Write from the attorney's perspective. No headers, no bullet points — just 1-2 flowing sentences.`;
+
+export async function generateBriefSummary(
+  caseContext: CaseContext,
+  juror: JurorData,
+  responses: ResponseData[]
+): Promise<string> {
+  const responsesText = responses.length > 0
+    ? responses.map((r, i) => {
+        const questionLabel = r.side === 'opposing'
+          ? `Opposing: "${r.questionSummary || 'Unknown'}"`
+          : r.questionText
+            ? `Your Q: "${r.questionText}"`
+            : r.questionSummary
+              ? `New Q: "${r.questionSummary}"`
+              : 'Unknown question';
+        let text = `${i + 1}. ${questionLabel} → "${r.responseText}"`;
+        if (r.followUps && r.followUps.length > 0) {
+          r.followUps.forEach(fu => {
+            text += ` | Follow-up: "${fu.question}" → "${fu.answer}"`;
+          });
+        }
+        return text;
+      }).join('\n')
+    : 'No responses recorded.';
+
+  const userPrompt = `Case: ${caseContext.name} (${caseContext.areaOfLaw}, representing ${caseContext.side})
+Summary: ${caseContext.summary}
+Favorable traits: ${caseContext.favorableTraits.join(', ') || 'None'}
+Risk traits: ${caseContext.riskTraits.join(', ') || 'None'}
+
+Juror #${juror.number}: ${juror.name}, ${juror.occupation} (${juror.sex}/${juror.race}, DOB: ${juror.birthDate})
+Lean: ${juror.lean} | Risk: ${juror.riskTier}
+Notes: ${juror.notes || 'None'}
+
+Responses:
+${responsesText}
+
+Write a 1-2 sentence summary explaining this juror's classification.`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      { role: "system", content: BRIEF_SUMMARY_PROMPT },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.3,
+    max_tokens: 150,
+  });
+
+  return completion.choices[0]?.message?.content || "Unable to generate summary.";
+}
+
 export async function analyzeJuror(
   caseContext: CaseContext,
   juror: JurorData,
