@@ -325,7 +325,8 @@ export default function VoirDireApp() {
             questions={questions}
             responses={responses}
             onRecordResponse={handleRecordResponse}
-            onProceed={() => proceedToPhase(5)} />
+            onProceed={() => proceedToPhase(5)}
+            caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }} />
         );
       case 5:
         return (

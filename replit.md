@@ -26,7 +26,7 @@ A full-stack jury selection assistant application. Helps legal professionals org
 1. Case Initialization (name, area of law, summary, side)
 2. Strike List (upload/paste juror data — AI-powered parsing)
 3. Voir Dire Questions (enter/generate questions)
-4. Response Recording (record juror answers in real-time)
+4. Response Recording (two sub-stages: your side's examination + opposing counsel's examination)
 5. Juror Review (assess leanings and risk tiers)
 6. End Report (final analysis and recommendations)
 

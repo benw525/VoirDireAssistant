@@ -50,8 +50,8 @@ export const responses = pgTable("responses", {
   jurorNumber: integer("juror_number").notNull(),
   questionId: integer("question_id"),
   responseText: text("response_text").notNull(),
-  isOCQ: boolean("is_ocq").notNull().default(false),
-  ocqSummary: text("ocq_summary"),
+  side: text("side").notNull().default("yours"),
+  questionSummary: text("question_summary"),
   timestamp: bigint("timestamp", { mode: "number" }).notNull(),
 });
 

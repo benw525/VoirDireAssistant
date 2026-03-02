@@ -14,8 +14,8 @@ export interface JurorResponse {
   jurorNumber: number;
   questionId: number | null;
   responseText: string;
-  isOCQ: boolean;
-  ocqSummary?: string;
+  side: 'yours' | 'opposing';
+  questionSummary?: string;
   timestamp: number;
 }
 

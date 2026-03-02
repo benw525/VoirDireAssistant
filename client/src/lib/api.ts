@@ -62,8 +62,8 @@ interface DbResponse {
   jurorNumber: number;
   questionId: number | null;
   responseText: string;
-  isOCQ: boolean;
-  ocqSummary: string | null;
+  side: string;
+  questionSummary: string | null;
   timestamp: number;
 }
 
@@ -128,8 +128,8 @@ function dbResponseToResponse(r: DbResponse): JurorResponse {
     jurorNumber: r.jurorNumber,
     questionId: r.questionId,
     responseText: r.responseText,
-    isOCQ: r.isOCQ,
-    ocqSummary: r.ocqSummary || undefined,
+    side: (r.side === 'opposing' ? 'opposing' : 'yours') as JurorResponse['side'],
+    questionSummary: r.questionSummary || undefined,
     timestamp: r.timestamp,
   };
 }
@@ -223,8 +223,8 @@ export async function saveResponse(caseId: string, response: JurorResponse): Pro
       jurorNumber: response.jurorNumber,
       questionId: response.questionId,
       responseText: response.responseText,
-      isOCQ: response.isOCQ,
-      ocqSummary: response.ocqSummary || null,
+      side: response.side,
+      questionSummary: response.questionSummary || null,
       timestamp: response.timestamp,
     }),
   });
