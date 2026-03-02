@@ -43,6 +43,39 @@ export interface VoirDireQuestion {
   locked: boolean;
 }
 
+export interface VoirDireDocument {
+  opening: string;
+  caseOverview: string;
+  questions: Array<{
+    id: number;
+    originalText: string;
+    rephrase: string;
+    followUps: string[];
+    module: string;
+  }>;
+  jurorFollowUps: Array<{
+    jurorNumber: number;
+    jurorName: string;
+    questions: string[];
+    rationale: string;
+  }>;
+  causeFlags: Array<{
+    jurorNumber: number;
+    jurorName: string;
+    riskSummary: string;
+    lockDownQuestions: string[];
+    inabilityQuestion: string;
+  }>;
+  rehabilitationOptions: string[];
+  strikeGuide: Array<{
+    jurorNumber: number;
+    jurorName: string;
+    riskLevel: 'Low' | 'Moderate' | 'High';
+    primaryConcern: string;
+    recommendation: string;
+  }>;
+}
+
 export interface SavedCase {
   id: string;
   savedAt: number;

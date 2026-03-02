@@ -1,4 +1,4 @@
-import type { CaseInfo, Juror, VoirDireQuestion, JurorResponse, SavedCase, AppPhase } from '../types';
+import type { CaseInfo, Juror, VoirDireQuestion, JurorResponse, SavedCase, AppPhase, VoirDireDocument } from '../types';
 
 const API_BASE = '/api';
 
@@ -264,6 +264,48 @@ export async function parseStrikeList(fileOrText: File | string): Promise<Juror[
     riskTier: 'unassessed' as const,
     notes: '',
     needsReview: Boolean(j.needsReview),
+  }));
+}
+
+export async function generateVoirDire(caseInfo: CaseInfo, jurors: Juror[]): Promise<VoirDireDocument> {
+  const jurorSummaries = jurors.map(j => ({
+    number: j.number,
+    name: j.name,
+    sex: j.sex,
+    race: j.race,
+    birthDate: j.birthDate,
+    occupation: j.occupation,
+    employer: j.employer,
+  }));
+  return fetchJson<VoirDireDocument>(`${API_BASE}/generate-voir-dire`, {
+    method: 'POST',
+    body: JSON.stringify({ caseInfo, jurors: jurorSummaries }),
+  });
+}
+
+export async function refineQuestions(rawText: string, caseInfo: CaseInfo, jurors: Juror[]): Promise<VoirDireQuestion[]> {
+  const jurorSummaries = jurors.map(j => ({
+    number: j.number,
+    name: j.name,
+    sex: j.sex,
+    race: j.race,
+    birthDate: j.birthDate,
+    occupation: j.occupation,
+    employer: j.employer,
+  }));
+  const result = await fetchJson<{ questions: Array<{ id: number; originalText: string; rephrase: string; followUps: string[] }> }>(
+    `${API_BASE}/refine-questions`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ rawQuestions: rawText, caseInfo, jurors: jurorSummaries }),
+    }
+  );
+  return result.questions.map(q => ({
+    id: q.id,
+    originalText: q.originalText,
+    rephrase: q.rephrase,
+    followUps: q.followUps,
+    locked: false,
   }));
 }
 

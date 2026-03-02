@@ -5,6 +5,7 @@ import { insertCaseSchema, insertJurorSchema, insertQuestionSchema, insertRespon
 import { z } from "zod";
 import multer from "multer";
 import { extractTextFromPdf, parseStrikeListWithAI, isAllowedFileType } from "./parseStrikeList";
+import { generateFullVoirDire, refineUserQuestions } from "./generateVoirDire";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -155,6 +156,60 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Strike list parse error:", err);
       res.status(500).json({ message: err.message || "Failed to parse strike list" });
+    }
+  });
+
+  // --- AI Voir Dire Generation ---
+  const caseInfoSchema = z.object({
+    areaOfLaw: z.string().min(1),
+    summary: z.string().min(1),
+    side: z.string().min(1),
+    favorableTraits: z.array(z.string()),
+    riskTraits: z.array(z.string()),
+  });
+
+  const jurorSummarySchema = z.object({
+    number: z.number(),
+    name: z.string(),
+    sex: z.string(),
+    race: z.string(),
+    birthDate: z.string(),
+    occupation: z.string(),
+    employer: z.string(),
+  });
+
+  app.post("/api/generate-voir-dire", async (req, res) => {
+    try {
+      const parsed = z.object({
+        caseInfo: caseInfoSchema,
+        jurors: z.array(jurorSummarySchema),
+      }).safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
+      }
+      const result = await generateFullVoirDire(parsed.data.caseInfo, parsed.data.jurors);
+      res.json(result);
+    } catch (err: any) {
+      console.error("Voir dire generation error:", err);
+      res.status(500).json({ message: err.message || "Failed to generate voir dire" });
+    }
+  });
+
+  app.post("/api/refine-questions", async (req, res) => {
+    try {
+      const parsed = z.object({
+        rawQuestions: z.string().min(1),
+        caseInfo: caseInfoSchema,
+        jurors: z.array(jurorSummarySchema).default([]),
+      }).safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
+      }
+      const result = await refineUserQuestions(parsed.data.rawQuestions, parsed.data.caseInfo, parsed.data.jurors);
+      res.json({ questions: result });
+    } catch (err: any) {
+      console.error("Question refinement error:", err);
+      res.status(500).json({ message: err.message || "Failed to refine questions" });
     }
   });
 

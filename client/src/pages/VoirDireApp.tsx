@@ -301,7 +301,8 @@ export default function VoirDireApp() {
             locked={questionsLocked}
             onLockQuestions={handleLockQuestions}
             onProceed={() => proceedToPhase(4)}
-            generateSampleQuestions={generateSampleQuestions} />
+            caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
+            jurors={jurors} />
         );
       case 4:
         return (

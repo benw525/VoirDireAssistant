@@ -7,7 +7,7 @@ A full-stack jury selection assistant application. Helps legal professionals org
 - **Frontend**: React + TypeScript with Tailwind CSS, wouter routing, framer-motion animations
 - **Backend**: Express.js server with REST API
 - **Database**: PostgreSQL with Drizzle ORM
-- **AI**: OpenAI via Replit AI Integrations (no API key needed) for strike list document parsing
+- **AI**: OpenAI via Replit AI Integrations (no API key needed) for strike list parsing + voir dire generation
 - **Build**: Vite for frontend, tsx for server
 
 ## Key Files
@@ -15,6 +15,7 @@ A full-stack jury selection assistant application. Helps legal professionals org
 - `server/routes.ts` — API routes (all prefixed with `/api`)
 - `server/storage.ts` — Database storage layer implementing IStorage interface
 - `server/parseStrikeList.ts` — AI-powered strike list document parser (OpenAI + pdf-parse)
+- `server/generateVoirDire.ts` — AI voir dire strategy agent (full generation + question refinement)
 - `client/src/pages/VoirDireApp.tsx` — Main application component with phase-based workflow
 - `client/src/lib/api.ts` — Frontend API client with type conversions
 - `client/src/types/index.ts` — Frontend TypeScript types
@@ -39,6 +40,8 @@ A full-stack jury selection assistant application. Helps legal professionals org
 - `PATCH /api/questions/:id` — Update single question
 - `GET/POST /api/cases/:caseId/responses` — Response operations
 - `POST /api/parse-strike-list` — AI document parsing (multipart file or text body)
+- `POST /api/generate-voir-dire` — AI full voir dire generation (caseInfo + jurors → strategic document)
+- `POST /api/refine-questions` — AI question refinement (raw questions + case context → enhanced questions)
 
 ## Database Tables
 - `cases` — Case metadata (name, area of law, summary, side, traits, phase state)
