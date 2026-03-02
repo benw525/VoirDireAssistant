@@ -35,7 +35,7 @@ export function StrikeList({
   const handleAIParse = useCallback(async (fileOrText: File | string) => {
     setIsParsing(true);
     setError('');
-    setStatusMessage('Analyzing document with AI...');
+    setStatusMessage('Building strike list...');
 
     try {
       const parsedJurors = await parseStrikeList(fileOrText);
