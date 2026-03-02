@@ -263,6 +263,7 @@ export async function parseStrikeList(fileOrText: File | string): Promise<Juror[
     lean: 'unknown' as const,
     riskTier: 'unassessed' as const,
     notes: '',
+    needsReview: Boolean(j.needsReview),
   }));
 }
 

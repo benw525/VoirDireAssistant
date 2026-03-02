@@ -1,14 +1,17 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users,
-  UploadCloud,
   ArrowRight,
   AlertCircle,
   Database,
   FileUp,
   Brain,
-  Sparkles
+  Sparkles,
+  AlertTriangle,
+  Check,
+  X,
+  Pencil
 } from 'lucide-react';
 import { Juror } from '../../types';
 import { useDropzone } from 'react-dropzone';
@@ -19,6 +22,77 @@ interface StrikeListProps {
   onJurorsLoaded: (jurors: Juror[]) => void;
   onProceed: () => void;
   generateSampleJurors: () => Juror[];
+}
+
+type EditableField = 'name' | 'sex' | 'race' | 'birthDate' | 'occupation' | 'employer';
+
+interface EditingCell {
+  jurorNumber: number;
+  field: EditableField;
+}
+
+function EditableCell({ value, onSave, isIllegible, fieldWidth }: {
+  value: string;
+  onSave: (newValue: string) => void;
+  isIllegible: boolean;
+  fieldWidth?: string;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleSave = () => {
+    onSave(editValue);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditValue(value);
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleSave();
+    if (e.key === 'Escape') handleCancel();
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          ref={inputRef}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={handleSave}
+          className={`px-1.5 py-0.5 border border-amber-400 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 ${fieldWidth || 'w-full'}`}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={() => {
+        setEditValue(value);
+        setIsEditing(true);
+      }}
+      className={`cursor-pointer group flex items-center gap-1 rounded px-1 -mx-1 transition-colors hover:bg-amber-50 ${
+        isIllegible ? 'text-rose-600 font-medium bg-rose-50 hover:bg-rose-100' : ''
+      }`}
+      title="Click to edit"
+    >
+      <span className="truncate">{value}</span>
+      <Pencil className="w-3 h-3 text-slate-300 group-hover:text-amber-500 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+    </div>
+  );
 }
 
 export function StrikeList({
@@ -74,6 +148,20 @@ export function StrikeList({
     onJurorsLoaded(generateSampleJurors());
   };
 
+  const updateJurorField = (jurorNumber: number, field: EditableField, value: string) => {
+    const updated = jurors.map(j => {
+      if (j.number !== jurorNumber) return j;
+      const updatedJuror = { ...j, [field]: value };
+      const hasIllegible = [updatedJuror.name, updatedJuror.sex, updatedJuror.race, updatedJuror.birthDate, updatedJuror.occupation, updatedJuror.employer]
+        .some(v => v === 'Illegible' || v.includes('(partial)'));
+      return { ...updatedJuror, needsReview: hasIllegible };
+    });
+    onJurorsLoaded(updated);
+  };
+
+  const reviewCount = jurors.filter((j: any) => j.needsReview).length;
+  const isIllegibleValue = (val: string) => val === 'Illegible' || val.includes('(partial)');
+
   return (
     <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 h-full flex flex-col">
       <div className="mb-6 flex justify-between items-end shrink-0">
@@ -87,24 +175,27 @@ export function StrikeList({
           </p>
         </div>
         {jurors.length > 0 &&
-        <div className="bg-slate-100 px-4 py-2 rounded-lg border border-slate-200 flex items-center">
-            <Users className="w-5 h-5 text-slate-500 mr-2" />
-            <span className="font-bold text-slate-900" data-testid="text-juror-count">{jurors.length}</span>
-            <span className="text-slate-600 ml-1 text-sm">Jurors Loaded</span>
+        <div className="flex items-center gap-3">
+            {reviewCount > 0 && (
+              <div className="bg-amber-50 px-3 py-2 rounded-lg border border-amber-200 flex items-center">
+                <AlertTriangle className="w-4 h-4 text-amber-500 mr-1.5" />
+                <span className="font-bold text-amber-700 text-sm" data-testid="text-review-count">{reviewCount}</span>
+                <span className="text-amber-600 ml-1 text-xs">need review</span>
+              </div>
+            )}
+            <div className="bg-slate-100 px-4 py-2 rounded-lg border border-slate-200 flex items-center">
+              <Users className="w-5 h-5 text-slate-500 mr-2" />
+              <span className="font-bold text-slate-900" data-testid="text-juror-count">{jurors.length}</span>
+              <span className="text-slate-600 ml-1 text-sm">Jurors Loaded</span>
+            </div>
           </div>
         }
       </div>
 
       {jurors.length === 0 ?
       <motion.div
-        initial={{
-          opacity: 0,
-          y: 20
-        }}
-        animate={{
-          opacity: 1,
-          y: 0
-        }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col">
 
           <div className="bg-gradient-to-r from-violet-50 to-amber-50 border-b border-slate-200 p-4 flex items-start space-x-3">
@@ -195,7 +286,7 @@ export function StrikeList({
                 {isParsing ?
               <>
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-                    Analyzing...
+                    Building...
                   </> :
               <>
                     <Brain className="w-5 h-5 mr-2" />
@@ -208,55 +299,100 @@ export function StrikeList({
         </motion.div> :
 
       <motion.div
-        initial={{
-          opacity: 0
-        }}
-        animate={{
-          opacity: 1
-        }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         className="flex-1 flex flex-col min-h-0">
+
+          {reviewCount > 0 && (
+            <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 text-sm">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-amber-800">{reviewCount} juror{reviewCount > 1 ? 's' : ''} flagged for review.</span>
+                <span className="text-amber-700 ml-1">Fields highlighted in red could not be read from the document. Click any cell to edit and correct the data.</span>
+              </div>
+            </div>
+          )}
 
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex-1 flex flex-col">
             <div className="overflow-x-auto flex-1">
               <table className="w-full text-sm text-left" data-testid="table-jurors">
                 <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                   <tr>
-                    <th className="px-4 py-3 font-semibold w-16">#</th>
+                    <th className="px-4 py-3 font-semibold w-12">#</th>
                     <th className="px-4 py-3 font-semibold">Name</th>
-                    <th className="px-4 py-3 font-semibold w-16">Sex</th>
-                    <th className="px-4 py-3 font-semibold w-16">Race</th>
-                    <th className="px-4 py-3 font-semibold">DOB</th>
+                    <th className="px-4 py-3 font-semibold w-14">Sex</th>
+                    <th className="px-4 py-3 font-semibold w-14">Race</th>
+                    <th className="px-4 py-3 font-semibold w-28">DOB</th>
                     <th className="px-4 py-3 font-semibold">Occupation</th>
                     <th className="px-4 py-3 font-semibold">Employer</th>
+                    <th className="px-4 py-3 font-semibold w-10"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {jurors.map((juror) =>
-                <tr
-                  key={juror.number}
-                  data-testid={`row-juror-${juror.number}`}
-                  className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 font-bold text-slate-900">
-                        {juror.number}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-700">
-                        {juror.name}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{juror.sex}</td>
-                      <td className="px-4 py-3 text-slate-600">{juror.race}</td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {juror.birthDate}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {juror.occupation}
-                      </td>
-                      <td
-                    className="px-4 py-3 text-slate-600 truncate max-w-[150px]"
-                    title={juror.employer}>
-                        {juror.employer}
-                      </td>
-                    </tr>
-                )}
+                  {jurors.map((juror) => {
+                    const needsReview = (juror as any).needsReview;
+                    return (
+                      <tr
+                        key={juror.number}
+                        data-testid={`row-juror-${juror.number}`}
+                        className={`transition-colors ${needsReview ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-slate-50'}`}
+                      >
+                        <td className="px-4 py-2.5 font-bold text-slate-900">
+                          {juror.number}
+                        </td>
+                        <td className="px-4 py-2.5 font-medium text-slate-700">
+                          <EditableCell
+                            value={juror.name}
+                            onSave={(v) => updateJurorField(juror.number, 'name', v)}
+                            isIllegible={isIllegibleValue(juror.name)}
+                          />
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-600">
+                          <EditableCell
+                            value={juror.sex}
+                            onSave={(v) => updateJurorField(juror.number, 'sex', v)}
+                            isIllegible={isIllegibleValue(juror.sex)}
+                            fieldWidth="w-12"
+                          />
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-600">
+                          <EditableCell
+                            value={juror.race}
+                            onSave={(v) => updateJurorField(juror.number, 'race', v)}
+                            isIllegible={isIllegibleValue(juror.race)}
+                            fieldWidth="w-12"
+                          />
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-600">
+                          <EditableCell
+                            value={juror.birthDate}
+                            onSave={(v) => updateJurorField(juror.number, 'birthDate', v)}
+                            isIllegible={isIllegibleValue(juror.birthDate)}
+                            fieldWidth="w-24"
+                          />
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-600">
+                          <EditableCell
+                            value={juror.occupation}
+                            onSave={(v) => updateJurorField(juror.number, 'occupation', v)}
+                            isIllegible={isIllegibleValue(juror.occupation)}
+                          />
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-600">
+                          <EditableCell
+                            value={juror.employer}
+                            onSave={(v) => updateJurorField(juror.number, 'employer', v)}
+                            isIllegible={isIllegibleValue(juror.employer)}
+                          />
+                        </td>
+                        <td className="px-2 py-2.5">
+                          {needsReview && (
+                            <AlertTriangle className="w-4 h-4 text-amber-500" title="This juror has fields that need review" />
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

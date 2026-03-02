@@ -16,6 +16,7 @@ export interface ParsedJuror {
   birthDate: string;
   occupation: string;
   employer: string;
+  needsReview: boolean;
 }
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -42,28 +43,39 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
 }
 
 export async function parseStrikeListWithAI(rawText: string): Promise<ParsedJuror[]> {
-  const systemPrompt = `You are a legal document parsing assistant specializing in jury strike lists. 
+  const systemPrompt = `You are a legal document parsing assistant specializing in jury strike lists from court systems.
 Your job is to extract structured juror data from court-provided strike list documents.
 
 The documents may come in many formats — tables, lists, paragraphs, or mixed layouts.
+These documents are often generated from older court computer systems and may contain OCR artifacts, garbled characters, or corrupted text from poor PDF encoding.
+
 Extract every juror you can find and return a JSON object with a "jurors" key containing an array.
 
 For each juror, extract these fields:
 - number: The juror's seat or panel number (integer). If not explicitly listed, assign sequential numbers starting from 1.
-- name: Full name (string)
-- address: Street address (string). Use "Unknown" if not provided.
-- cityStateZip: City, state, and ZIP code (string). Use "Unknown" if not provided.
-- sex: Sex/gender, abbreviated as M or F (string). Use "U" if not provided.
-- race: Race/ethnicity, abbreviated (W=White, B=Black, H=Hispanic, A=Asian, O=Other) (string). Use "U" if not provided.
-- birthDate: Date of birth in any recognizable format (string). If only an age is given, note it as "Age: X". Use "Unknown" if not provided.
-- occupation: Current occupation (string). Use "Unknown" if not provided.
-- employer: Current employer (string). Use "Unknown" if not provided.
+- name: Full name (string). Format as "LASTNAME FIRSTNAME MIDDLE" as shown in court documents.
+- address: Street address (string). Use "Illegible" if corrupted/unreadable.
+- cityStateZip: City, state, and ZIP code (string). Use "Illegible" if corrupted/unreadable.
+- sex: Sex/gender, abbreviated as M or F (string). Use "U" if not provided or unreadable.
+- race: Race/ethnicity, abbreviated (W=White, B=Black, H=Hispanic, A=Asian, O=Other) (string). Use "U" if not provided or unreadable.
+- birthDate: Date of birth in MM/DD/YYYY format (string). Use "Illegible" if corrupted/unreadable.
+- occupation: Current occupation (string). Use "Illegible" if corrupted/unreadable.
+- employer: Current employer (string). Use "Illegible" if corrupted/unreadable.
+- needsReview: Boolean. Set to true if ANY field for this juror was garbled, corrupted, or uncertain. Set to false if all fields were clearly readable.
 
-Important rules:
-- Extract ALL jurors found in the document, even if some fields are missing.
-- Do not invent or fabricate data. If a field is not present in the source text, use "Unknown" or "U" as appropriate.
-- Preserve the original text for names, addresses, and employers — do not paraphrase.
-- If the document contains header rows, footnotes, or non-juror text, ignore those.
+CRITICAL rules for handling corrupted/garbled text:
+- Court PDFs often have characters like ~, §, ¥, !, or random symbols replacing real text. These are OCR/encoding errors.
+- When you see garbled text (e.g. "!~o/~l" or "AiI~ ~iu§fi~c§~~~o"), mark those specific fields as "Illegible" and set needsReview to true.
+- DO NOT output the garbled characters as the field value. Use "Illegible" instead.
+- Still extract whatever IS readable from that juror's entry. For example, if the name is garbled but the address, sex, race, and birthdate are clear, include those clear values.
+- Use surrounding context to help: if you can see a partial name fragment within garbled text (e.g. "SHAWN" within "i¥~k~~:sHAWN"), include it as the best available value (e.g. "SHAWN (partial)").
+- Every juror entry in the document must be included, even if most fields are illegible.
+
+Other rules:
+- Extract ALL jurors found in the document, even if some fields are missing or illegible.
+- Do not invent or fabricate data. If a field is not present in the source text, use "Unknown". If present but unreadable, use "Illegible".
+- Preserve the original text for names, addresses, and employers when readable — do not paraphrase.
+- If the document contains header rows, page headers, footnotes, or non-juror text, ignore those.
 - Return ONLY a JSON object in this exact format: { "jurors": [ { ... }, { ... } ] }`;
 
   const response = await openai.chat.completions.create({
@@ -93,18 +105,29 @@ Important rules:
 
   return jurorArray.map((j: any, index: number) => {
     const name = j.name ? String(j.name) : "Unknown";
-    if (name === "Unknown") return null;
+    const address = String(j.address || "Unknown");
+    const cityStateZip = String(j.cityStateZip || j.city_state_zip || j.cityState || "Unknown");
+    const sex = String(j.sex || j.gender || "U").charAt(0).toUpperCase();
+    const race = String(j.race || j.ethnicity || "U").charAt(0).toUpperCase();
+    const birthDate = String(j.birthDate || j.birth_date || j.dob || j.dateOfBirth || (j.age ? `Age: ${j.age}` : "Unknown"));
+    const occupation = String(j.occupation || j.job || "Unknown");
+    const employer = String(j.employer || j.company || "Unknown");
+
+    const hasIllegible = [name, address, cityStateZip, sex, race, birthDate, occupation, employer].some(
+      v => v === "Illegible" || v.includes("(partial)")
+    );
 
     return {
       number: typeof j.number === "number" ? j.number : index + 1,
       name,
-      address: String(j.address || "Unknown"),
-      cityStateZip: String(j.cityStateZip || j.city_state_zip || j.cityState || "Unknown"),
-      sex: String(j.sex || j.gender || "U").charAt(0).toUpperCase(),
-      race: String(j.race || j.ethnicity || "U").charAt(0).toUpperCase(),
-      birthDate: String(j.birthDate || j.birth_date || j.dob || j.dateOfBirth || (j.age ? `Age: ${j.age}` : "Unknown")),
-      occupation: String(j.occupation || j.job || "Unknown"),
-      employer: String(j.employer || j.company || "Unknown"),
+      address,
+      cityStateZip,
+      sex,
+      race,
+      birthDate,
+      occupation,
+      employer,
+      needsReview: Boolean(j.needsReview) || hasIllegible,
     };
-  }).filter(Boolean) as ParsedJuror[];
+  }) as ParsedJuror[];
 }
