@@ -109,9 +109,13 @@ export function ResponseRecording({
   const yourResponses = responses.filter((r) => r.side === 'yours');
   const opposingResponses = responses.filter((r) => r.side === 'opposing');
 
+  const selectedQuestion = stage === 'yours' && questionNum
+    ? questions.find((q) => q.id === parseInt(questionNum))
+    : null;
+
   return (
     <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 h-full flex flex-col">
-      <div className="mb-6 flex justify-between items-end shrink-0">
+      <div className="mb-4 flex justify-between items-end shrink-0">
         <div>
           <h2 className="text-2xl font-bold text-slate-900" data-testid="text-phase-title">
             Phase 4: Record Responses
@@ -128,6 +132,56 @@ export function ResponseRecording({
           Review Board <ArrowRight className="w-4 h-4 ml-2" />
         </button>
       </div>
+
+      <AnimatePresence mode="wait">
+        {selectedQuestion ? (
+          <motion.div
+            key={selectedQuestion.id}
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.15 }}
+            className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-4 shrink-0"
+            data-testid="card-active-question"
+          >
+            <div className="flex items-start gap-3">
+              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-900 text-white font-bold text-sm shrink-0">
+                Q{selectedQuestion.id}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-slate-900 text-sm">{selectedQuestion.originalText}</p>
+                {selectedQuestion.rephrase && (
+                  <p className="text-xs text-amber-700 mt-1 italic">Rephrase: {selectedQuestion.rephrase}</p>
+                )}
+                {selectedQuestion.followUps.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {selectedQuestion.followUps.map((fu, i) => (
+                      <span key={i} className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
+                        {fu}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="no-question"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mb-4 bg-slate-50 border border-slate-200 rounded-xl p-3 shrink-0"
+            data-testid="card-no-question"
+          >
+            <p className="text-sm text-slate-400 text-center">
+              {stage === 'yours'
+                ? 'Enter a question number to see its full text here.'
+                : `Recording ${opposingSideLabel.toLowerCase()} examination responses.`}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
         <div className="lg:col-span-1 flex flex-col space-y-4">
