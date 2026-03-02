@@ -212,6 +212,19 @@ export default function VoirDireApp() {
     }
   };
 
+  const handleUnlockQuestions = async () => {
+    setQuestionsLocked(false);
+    setQuestions([]);
+    if (activeCaseId) {
+      try {
+        await api.updateCase(activeCaseId, { questionsLocked: false });
+        await api.saveQuestions(activeCaseId, []);
+      } catch (err) {
+        console.error('Failed to unlock questions:', err);
+      }
+    }
+  };
+
   const handleRecordResponse = async (
     response: Omit<JurorResponse, 'id' | 'timestamp'>
   ) => {
@@ -300,6 +313,7 @@ export default function VoirDireApp() {
             onQuestionsProcessed={handleQuestionsProcessed}
             locked={questionsLocked}
             onLockQuestions={handleLockQuestions}
+            onUnlockQuestions={handleUnlockQuestions}
             onProceed={() => proceedToPhase(4)}
             caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
             jurors={jurors} />

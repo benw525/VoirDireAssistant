@@ -27,6 +27,7 @@ interface VoirDireQuestionsProps {
   questions: VoirDireQuestion[];
   onQuestionsProcessed: (questions: VoirDireQuestion[]) => void;
   onLockQuestions: () => void;
+  onUnlockQuestions: () => void;
   locked: boolean;
   onProceed: () => void;
   caseInfo: CaseInfo;
@@ -37,6 +38,7 @@ export function VoirDireQuestions({
   questions,
   onQuestionsProcessed,
   onLockQuestions,
+  onUnlockQuestions,
   locked,
   onProceed,
   caseInfo,
@@ -626,10 +628,17 @@ export function VoirDireQuestions({
               </>
             ) : (
               <>
-                <div className="text-sm text-slate-500 flex items-center">
-                  <Lock className="w-4 h-4 mr-2" />
-                  Questions locked for recording
-                </div>
+                <button
+                  onClick={() => {
+                    onUnlockQuestions();
+                    setVoirDireDoc(null);
+                  }}
+                  data-testid="button-unlock-questions"
+                  className="inline-flex items-center px-4 py-2 text-slate-600 hover:text-slate-900 font-medium text-sm border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+                >
+                  <Unlock className="w-4 h-4 mr-2" />
+                  Unlock & Restart
+                </button>
                 <button
                   onClick={onProceed}
                   data-testid="button-proceed-recording"
