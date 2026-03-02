@@ -22,6 +22,7 @@ interface ResponseRecordingProps {
   questions: VoirDireQuestion[];
   responses: JurorResponse[];
   onRecordResponse: (response: Omit<JurorResponse, 'id' | 'timestamp'>) => void;
+  onAddFollowUp: (responseId: string, followUp: {question: string, answer: string}) => void;
   onProceed: () => void;
   caseInfo: CaseInfo;
 }
@@ -33,6 +34,7 @@ export function ResponseRecording({
   questions,
   responses,
   onRecordResponse,
+  onAddFollowUp,
   onProceed,
   caseInfo,
 }: ResponseRecordingProps) {
@@ -116,12 +118,9 @@ export function ResponseRecording({
 
   const handleFollowUpSubmit = (parentResponse: JurorResponse) => {
     if (!followUpQuestion.trim() || !followUpAnswer.trim()) return;
-    onRecordResponse({
-      jurorNumber: parentResponse.jurorNumber,
-      questionId: parentResponse.questionId,
-      responseText: followUpAnswer.trim(),
-      side: parentResponse.side,
-      questionSummary: `Follow-up: ${followUpQuestion.trim()}`,
+    onAddFollowUp(parentResponse.id, {
+      question: followUpQuestion.trim(),
+      answer: followUpAnswer.trim(),
     });
     setFollowUpQuestion('');
     setFollowUpAnswer('');
@@ -496,6 +495,22 @@ export function ResponseRecording({
                           <p className="text-sm text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-100">
                             "{response.responseText}"
                           </p>
+
+                          {response.followUps && response.followUps.length > 0 && (
+                            <div className="mt-2 space-y-2">
+                              {response.followUps.map((fu, idx) => (
+                                <div key={idx} className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                  <div className="text-xs font-semibold text-slate-500 mb-1 flex items-center">
+                                    <CornerDownRight className="w-3 h-3 mr-1" />
+                                    {fu.question}
+                                  </div>
+                                  <p className="text-sm text-slate-700">
+                                    "{fu.answer}"
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 

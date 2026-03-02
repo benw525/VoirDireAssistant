@@ -64,6 +64,7 @@ interface DbResponse {
   responseText: string;
   side: string;
   questionSummary: string | null;
+  followUps: Array<{question: string, answer: string}>;
   timestamp: number;
 }
 
@@ -130,6 +131,7 @@ function dbResponseToResponse(r: DbResponse): JurorResponse {
     responseText: r.responseText,
     side: (r.side === 'opposing' ? 'opposing' : 'yours') as JurorResponse['side'],
     questionSummary: r.questionSummary || undefined,
+    followUps: r.followUps && r.followUps.length > 0 ? r.followUps : undefined,
     timestamp: r.timestamp,
   };
 }
@@ -228,6 +230,14 @@ export async function saveResponse(caseId: string, response: JurorResponse): Pro
       timestamp: response.timestamp,
     }),
   });
+}
+
+export async function addFollowUp(responseId: string, followUp: {question: string, answer: string}): Promise<JurorResponse> {
+  const result = await fetchJson<DbResponse>(`${API_BASE}/responses/${responseId}/follow-ups`, {
+    method: 'POST',
+    body: JSON.stringify(followUp),
+  });
+  return dbResponseToResponse(result);
 }
 
 export async function parseStrikeList(fileOrText: File | string): Promise<Juror[]> {

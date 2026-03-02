@@ -52,6 +52,7 @@ export const responses = pgTable("responses", {
   responseText: text("response_text").notNull(),
   side: text("side").notNull().default("yours"),
   questionSummary: text("question_summary"),
+  followUps: jsonb("follow_ups").$type<Array<{question: string, answer: string}>>().notNull().default([]),
   timestamp: bigint("timestamp", { mode: "number" }).notNull(),
 });
 

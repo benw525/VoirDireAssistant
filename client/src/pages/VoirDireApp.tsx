@@ -268,6 +268,20 @@ export default function VoirDireApp() {
     }
   };
 
+  const handleAddFollowUp = async (responseId: string, followUp: {question: string, answer: string}) => {
+    setResponses(prev =>
+      prev.map(r => r.id === responseId
+        ? { ...r, followUps: [...(r.followUps || []), followUp] }
+        : r
+      )
+    );
+    try {
+      await api.addFollowUp(responseId, followUp);
+    } catch (err) {
+      console.error('Failed to save follow-up:', err);
+    }
+  };
+
   const handleUpdateJuror = async (jurorNumber: number, updates: Partial<Juror>) => {
     setJurors(prev =>
       prev.map(j => j.number === jurorNumber ? { ...j, ...updates } : j)
@@ -325,6 +339,7 @@ export default function VoirDireApp() {
             questions={questions}
             responses={responses}
             onRecordResponse={handleRecordResponse}
+            onAddFollowUp={handleAddFollowUp}
             onProceed={() => proceedToPhase(5)}
             caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }} />
         );

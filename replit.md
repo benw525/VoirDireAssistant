@@ -39,6 +39,7 @@ A full-stack jury selection assistant application. Helps legal professionals org
 - `GET/POST/DELETE /api/cases/:caseId/questions` — Question CRUD
 - `PATCH /api/questions/:id` — Update single question
 - `GET/POST /api/cases/:caseId/responses` — Response operations
+- `POST /api/responses/:id/follow-ups` — Append follow-up Q&A to existing response
 - `POST /api/parse-strike-list` — AI document parsing (multipart file or text body)
 - `POST /api/generate-voir-dire` — AI full voir dire generation (caseInfo + jurors → strategic document)
 - `POST /api/refine-questions` — AI question refinement (raw questions + case context → enhanced questions)
@@ -47,7 +48,7 @@ A full-stack jury selection assistant application. Helps legal professionals org
 - `cases` — Case metadata (name, area of law, summary, side, traits, phase state)
 - `jurors` — Juror demographic data per case
 - `questions` — Voir dire questions per case
-- `responses` — Recorded juror responses per case
+- `responses` — Recorded juror responses per case (includes `follow_ups` JSONB for nested follow-up Q&A pairs)
 
 ## Dependencies
 - `react-dropzone` — File drag-and-drop for strike list upload

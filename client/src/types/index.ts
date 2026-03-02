@@ -16,6 +16,7 @@ export interface JurorResponse {
   responseText: string;
   side: 'yours' | 'opposing';
   questionSummary?: string;
+  followUps?: Array<{question: string, answer: string}>;
   timestamp: number;
 }
 

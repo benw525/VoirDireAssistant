@@ -35,6 +35,7 @@ export interface IStorage {
 
   getResponsesByCase(caseId: string): Promise<JurorResponse[]>;
   createResponse(data: InsertResponse): Promise<JurorResponse>;
+  addFollowUpToResponse(responseId: string, followUp: {question: string, answer: string}): Promise<JurorResponse | undefined>;
   deleteResponsesByCase(caseId: string): Promise<void>;
 }
 
@@ -114,6 +115,17 @@ export class DatabaseStorage implements IStorage {
 
   async createResponse(data: InsertResponse): Promise<JurorResponse> {
     const [result] = await db.insert(responses).values(data).returning();
+    return result;
+  }
+
+  async addFollowUpToResponse(responseId: string, followUp: {question: string, answer: string}): Promise<JurorResponse | undefined> {
+    const [existing] = await db.select().from(responses).where(eq(responses.id, responseId));
+    if (!existing) return undefined;
+    const currentFollowUps = existing.followUps || [];
+    const [result] = await db.update(responses)
+      .set({ followUps: [...currentFollowUps, followUp] })
+      .where(eq(responses.id, responseId))
+      .returning();
     return result;
   }
 

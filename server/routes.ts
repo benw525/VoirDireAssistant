@@ -126,6 +126,14 @@ export async function registerRoutes(
     res.status(201).json(response);
   });
 
+  app.post("/api/responses/:id/follow-ups", async (req, res) => {
+    const { question, answer } = req.body;
+    if (!question || !answer) return res.status(400).json({ message: "question and answer are required" });
+    const updated = await storage.addFollowUpToResponse(req.params.id, { question, answer });
+    if (!updated) return res.status(404).json({ message: "Response not found" });
+    res.json(updated);
+  });
+
   // --- AI Strike List Parsing ---
   app.post("/api/parse-strike-list", upload.single("file"), async (req, res) => {
     try {
