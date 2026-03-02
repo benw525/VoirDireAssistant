@@ -367,7 +367,10 @@ export function JurorReview({
                     <div className="text-xs font-bold text-rose-600 mb-1">
                               Opposing: {response.questionSummary}
                             </div> :
-
+                    response.questionId === null && response.questionSummary ?
+                    <div className="text-xs font-bold text-emerald-600 mb-1">
+                              New: {response.questionSummary}
+                            </div> :
                     <div className="text-xs font-bold text-slate-600 mb-1">
                               Q{response.questionId}:{' '}
                               {

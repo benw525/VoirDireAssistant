@@ -42,6 +42,8 @@ export function ResponseRecording({
   const [jurorNum, setJurorNum] = useState('');
   const [questionNum, setQuestionNum] = useState('');
   const [questionSummary, setQuestionSummary] = useState('');
+  const [newQuestionText, setNewQuestionText] = useState('');
+  const [isNewQuestion, setIsNewQuestion] = useState(false);
   const [responseText, setResponseText] = useState('');
   const [error, setError] = useState('');
   const [expandedResponseId, setExpandedResponseId] = useState<string | null>(null);
@@ -68,21 +70,39 @@ export function ResponseRecording({
     }
 
     if (stage === 'yours') {
-      const qNum = parseInt(questionNum);
-      if (isNaN(qNum) || !questions.find((q) => q.id === qNum)) {
-        setError(`Question #${questionNum} not found.`);
-        return;
+      if (isNewQuestion) {
+        if (!newQuestionText.trim()) {
+          setError('Please enter the question you asked.');
+          return;
+        }
+        if (!responseText.trim()) {
+          setError('Response text is required.');
+          return;
+        }
+        onRecordResponse({
+          jurorNumber: jNum,
+          questionId: null,
+          responseText: responseText.trim(),
+          side: 'yours',
+          questionSummary: newQuestionText.trim(),
+        });
+      } else {
+        const qNum = parseInt(questionNum);
+        if (isNaN(qNum) || !questions.find((q) => q.id === qNum)) {
+          setError(`Question #${questionNum} not found.`);
+          return;
+        }
+        if (!responseText.trim()) {
+          setError('Response text is required.');
+          return;
+        }
+        onRecordResponse({
+          jurorNumber: jNum,
+          questionId: qNum,
+          responseText: responseText.trim(),
+          side: 'yours',
+        });
       }
-      if (!responseText.trim()) {
-        setError('Response text is required.');
-        return;
-      }
-      onRecordResponse({
-        jurorNumber: jNum,
-        questionId: qNum,
-        responseText: responseText.trim(),
-        side: 'yours',
-      });
     } else {
       if (!questionSummary.trim()) {
         setError('Please summarize what opposing counsel asked.');
@@ -104,6 +124,8 @@ export function ResponseRecording({
     setJurorNum('');
     setQuestionNum('');
     setQuestionSummary('');
+    setNewQuestionText('');
+    setIsNewQuestion(false);
     setResponseText('');
     jurorInputRef.current?.focus();
   };
@@ -142,7 +164,7 @@ export function ResponseRecording({
   const yourResponses = responses.filter((r) => r.side === 'yours');
   const opposingResponses = responses.filter((r) => r.side === 'opposing');
 
-  const selectedQuestion = stage === 'yours' && questionNum
+  const selectedQuestion = stage === 'yours' && !isNewQuestion && questionNum
     ? questions.find((q) => q.id === parseInt(questionNum))
     : null;
 
@@ -196,6 +218,25 @@ export function ResponseRecording({
                   </div>
                 )}
               </div>
+            </div>
+          </motion.div>
+        ) : isNewQuestion && stage === 'yours' ? (
+          <motion.div
+            key="new-question"
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.15 }}
+            className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4 shrink-0"
+            data-testid="card-new-question"
+          >
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-600 text-white font-bold text-xs shrink-0">
+                NEW
+              </span>
+              <p className="font-medium text-emerald-800 text-sm">
+                {newQuestionText.trim() || 'Enter your unplanned question below.'}
+              </p>
             </div>
           </motion.div>
         ) : (
@@ -256,36 +297,91 @@ export function ResponseRecording({
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 {stage === 'yours' ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
-                        Juror #
-                      </label>
-                      <input
-                        ref={jurorInputRef}
-                        type="number"
-                        value={jurorNum}
-                        onChange={(e) => setJurorNum(e.target.value)}
-                        data-testid="input-juror-number"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-500 bg-slate-50 text-lg font-bold"
-                        placeholder="e.g. 14"
-                        required
-                      />
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsNewQuestion(!isNewQuestion);
+                          setQuestionNum('');
+                          setNewQuestionText('');
+                          setError('');
+                        }}
+                        data-testid="button-toggle-new-question"
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                          isNewQuestion
+                            ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
+                            : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200'
+                        }`}
+                      >
+                        {isNewQuestion ? '← Back to Prepared' : '+ New Question'}
+                      </button>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
-                        Question #
-                      </label>
-                      <input
-                        type="number"
-                        value={questionNum}
-                        onChange={(e) => setQuestionNum(e.target.value)}
-                        data-testid="input-question-number"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-500 bg-slate-50 text-lg font-bold"
-                        placeholder="e.g. 2"
-                        required
-                      />
-                    </div>
+                    {isNewQuestion ? (
+                      <>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                            Juror #
+                          </label>
+                          <input
+                            ref={jurorInputRef}
+                            type="number"
+                            value={jurorNum}
+                            onChange={(e) => setJurorNum(e.target.value)}
+                            data-testid="input-juror-number"
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 bg-slate-50 text-lg font-bold"
+                            placeholder="e.g. 14"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                            Question
+                          </label>
+                          <input
+                            type="text"
+                            value={newQuestionText}
+                            onChange={(e) => setNewQuestionText(e.target.value)}
+                            data-testid="input-new-question-text"
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 bg-slate-50 text-sm"
+                            placeholder="What did you ask?"
+                            required
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                            Juror #
+                          </label>
+                          <input
+                            ref={jurorInputRef}
+                            type="number"
+                            value={jurorNum}
+                            onChange={(e) => setJurorNum(e.target.value)}
+                            data-testid="input-juror-number"
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-500 bg-slate-50 text-lg font-bold"
+                            placeholder="e.g. 14"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
+                            Question #
+                          </label>
+                          <input
+                            type="number"
+                            value={questionNum}
+                            onChange={(e) => setQuestionNum(e.target.value)}
+                            data-testid="input-question-number"
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-500 bg-slate-50 text-lg font-bold"
+                            placeholder="e.g. 2"
+                            required
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -485,6 +581,11 @@ export function ResponseRecording({
                             <div className="text-xs font-semibold text-rose-600 mb-1 flex items-center">
                               <Shield className="w-3 h-3 mr-1" />
                               {response.questionSummary}
+                            </div>
+                          ) : response.questionId === null && response.questionSummary ? (
+                            <div className="text-xs font-semibold text-emerald-600 mb-1 flex items-center">
+                              <HelpCircle className="w-3 h-3 mr-1" />
+                              New: {response.questionSummary}
                             </div>
                           ) : (
                             <div className="text-xs font-semibold text-slate-500 mb-1 flex items-center">
