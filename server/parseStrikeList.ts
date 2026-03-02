@@ -34,8 +34,11 @@ export function isAllowedFileType(mimetype: string, filename: string): boolean {
 }
 
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  const data = await PDFParse(buffer);
-  return data.text;
+  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+  await parser.load();
+  const text = await parser.getText();
+  await parser.destroy();
+  return text;
 }
 
 export async function parseStrikeListWithAI(rawText: string): Promise<ParsedJuror[]> {
