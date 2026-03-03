@@ -185,9 +185,21 @@ export function EndReport({
         ? `Suggested strike order: ${strikeOrder.map((j, i) => `${i + 1}. #${j.number} ${j.name} (${j.lean}, ${j.riskTier} risk)`).join('; ')}`
         : 'No strikes recommended based on current classifications.';
 
+      const strikesForCause = causeStrikes.map(s => {
+        const juror = jurors.find(j => j.number === s.jurorNumber);
+        return {
+          jurorNumber: s.jurorNumber,
+          jurorName: juror?.name || `Juror #${s.jurorNumber}`,
+          category: s.category,
+          basis: s.basis,
+          argument: s.argument,
+        };
+      });
+
       await api.pushJuryAnalysisToMattrMindr(mattrmindrCaseId, {
         jurors: jurorData,
         strikeStrategy,
+        ...(strikesForCause.length > 0 ? { strikesForCause } : {}),
       });
       setMmSendResult('success');
       setMmSendMessage('Jury analysis sent to MattrMindr successfully');

@@ -552,7 +552,7 @@ export async function fetchMattrMindrCase(caseId: string): Promise<MattrMindrCas
 
 export async function pushJuryAnalysisToMattrMindr(
   caseId: string,
-  data: { jurors: any[]; strikeStrategy: string }
+  data: { jurors: any[]; strikeStrategy: string; strikesForCause?: Array<{ jurorNumber: number; jurorName: string; category: string; basis: string; argument: string }> }
 ): Promise<any> {
   return fetchJson(`${API_BASE}/mattrmindr/cases/${caseId}/jury-analysis`, {
     method: 'POST',
