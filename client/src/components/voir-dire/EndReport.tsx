@@ -18,9 +18,13 @@ import {
   AlertCircle,
   Gavel,
   UserX,
+  ShieldCheck,
+  ShieldQuestion,
+  ShieldOff,
 } from 'lucide-react';
 import { CaseInfo, Juror, JurorResponse, VoirDireQuestion } from '../../types';
 import * as api from '../../lib/api';
+import type { StrikeForCauseResult } from '../../lib/api';
 
 function isCriminalCase(areaOfLaw: string): boolean {
   const lc = areaOfLaw.toLowerCase();
@@ -65,6 +69,10 @@ export function EndReport({
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [plaintiffStrikes, setPlaintiffStrikes] = useState<Set<number>>(new Set());
   const [defenseStrikes, setDefenseStrikes] = useState<Set<number>>(new Set());
+  const [causeStrikes, setCauseStrikes] = useState<StrikeForCauseResult[]>([]);
+  const [isAnalyzingCause, setIsAnalyzingCause] = useState(false);
+  const [causeAnalysisError, setCauseAnalysisError] = useState('');
+  const [collapsedCauseCategories, setCollapsedCauseCategories] = useState<Set<string>>(new Set());
 
   const plaintiffLabel = getPlaintiffLabel(caseInfo.areaOfLaw);
 
@@ -199,6 +207,42 @@ export function EndReport({
       setIsGenerating(false);
     }
   };
+
+  const handleAnalyzeCauseStrikes = async () => {
+    setIsAnalyzingCause(true);
+    setCauseAnalysisError('');
+    try {
+      const results = await api.analyzeStrikesForCause(caseInfo, jurors, responses, questions);
+      setCauseStrikes(results);
+    } catch (err: any) {
+      console.error('Failed to analyze strikes for cause:', err);
+      setCauseAnalysisError(err.message || 'Failed to analyze strikes for cause');
+    } finally {
+      setIsAnalyzingCause(false);
+    }
+  };
+
+  const toggleCauseCategory = (cat: string) => {
+    setCollapsedCauseCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
+
+  const causeByCategory = useMemo(() => {
+    const groups: Record<string, StrikeForCauseResult[]> = {
+      'Highly Likely': [],
+      'Possible': [],
+      'Unlikely': [],
+    };
+    causeStrikes.forEach(s => {
+      if (groups[s.category]) groups[s.category].push(s);
+      else groups['Unlikely'].push(s);
+    });
+    return groups;
+  }, [causeStrikes]);
 
   const getQuestionText = (r: JurorResponse): string => {
     if (r.side === 'opposing') {
@@ -610,6 +654,114 @@ export function EndReport({
               </div>
             </div>
           </div>
+        </section>
+
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-4">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center">
+              <Scale className="w-5 h-5 mr-2 text-indigo-500" />
+              Strikes for Cause
+            </h3>
+            <button
+              onClick={handleAnalyzeCauseStrikes}
+              disabled={isAnalyzingCause || jurors.length === 0}
+              data-testid="button-analyze-cause-strikes"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-sm"
+            >
+              {isAnalyzingCause ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Brain className="w-4 h-4" />
+                  {causeStrikes.length > 0 ? 'Re-Analyze' : 'Analyze Strikes for Cause'}
+                </>
+              )}
+            </button>
+          </div>
+
+          {causeAnalysisError && (
+            <div className="flex items-center gap-2 p-3 rounded-xl text-sm font-medium bg-rose-50 border border-rose-200 text-rose-700 mb-4" data-testid="text-cause-error">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {causeAnalysisError}
+            </div>
+          )}
+
+          {causeStrikes.length === 0 && !isAnalyzingCause && !causeAnalysisError && (
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-8 text-center text-slate-500" data-testid="text-cause-empty">
+              Click <span className="font-semibold text-indigo-600">Analyze Strikes for Cause</span> to evaluate all jurors for potential cause challenges using AI.
+            </div>
+          )}
+
+          {causeStrikes.length > 0 && (
+            <div className="space-y-4">
+              {([
+                { key: 'Highly Likely', icon: ShieldCheck, color: 'emerald', borderColor: 'border-emerald-300', bgColor: 'bg-emerald-50', headerBg: 'bg-emerald-100', textColor: 'text-emerald-900', badgeBg: 'bg-emerald-200', badgeText: 'text-emerald-800', basisBg: 'bg-emerald-100', basisText: 'text-emerald-700' },
+                { key: 'Possible', icon: ShieldQuestion, color: 'amber', borderColor: 'border-amber-300', bgColor: 'bg-amber-50', headerBg: 'bg-amber-100', textColor: 'text-amber-900', badgeBg: 'bg-amber-200', badgeText: 'text-amber-800', basisBg: 'bg-amber-100', basisText: 'text-amber-700' },
+                { key: 'Unlikely', icon: ShieldOff, color: 'slate', borderColor: 'border-slate-200', bgColor: 'bg-slate-50', headerBg: 'bg-slate-100', textColor: 'text-slate-700', badgeBg: 'bg-slate-200', badgeText: 'text-slate-600', basisBg: 'bg-slate-100', basisText: 'text-slate-600' },
+              ] as const).map(({ key, icon: Icon, borderColor, bgColor, headerBg, textColor, badgeBg, badgeText, basisBg, basisText }) => {
+                const items = causeByCategory[key] || [];
+                if (items.length === 0) return null;
+                const isCollapsed = collapsedCauseCategories.has(key);
+                return (
+                  <div key={key} className={`rounded-xl border ${borderColor} overflow-hidden shadow-sm`} data-testid={`cause-category-${key.toLowerCase().replace(/\s+/g, '-')}`}>
+                    <button
+                      onClick={() => toggleCauseCategory(key)}
+                      className={`w-full ${headerBg} px-4 py-3 flex items-center justify-between`}
+                      data-testid={`toggle-cause-${key.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon className={`w-4 h-4 ${textColor}`} />
+                        <span className={`font-bold text-sm ${textColor}`}>{key}</span>
+                        <span className={`text-xs font-bold ${badgeText} ${badgeBg} px-2 py-0.5 rounded-full`}>
+                          {items.length}
+                        </span>
+                      </div>
+                      {isCollapsed ? (
+                        <ChevronDown className={`w-4 h-4 ${textColor}`} />
+                      ) : (
+                        <ChevronUp className={`w-4 h-4 ${textColor}`} />
+                      )}
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {!isCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
+                        >
+                          <div className={`${bgColor} divide-y ${borderColor}`}>
+                            {items.map(strike => {
+                              const juror = jurors.find(j => j.number === strike.jurorNumber);
+                              return (
+                                <div key={strike.jurorNumber} className="px-4 py-3" data-testid={`cause-strike-${strike.jurorNumber}`}>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-bold text-sm text-slate-900">
+                                      #{strike.jurorNumber} {juror?.name || 'Unknown'}
+                                    </span>
+                                    <span className={`text-[10px] font-bold uppercase ${basisText} ${basisBg} px-2 py-0.5 rounded-full`}>
+                                      {strike.basis}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-slate-700 leading-relaxed">
+                                    {strike.argument}
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         <section>

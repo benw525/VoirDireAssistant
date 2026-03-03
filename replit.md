@@ -74,6 +74,20 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - The Complete Juror Panel section is collapsible (click the header to toggle)
 - The same civil/criminal label logic applies throughout: CaseSetup side selection, ResponseRecording labels, and EndReport
 
+## Strikes for Cause (Phase 6)
+- AI-powered analysis of all jurors for potential strikes for cause
+- Uses `POST /api/analyze-strikes-for-cause` endpoint with GPT-4o (JSON response format)
+- Evaluates: stated biases, relationships to parties, inability to follow law, fixed opinions, prior experiences, hardship claims, prejudgment
+- Each juror categorized into three tiers:
+  - **Highly Likely** (emerald/green) — Strong articulable grounds; judge would likely grant
+  - **Possible** (amber/yellow) — Concerning indicators but may need development or rehabilitation
+  - **Unlikely** (slate/gray) — No significant cause basis identified
+- Each entry shows: juror number + name, basis tag (short label), and full legal argument written as if addressing the judge
+- Categories are collapsible; ordered from Highly Likely → Possible → Unlikely
+- Placed in End Report between Peremptory Strikes and Suggested Strike Order sections
+- Server function: `analyzeStrikesForCause()` in `server/analyzeJuror.ts`
+- Client function: `analyzeStrikesForCause()` in `client/src/lib/api.ts`
+
 ## Settings Page
 - Accessible via gear icon in sidebar footer
 - Sections: User Profile, AI Assistant toggle, MattrMindr connection, Change Password, Sign Out
@@ -106,6 +120,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `POST /api/refine-questions` — AI question refinement
 - `POST /api/analyze-juror` — AI individual juror risk assessment
 - `POST /api/analyze-jurors-batch` — AI batch brief summaries for all jurors
+- `POST /api/analyze-strikes-for-cause` — AI strike-for-cause analysis for all jurors (returns categorized results with legal arguments)
 
 ### AI Assistant Chat (protected)
 - `GET /api/conversations` — List user's conversations

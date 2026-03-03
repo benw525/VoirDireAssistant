@@ -174,3 +174,158 @@ Provide your risk assessment analysis for this juror.`;
 
   return completion.choices[0]?.message?.content || "Unable to generate analysis.";
 }
+
+export interface StrikeForCauseEntry {
+  jurorNumber: number;
+  category: "Highly Likely" | "Possible" | "Unlikely";
+  argument: string;
+  basis: string;
+}
+
+interface JurorWithResponses extends JurorData {
+  responses: ResponseData[];
+}
+
+const STRIKE_FOR_CAUSE_PROMPT = `You are a Strike-for-Cause Analyst — an expert trial attorney and legal strategist who evaluates every juror in the venire for potential strikes for cause during jury selection.
+
+You will receive:
+1. Case context (area of law, case summary, which side the attorney represents, favorable/risk traits)
+2. A list of all jurors with their demographic profiles, recorded voir dire responses, current lean assessments, risk tiers, and attorney notes
+
+Your job is to evaluate EVERY juror and determine whether a viable argument exists to strike them for cause. For each juror, you must assess:
+
+- Stated biases or prejudices relevant to the case
+- Relationships or connections to parties, witnesses, attorneys, or law enforcement
+- Inability or unwillingness to follow the law as instructed by the judge
+- Fixed opinions on guilt, liability, or the outcome before hearing evidence
+- Prior experiences (victim of similar crime, prior lawsuits, etc.) that would prevent impartiality
+- Hardship claims that could affect attention or fairness
+- Responses indicating prejudgment or inability to be fair to both sides
+- Any statements suggesting the juror cannot set aside personal feelings
+
+For each juror, categorize them as:
+- "Highly Likely" — Strong, articulable grounds exist. The juror made statements or has connections that clearly demonstrate bias or inability to be impartial. A judge would likely grant this challenge.
+- "Possible" — Some concerning indicators exist. The juror's responses or background raise questions about impartiality, but the grounds may need further development or rehabilitation might cure the issue.
+- "Unlikely" — No significant cause basis identified. The juror appears capable of being fair and impartial based on available information.
+
+You MUST respond with valid JSON in this exact format:
+{
+  "strikes": [
+    {
+      "jurorNumber": <number>,
+      "category": "Highly Likely" | "Possible" | "Unlikely",
+      "argument": "<The specific legal argument the attorney should make to the judge to strike this juror for cause. Reference specific statements, responses, or facts. Write as if speaking to the judge.>",
+      "basis": "<Short 2-5 word label for the grounds, e.g., 'Stated bias', 'Personal connection to victim', 'Cannot follow law', 'Prior lawsuit experience', 'Fixed opinion on guilt', 'No significant basis'>"
+    }
+  ]
+}
+
+Rules:
+- Evaluate EVERY juror — do not skip any
+- Be specific — reference actual responses and facts from the juror's profile
+- Write arguments as the attorney would present them to the judge
+- For "Unlikely" jurors, the argument should briefly explain why no cause basis exists
+- Frame everything from the perspective of the attorney's side
+- Keep each argument to 2-4 sentences`;
+
+export async function analyzeStrikesForCause(
+  caseContext: CaseContext,
+  jurors: JurorWithResponses[]
+): Promise<StrikeForCauseEntry[]> {
+  const jurorsText = jurors.map(j => {
+    const responsesText = j.responses.length > 0
+      ? j.responses.map((r, i) => {
+          const questionLabel = r.side === 'opposing'
+            ? `Opposing: "${r.questionSummary || 'Unknown'}"`
+            : r.questionText
+              ? `Your Q: "${r.questionText}"`
+              : r.questionSummary
+                ? `New Q: "${r.questionSummary}"`
+                : 'Unknown question';
+          let text = `  ${i + 1}. ${questionLabel} → "${r.responseText}"`;
+          if (r.followUps && r.followUps.length > 0) {
+            r.followUps.forEach(fu => {
+              text += ` | Follow-up: "${fu.question}" → "${fu.answer}"`;
+            });
+          }
+          return text;
+        }).join('\n')
+      : '  No responses recorded.';
+
+    return `JUROR #${j.number}: ${j.name}
+  Sex: ${j.sex} | Race: ${j.race} | DOB: ${j.birthDate}
+  Occupation: ${j.occupation} | Employer: ${j.employer}
+  Lean: ${j.lean} | Risk: ${j.riskTier}
+  Notes: ${j.notes || 'None'}
+  Responses:
+${responsesText}`;
+  }).join('\n\n---\n\n');
+
+  const userPrompt = `CASE CONTEXT:
+Case: ${caseContext.name}
+Area of Law: ${caseContext.areaOfLaw}
+Summary: ${caseContext.summary}
+Representing: ${caseContext.side}
+Favorable Traits: ${caseContext.favorableTraits.join(', ') || 'None specified'}
+Risk Traits: ${caseContext.riskTraits.join(', ') || 'None specified'}
+
+ALL JURORS (${jurors.length} total):
+
+${jurorsText}
+
+Evaluate every juror for potential strikes for cause and return the JSON result.`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      { role: "system", content: STRIKE_FOR_CAUSE_PROMPT },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.3,
+    max_tokens: 4000,
+    response_format: { type: "json_object" },
+  });
+
+  const raw = completion.choices[0]?.message?.content || '{"strikes":[]}';
+  let parsed: { strikes: any[] };
+  try {
+    parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.strikes)) {
+      parsed = { strikes: [] };
+    }
+  } catch {
+    parsed = { strikes: [] };
+  }
+
+  const VALID_CATEGORIES = new Set(["Highly Likely", "Possible", "Unlikely"]);
+
+  const validatedStrikes: StrikeForCauseEntry[] = parsed.strikes
+    .filter((s: any) => s && typeof s.jurorNumber === 'number')
+    .map((s: any) => ({
+      jurorNumber: s.jurorNumber,
+      category: VALID_CATEGORIES.has(s.category) ? s.category : "Unlikely",
+      argument: typeof s.argument === 'string' ? s.argument : 'No argument provided.',
+      basis: typeof s.basis === 'string' ? s.basis : 'Not assessed',
+    }));
+
+  const coveredJurors = new Set(validatedStrikes.map(s => s.jurorNumber));
+  for (const j of jurors) {
+    if (!coveredJurors.has(j.number)) {
+      validatedStrikes.push({
+        jurorNumber: j.number,
+        category: "Unlikely",
+        argument: `No specific basis for a cause challenge was identified for Juror #${j.number} (${j.name}) based on available information.`,
+        basis: "No significant basis",
+      });
+    }
+  }
+
+  const categoryOrder: Record<string, number> = { "Highly Likely": 0, "Possible": 1, "Unlikely": 2 };
+  validatedStrikes.sort((a, b) => {
+    const catDiff = (categoryOrder[a.category] ?? 3) - (categoryOrder[b.category] ?? 3);
+    if (catDiff !== 0) return catDiff;
+    return a.jurorNumber - b.jurorNumber;
+  });
+
+  return validatedStrikes;
+}

@@ -6,7 +6,7 @@ import { z } from "zod";
 import multer from "multer";
 import { extractTextFromPdf, parseStrikeListWithAI, isAllowedFileType } from "./parseStrikeList";
 import { generateFullVoirDire, refineUserQuestions } from "./generateVoirDire";
-import { analyzeJuror, generateBriefSummary } from "./analyzeJuror";
+import { analyzeJuror, generateBriefSummary, analyzeStrikesForCause } from "./analyzeJuror";
 import { authMiddleware, hashPassword, comparePassword, createToken } from "./auth";
 import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMattrMindrCase, pushJuryAnalysis } from "./mattrmindr";
 import { registerChatRoutes } from "./replit_integrations/chat";
@@ -115,6 +115,7 @@ export async function registerRoutes(
   app.use("/api/refine-questions", authMiddleware);
   app.use("/api/analyze-juror", authMiddleware);
   app.use("/api/analyze-jurors-batch", authMiddleware);
+  app.use("/api/analyze-strikes-for-cause", authMiddleware);
   app.use("/api/mattrmindr", authMiddleware);
   app.use("/api/conversations", authMiddleware);
 
@@ -450,6 +451,63 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Batch juror analysis error:", err);
       res.status(500).json({ message: err.message || "Failed to analyze jurors" });
+    }
+  });
+
+  app.post("/api/analyze-strikes-for-cause", async (req, res) => {
+    try {
+      const parsed = z.object({
+        caseInfo: z.object({
+          name: z.string(),
+          areaOfLaw: z.string(),
+          summary: z.string(),
+          side: z.string(),
+          favorableTraits: z.array(z.string()),
+          riskTraits: z.array(z.string()),
+        }),
+        jurors: z.array(z.object({
+          number: z.number(),
+          name: z.string().default('Unknown'),
+          sex: z.string().default('U'),
+          race: z.string().default('U'),
+          birthDate: z.string().default('Unknown'),
+          occupation: z.string().default('Unknown'),
+          employer: z.string().default('Unknown'),
+          lean: z.string().default('unknown'),
+          riskTier: z.string().default('unassessed'),
+          notes: z.string().optional().default(''),
+          responses: z.array(z.object({
+            questionText: z.string().nullable(),
+            questionSummary: z.string().nullable(),
+            responseText: z.string(),
+            side: z.string(),
+            followUps: z.array(z.object({ question: z.string(), answer: z.string() })).default([]),
+          })).default([]),
+        })),
+      }).safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
+      }
+
+      const jurors = parsed.data.jurors.map(j => ({
+        number: j.number,
+        name: j.name,
+        sex: j.sex,
+        race: j.race,
+        birthDate: j.birthDate,
+        occupation: j.occupation,
+        employer: j.employer,
+        lean: j.lean,
+        riskTier: j.riskTier,
+        notes: j.notes,
+        responses: j.responses,
+      }));
+
+      const strikes = await analyzeStrikesForCause(parsed.data.caseInfo, jurors);
+      res.json({ strikes });
+    } catch (err: any) {
+      console.error("Strike for cause analysis error:", err);
+      res.status(500).json({ message: err.message || "Failed to analyze strikes for cause" });
     }
   });
 

@@ -400,6 +400,48 @@ export async function analyzeJurorsBatch(
   return result.summaries;
 }
 
+export interface StrikeForCauseResult {
+  jurorNumber: number;
+  category: "Highly Likely" | "Possible" | "Unlikely";
+  argument: string;
+  basis: string;
+}
+
+export async function analyzeStrikesForCause(
+  caseInfo: CaseInfo,
+  jurors: Juror[],
+  responses: JurorResponse[],
+  questions: Array<{ id: number; originalText: string }>
+): Promise<StrikeForCauseResult[]> {
+  const jurorsWithResponses = jurors.map(j => {
+    const jurorResponses = responses.filter(r => r.jurorNumber === j.number);
+    return {
+      number: j.number,
+      name: j.name,
+      sex: j.sex,
+      race: j.race,
+      birthDate: j.birthDate,
+      occupation: j.occupation,
+      employer: j.employer,
+      lean: j.lean,
+      riskTier: j.riskTier,
+      notes: j.notes || '',
+      responses: jurorResponses.map(r => ({
+        questionText: r.questionId ? (questions.find(q => q.id === r.questionId)?.originalText || null) : null,
+        questionSummary: r.questionSummary || null,
+        responseText: r.responseText,
+        side: r.side,
+        followUps: r.followUps || [],
+      })),
+    };
+  });
+  const result = await fetchJson<{ strikes: StrikeForCauseResult[] }>(`${API_BASE}/analyze-strikes-for-cause`, {
+    method: 'POST',
+    body: JSON.stringify({ caseInfo, jurors: jurorsWithResponses }),
+  });
+  return result.strikes;
+}
+
 export async function updateJurorOnServer(caseId: string, jurorNumber: number, updates: Partial<Juror>): Promise<void> {
   const jurors = await fetchJson<DbJuror[]>(`${API_BASE}/cases/${caseId}/jurors`);
   const dbJuror = jurors.find(j => j.number === jurorNumber);
