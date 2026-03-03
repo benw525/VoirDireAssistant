@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, jsonb, bigint } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, jsonb, bigint, serial, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -68,6 +68,21 @@ export const responses = pgTable("responses", {
   timestamp: bigint("timestamp", { mode: "number" }).notNull(),
 });
 
+export const conversations = pgTable("conversations", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull().default("New Chat"),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertCaseSchema = createInsertSchema(cases).omit({ id: true });
 export const insertJurorSchema = createInsertSchema(jurors).omit({ id: true });
@@ -84,3 +99,5 @@ export type Question = typeof questions.$inferSelect;
 export type InsertQuestion = z.infer<typeof insertQuestionSchema>;
 export type JurorResponse = typeof responses.$inferSelect;
 export type InsertResponse = z.infer<typeof insertResponseSchema>;
+export type Conversation = typeof conversations.$inferSelect;
+export type Message = typeof messages.$inferSelect;

@@ -9,6 +9,7 @@ import { generateFullVoirDire, refineUserQuestions } from "./generateVoirDire";
 import { analyzeJuror, generateBriefSummary } from "./analyzeJuror";
 import { authMiddleware, hashPassword, comparePassword, createToken } from "./auth";
 import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMattrMindrCase, pushJuryAnalysis } from "./mattrmindr";
+import { registerChatRoutes } from "./replit_integrations/chat";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -79,6 +80,31 @@ export async function registerRoutes(
     });
   });
 
+  // --- Change Password ---
+  app.patch("/api/auth/change-password", authMiddleware, async (req, res) => {
+    try {
+      const parsed = z.object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(6),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "New password must be at least 6 characters" });
+
+      const user = await storage.getUserById(req.user!.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const valid = await comparePassword(parsed.data.currentPassword, user.passwordHash);
+      if (!valid) return res.status(401).json({ message: "Current password is incorrect" });
+
+      const newHash = await hashPassword(parsed.data.newPassword);
+      await storage.updateUser(req.user!.id, { passwordHash: newHash });
+
+      res.json({ message: "Password changed successfully" });
+    } catch (err: any) {
+      console.error("Change password error:", err);
+      res.status(500).json({ message: "Failed to change password" });
+    }
+  });
+
   // --- All routes below require authentication ---
   app.use("/api/cases", authMiddleware);
   app.use("/api/jurors", authMiddleware);
@@ -90,6 +116,7 @@ export async function registerRoutes(
   app.use("/api/analyze-juror", authMiddleware);
   app.use("/api/analyze-jurors-batch", authMiddleware);
   app.use("/api/mattrmindr", authMiddleware);
+  app.use("/api/conversations", authMiddleware);
 
   // --- Cases ---
   app.get("/api/cases", async (req, res) => {
@@ -553,6 +580,9 @@ export async function registerRoutes(
     ]);
     res.json({ ...c, jurors, questions, responses });
   });
+
+  // --- AI Assistant Chat ---
+  registerChatRoutes(app);
 
   return httpServer;
 }

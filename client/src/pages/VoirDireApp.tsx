@@ -17,7 +17,9 @@ import { VoirDireQuestions } from '../components/voir-dire/VoirDireQuestions';
 import { ResponseRecording } from '../components/voir-dire/ResponseRecording';
 import { JurorReview } from '../components/voir-dire/JurorReview';
 import { EndReport } from '../components/voir-dire/EndReport';
-import { MattrMindrSettings } from '../components/voir-dire/MattrMindrSettings';
+import { SettingsPanel } from '../components/voir-dire/SettingsPanel';
+import { AIAssistantButton } from '../components/AIAssistant/AIAssistantButton';
+import { AIAssistantPanel } from '../components/AIAssistant/AIAssistantPanel';
 import { useAuth } from '../lib/auth';
 import * as api from '../lib/api';
 
@@ -58,7 +60,9 @@ export default function VoirDireApp() {
 
   const [mattrmindrCaseId, setMattrmindrCaseId] = useState<string | null>(null);
   const [isMattrMindrConnected, setIsMattrMindrConnected] = useState(false);
-  const [showMattrMindrSettings, setShowMattrMindrSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [aiHidden, setAiHidden] = useState(() => sessionStorage.getItem('voir_dire_ai_hidden') === 'true');
 
   useEffect(() => {
     Promise.all([
@@ -297,6 +301,21 @@ export default function VoirDireApp() {
     }
   };
 
+  const handleAiHiddenChange = (hidden: boolean) => {
+    setAiHidden(hidden);
+    sessionStorage.setItem('voir_dire_ai_hidden', String(hidden));
+  };
+
+  const PHASE_LABELS: Record<number, string> = {
+    0: 'Welcome',
+    1: 'Case Setup',
+    2: 'Strike List',
+    3: 'Voir Dire Questions',
+    4: 'Record Responses',
+    5: 'Review & Strategy',
+    6: 'Final Report',
+  };
+
   const renderPhase = () => {
     switch (currentPhase) {
       case 0:
@@ -402,8 +421,9 @@ export default function VoirDireApp() {
           setIsOpen={setIsSidebarOpen}
           userName={user?.name}
           onLogout={logout}
-          onOpenMattrMindr={() => setShowMattrMindrSettings(true)}
+          onOpenMattrMindr={() => setShowSettings(true)}
           isMattrMindrConnected={isMattrMindrConnected}
+          onOpenSettings={() => setShowSettings(true)}
         />
       )}
 
@@ -433,11 +453,28 @@ export default function VoirDireApp() {
         </div>
       </div>
 
-      <MattrMindrSettings
-        isOpen={showMattrMindrSettings}
-        onClose={() => setShowMattrMindrSettings(false)}
+      <SettingsPanel
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        aiHidden={aiHidden}
+        onAiHiddenChange={handleAiHiddenChange}
         onConnectionChange={(connected) => setIsMattrMindrConnected(connected)}
       />
+
+      <AIAssistantButton
+        hidden={aiHidden}
+        onClick={() => setShowAIPanel(true)}
+      />
+
+      <AnimatePresence>
+        {showAIPanel && (
+          <AIAssistantPanel
+            isOpen={showAIPanel}
+            onClose={() => setShowAIPanel(false)}
+            contextLabel={PHASE_LABELS[currentPhase] || ''}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

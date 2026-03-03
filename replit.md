@@ -1,23 +1,26 @@
 # Voir Dire Analyst
 
 ## Overview
-A full-stack jury selection assistant application with user authentication and optional MattrMindr case management integration. Helps legal professionals organize juror data, track voir dire responses, and develop strategic strike recommendations in real-time.
+A full-stack jury selection assistant application with user authentication, AI-powered chat assistant, and optional MattrMindr case management integration. Helps legal professionals organize juror data, track voir dire responses, and develop strategic strike recommendations in real-time.
 
 ## Architecture
 - **Frontend**: React + TypeScript with Tailwind CSS, wouter routing, framer-motion animations
 - **Backend**: Express.js server with REST API
 - **Database**: PostgreSQL with Drizzle ORM
 - **Auth**: JWT-based authentication with bcrypt password hashing, per-user data isolation
-- **AI**: OpenAI via Replit AI Integrations for strike list parsing, voir dire generation, juror analysis
+- **AI**: OpenAI via Replit AI Integrations for strike list parsing, voir dire generation, juror analysis, and AI chat assistant
 - **MattrMindr**: Optional integration to import cases from MattrMindr and push jury analysis back
 - **Build**: Vite for frontend, tsx for server
 
 ## Key Files
-- `shared/schema.ts` — Drizzle database schema (users, cases, jurors, questions, responses)
+- `shared/schema.ts` — Drizzle database schema (users, cases, jurors, questions, responses, conversations, messages)
 - `server/routes.ts` — API routes (all prefixed with `/api`), auth middleware applied
 - `server/storage.ts` — Database storage layer implementing IStorage interface
+- `server/db.ts` — Drizzle database instance export (shared by storage and chat modules)
 - `server/auth.ts` — JWT authentication middleware, password hashing, token management
 - `server/mattrmindr.ts` — MattrMindr external API proxy functions
+- `server/replit_integrations/chat/routes.ts` — AI Assistant chat routes (conversations, messages, streaming)
+- `server/replit_integrations/chat/storage.ts` — Chat-specific DB operations for conversations/messages
 - `server/parseStrikeList.ts` — AI-powered strike list document parser (OpenAI + pdf-parse)
 - `server/generateVoirDire.ts` — AI voir dire strategy agent (full generation + question refinement)
 - `server/analyzeJuror.ts` — AI juror risk assessment agent (individual juror analysis)
@@ -28,7 +31,9 @@ A full-stack jury selection assistant application with user authentication and o
 - `client/src/lib/api.ts` — Frontend API client with auth headers and type conversions
 - `client/src/types/index.ts` — Frontend TypeScript types
 - `client/src/components/voir-dire/` — UI components for each phase
-- `client/src/components/voir-dire/MattrMindrSettings.tsx` — MattrMindr connection panel
+- `client/src/components/voir-dire/SettingsPanel.tsx` — Settings page (profile, AI toggle, MattrMindr, password, logout)
+- `client/src/components/AIAssistant/AIAssistantButton.tsx` — Floating draggable AI chat button
+- `client/src/components/AIAssistant/AIAssistantPanel.tsx` — AI Assistant chat panel with streaming
 
 ## Application Phases
 0. Welcome Screen (past cases, new case)
@@ -39,12 +44,27 @@ A full-stack jury selection assistant application with user authentication and o
 5. Juror Review (assess leanings and risk tiers)
 6. End Report (final analysis, recommendations, optional push to MattrMindr)
 
+## AI Assistant
+- Floating circular button (bottom-right) with BrainCircuit icon in slate-900/amber-500
+- Mobile: long-press (500ms) enables drag mode to reposition
+- Desktop: right-click context menu with "Move" and "Reset Position"
+- Opens a slide-in chat panel with streaming AI responses
+- Legal assistant system prompt specializing in Alabama jury selection law
+- Suggestion chips for common queries
+- Can be hidden via Settings toggle (persisted in sessionStorage)
+
+## Settings Page
+- Accessible via gear icon in sidebar footer
+- Sections: User Profile, AI Assistant toggle, MattrMindr connection, Change Password, Sign Out
+- MattrMindr connection controls moved from standalone modal into Settings
+
 ## API Endpoints
 
 ### Auth (public)
 - `POST /api/auth/register` — Create account (name, email, password)
 - `POST /api/auth/login` — Login (email, password) → JWT token
 - `GET /api/auth/me` — Get current user info (protected)
+- `PATCH /api/auth/change-password` — Change password (protected, requires current password)
 
 ### Cases (protected, user-scoped)
 - `GET/POST /api/cases` — List user's cases / create case
@@ -66,6 +86,13 @@ A full-stack jury selection assistant application with user authentication and o
 - `POST /api/analyze-juror` — AI individual juror risk assessment
 - `POST /api/analyze-jurors-batch` — AI batch brief summaries for all jurors
 
+### AI Assistant Chat (protected)
+- `GET /api/conversations` — List user's conversations
+- `POST /api/conversations` — Create conversation
+- `GET /api/conversations/:id` — Get conversation with messages
+- `DELETE /api/conversations/:id` — Delete conversation
+- `POST /api/conversations/:id/messages` — Send message and stream AI response (SSE)
+
 ### MattrMindr Integration (protected)
 - `POST /api/mattrmindr/connect` — Login to MattrMindr, store credentials
 - `POST /api/mattrmindr/disconnect` — Clear MattrMindr credentials
@@ -80,6 +107,8 @@ A full-stack jury selection assistant application with user authentication and o
 - `jurors` — Juror demographic data per case
 - `questions` — Voir dire questions per case
 - `responses` — Recorded juror responses per case (includes `follow_ups` JSONB)
+- `conversations` — AI Assistant chat conversations (userId, title, createdAt)
+- `messages` — Chat messages within conversations (conversationId, role, content, createdAt)
 
 ## Environment Variables
 - `DATABASE_URL` — PostgreSQL connection string (auto-provided)
@@ -92,7 +121,7 @@ A full-stack jury selection assistant application with user authentication and o
 - `framer-motion` — Page transition animations
 - `lucide-react` — Icons
 - `drizzle-orm` / `drizzle-zod` — Database ORM and validation
-- `openai` — AI client for document parsing
+- `openai` — AI client for document parsing and chat
 - `multer` — File upload middleware
 - `pdf-parse` — PDF text extraction
 - `bcrypt` — Password hashing

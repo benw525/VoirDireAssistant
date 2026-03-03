@@ -7,11 +7,29 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+const SYSTEM_PROMPT = `You are a legal assistant AI embedded in "Voir Dire Analyst," a jury selection tool for attorneys. You specialize in:
+
+- Alabama and federal jury selection law (Batson challenges, strikes for cause, peremptory challenges)
+- Voir dire questioning strategy and best practices
+- Juror psychology and bias assessment
+- Trial strategy related to jury composition
+- Legal research guidance for voir dire issues
+
+When answering:
+- Be concise but thorough
+- Cite relevant Alabama Rules of Criminal/Civil Procedure or case law when applicable
+- Provide actionable advice an attorney can use immediately
+- If asked about a specific juror or case, use whatever context is provided
+- Format responses with markdown for readability (headers, bullet points, bold text)
+- If you don't know something specific to the user's case, say so and provide general guidance
+
+You are NOT a replacement for legal counsel. Always recommend the attorney use their professional judgment.`;
+
 export function registerChatRoutes(app: Express): void {
-  // Get all conversations
   app.get("/api/conversations", async (req: Request, res: Response) => {
     try {
-      const conversations = await chatStorage.getAllConversations();
+      const userId = req.user?.id;
+      const conversations = await chatStorage.getAllConversations(userId);
       res.json(conversations);
     } catch (error) {
       console.error("Error fetching conversations:", error);
@@ -19,12 +37,14 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 
-  // Get single conversation with messages
   app.get("/api/conversations/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const conversation = await chatStorage.getConversation(id);
       if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      if (conversation.userId && conversation.userId !== req.user?.id) {
         return res.status(404).json({ error: "Conversation not found" });
       }
       const messages = await chatStorage.getMessagesByConversation(id);
@@ -35,11 +55,11 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 
-  // Create new conversation
   app.post("/api/conversations", async (req: Request, res: Response) => {
     try {
       const { title } = req.body;
-      const conversation = await chatStorage.createConversation(title || "New Chat");
+      const userId = req.user?.id;
+      const conversation = await chatStorage.createConversation(title || "New Chat", userId);
       res.status(201).json(conversation);
     } catch (error) {
       console.error("Error creating conversation:", error);
@@ -47,10 +67,13 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 
-  // Delete conversation
   app.delete("/api/conversations/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
+      const conversation = await chatStorage.getConversation(id);
+      if (conversation && conversation.userId && conversation.userId !== req.user?.id) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
       await chatStorage.deleteConversation(id);
       res.status(204).send();
     } catch (error) {
@@ -59,33 +82,39 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 
-  // Send message and get AI response (streaming)
   app.post("/api/conversations/:id/messages", async (req: Request, res: Response) => {
     try {
       const conversationId = parseInt(req.params.id);
       const { content } = req.body;
 
-      // Save user message
+      const conversation = await chatStorage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      if (conversation.userId && conversation.userId !== req.user?.id) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+
       await chatStorage.createMessage(conversationId, "user", content);
 
-      // Get conversation history for context
       const messages = await chatStorage.getMessagesByConversation(conversationId);
-      const chatMessages = messages.map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      }));
+      const chatMessages: Array<{role: "system" | "user" | "assistant", content: string}> = [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...messages.map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        })),
+      ];
 
-      // Set up SSE
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      // Stream response from OpenAI
       const stream = await openai.chat.completions.create({
-        model: "gpt-5.1",
+        model: "gpt-4.1-mini",
         messages: chatMessages,
         stream: true,
-        max_completion_tokens: 8192,
+        max_completion_tokens: 4096,
       });
 
       let fullResponse = "";
@@ -98,14 +127,12 @@ export function registerChatRoutes(app: Express): void {
         }
       }
 
-      // Save assistant message
       await chatStorage.createMessage(conversationId, "assistant", fullResponse);
 
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
     } catch (error) {
       console.error("Error sending message:", error);
-      // Check if headers already sent (SSE streaming started)
       if (res.headersSent) {
         res.write(`data: ${JSON.stringify({ error: "Failed to send message" })}\n\n`);
         res.end();
@@ -115,4 +142,3 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 }
-

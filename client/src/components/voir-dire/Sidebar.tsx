@@ -24,6 +24,7 @@ interface SidebarProps {
   onLogout?: () => void;
   onOpenMattrMindr?: () => void;
   isMattrMindrConnected?: boolean;
+  onOpenSettings?: () => void;
 }
 
 const PHASES = [
@@ -47,6 +48,7 @@ export function Sidebar({
   onLogout,
   onOpenMattrMindr,
   isMattrMindrConnected,
+  onOpenSettings,
 }: SidebarProps) {
   return (
     <>
@@ -145,16 +147,16 @@ export function Sidebar({
         </nav>
 
         <div className="border-t border-slate-800 p-4 space-y-2">
-          {onOpenMattrMindr && (
+          {onOpenSettings && (
             <button
-              onClick={onOpenMattrMindr}
-              data-testid="button-open-mattrmindr"
+              onClick={onOpenSettings}
+              data-testid="button-open-settings"
               className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"
             >
-              <Link2 className="w-4 h-4" />
-              <span className="flex-1 text-left">MattrMindr</span>
+              <Settings className="w-4 h-4" />
+              <span className="flex-1 text-left">Settings</span>
               {isMattrMindrConnected && (
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="w-2 h-2 rounded-full bg-emerald-500" title="MattrMindr connected" />
               )}
             </button>
           )}
