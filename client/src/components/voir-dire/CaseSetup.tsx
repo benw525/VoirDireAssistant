@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Briefcase,
@@ -9,7 +9,7 @@ import {
   Link2,
   Loader2,
   ExternalLink,
-  ChevronDown,
+  Search,
 } from 'lucide-react';
 import { CaseInfo } from '../../types';
 import * as api from '../../lib/api';
@@ -106,6 +106,23 @@ export function CaseSetup({
   const [mmCases, setMmCases] = useState<api.MattrMindrCaseListItem[]>([]);
   const [mmLoading, setMmLoading] = useState(false);
   const [mmError, setMmError] = useState('');
+  const [mmSearch, setMmSearch] = useState('');
+  const mmSearchRef = useRef<HTMLInputElement>(null);
+
+  const filteredMmCases = useMemo(() => {
+    if (!mmSearch.trim()) return mmCases;
+    const q = mmSearch.toLowerCase();
+    return mmCases.filter(c =>
+      (c.defendantName || '').toLowerCase().includes(q) ||
+      (c.caseNum || '').toLowerCase().includes(q)
+    );
+  }, [mmCases, mmSearch]);
+
+  useEffect(() => {
+    if (showMmPicker && !mmLoading && mmCases.length > 0) {
+      setTimeout(() => mmSearchRef.current?.focus(), 100);
+    }
+  }, [showMmPicker, mmLoading, mmCases.length]);
 
   const handleInitialize = (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,6 +149,7 @@ export function CaseSetup({
     setMmError('');
     setMmLoading(true);
     setShowMmPicker(true);
+    setMmSearch('');
     try {
       const cases = await api.fetchMattrMindrCases();
       setMmCases(cases);
@@ -205,7 +223,7 @@ export function CaseSetup({
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden mt-3"
+                    className="overflow-hidden overflow-x-hidden mt-3"
                   >
                     {mmError && (
                       <div className="text-sm text-rose-600 mb-2">{mmError}</div>
@@ -216,33 +234,48 @@ export function CaseSetup({
                         <span className="ml-2 text-sm text-blue-700">Loading cases...</span>
                       </div>
                     ) : mmCases.length === 0 ? (
-                      <div className="text-sm text-slate-500 py-2">No cases found.</div>
+                      <div className="text-sm text-slate-500 py-2">No trial center cases found.</div>
                     ) : (
-                      <div className="max-h-60 overflow-y-auto space-y-1 bg-white rounded-lg border border-blue-200 p-2">
-                        {mmCases.map(c => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => handleSelectMmCase(c)}
-                            data-testid={`button-mm-case-${c.id}`}
-                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-blue-50 transition-colors"
-                          >
-                            <div className="font-semibold text-sm text-slate-900">
-                              {c.caseNum} - {c.defendantName || c.title}
-                            </div>
-                            <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                              <span>{c.caseType}</span>
-                              <span className="text-slate-300">|</span>
-                              <span>{c.court}</span>
-                              {c.stage && (
-                                <>
-                                  <span className="text-slate-300">|</span>
-                                  <span className="capitalize">{c.stage}</span>
-                                </>
-                              )}
-                            </div>
-                          </button>
-                        ))}
+                      <div>
+                        <div className="relative mb-2">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                          <input
+                            ref={mmSearchRef}
+                            type="text"
+                            value={mmSearch}
+                            onChange={e => setMmSearch(e.target.value)}
+                            placeholder="Search by defendant name or case number..."
+                            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-blue-200 bg-white focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none"
+                            data-testid="input-mm-search"
+                          />
+                        </div>
+                        <div className="max-h-60 overflow-y-auto overflow-x-hidden bg-white rounded-lg border border-blue-200">
+                          {filteredMmCases.length === 0 ? (
+                            <div className="text-sm text-slate-500 py-3 px-3">No matching cases found.</div>
+                          ) : (
+                            filteredMmCases.map(c => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => handleSelectMmCase(c)}
+                                data-testid={`button-mm-case-${c.id}`}
+                                className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors border-b border-slate-100 last:border-b-0"
+                              >
+                                <div className="flex items-baseline justify-between gap-2 min-w-0">
+                                  <span className="font-semibold text-sm text-slate-900 truncate">
+                                    {c.defendantName || c.title}
+                                  </span>
+                                  <span className="text-xs text-slate-500 flex-shrink-0">{c.caseNum}</span>
+                                </div>
+                                {c.trialDate && (
+                                  <div className="text-xs text-slate-400 mt-0.5 truncate">
+                                    Trial: {c.trialDate}
+                                  </div>
+                                )}
+                              </button>
+                            ))
+                          )}
+                        </div>
                       </div>
                     )}
                   </motion.div>

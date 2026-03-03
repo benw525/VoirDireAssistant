@@ -442,6 +442,8 @@ export interface MattrMindrCaseListItem {
   stage: string;
   court: string;
   judge: string;
+  inTrialCenter: boolean;
+  trialDate?: string;
 }
 
 export interface MattrMindrCaseDetail extends MattrMindrCaseListItem {

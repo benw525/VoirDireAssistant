@@ -9,7 +9,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - **Database**: PostgreSQL with Drizzle ORM
 - **Auth**: JWT-based authentication with bcrypt password hashing, per-user data isolation
 - **AI**: OpenAI via Replit AI Integrations for strike list parsing, voir dire generation, juror analysis, and AI chat assistant
-- **MattrMindr**: Optional integration to import cases from MattrMindr and push jury analysis back
+- **MattrMindr**: Optional integration to import cases from MattrMindr (filtered to Trial Center only) and push jury analysis back
 - **Build**: Vite for frontend, tsx for server
 
 ## Key Files
@@ -109,9 +109,15 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `POST /api/mattrmindr/connect` — Login to MattrMindr, store credentials
 - `POST /api/mattrmindr/disconnect` — Clear MattrMindr credentials
 - `GET /api/mattrmindr/status` — Check connection status
-- `GET /api/mattrmindr/cases` — List MattrMindr cases
+- `GET /api/mattrmindr/cases` — List MattrMindr cases (filtered to `inTrialCenter: true` only, prioritized by user association, sorted alphabetically by defendant name)
 - `GET /api/mattrmindr/cases/:id` — Get MattrMindr case detail
 - `POST /api/mattrmindr/cases/:id/jury-analysis` — Push jury analysis to MattrMindr
+
+### MattrMindr Case Import UI
+- Search bar with auto-filtering suggestions (filters by defendant name and case number)
+- Only shows: defendant/client name, case number, trial date
+- Sorted: user-associated cases first, then alphabetically by defendant name
+- Mobile: vertical-only scroll (overflow-x-hidden) to prevent horizontal sliding
 
 ## Database Tables
 - `users` — User accounts (email, passwordHash, name, mattrmindrUrl, mattrmindrToken)

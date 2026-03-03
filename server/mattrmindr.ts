@@ -8,6 +8,8 @@ interface MattrMindrCase {
   stage: string;
   court: string;
   judge: string;
+  inTrialCenter: boolean;
+  trialDate?: string;
 }
 
 interface MattrMindrCaseDetail extends MattrMindrCase {
@@ -72,8 +74,25 @@ export async function verifyMattrMindrToken(baseUrl: string, token: string): Pro
   }
 }
 
-export async function fetchMattrMindrCases(baseUrl: string, token: string): Promise<MattrMindrCase[]> {
-  return mmFetch(baseUrl, '/api/external/cases', token);
+export async function fetchMattrMindrCases(baseUrl: string, token: string, userInfo?: { name?: string; email?: string }): Promise<MattrMindrCase[]> {
+  const allCases: MattrMindrCase[] = await mmFetch(baseUrl, '/api/external/cases', token);
+  const trialCenterCases = allCases.filter(c => c.inTrialCenter === true);
+
+  trialCenterCases.sort((a, b) => {
+    if (userInfo?.name || userInfo?.email) {
+      const terms = [userInfo.name?.toLowerCase(), userInfo.email?.toLowerCase()].filter(Boolean) as string[];
+      const matchesAny = (text?: string) => text ? terms.some(t => text.toLowerCase().includes(t)) : false;
+      const aAssoc = matchesAny(a.defendantName) || matchesAny(a.title);
+      const bAssoc = matchesAny(b.defendantName) || matchesAny(b.title);
+      if (aAssoc && !bAssoc) return -1;
+      if (!aAssoc && bAssoc) return 1;
+    }
+    const nameA = (a.defendantName || a.title || '').toLowerCase();
+    const nameB = (b.defendantName || b.title || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
+  return trialCenterCases;
 }
 
 export async function fetchMattrMindrCase(baseUrl: string, token: string, caseId: string): Promise<MattrMindrCaseDetail> {

@@ -524,7 +524,7 @@ export async function registerRoutes(
       if (!user?.mattrmindrUrl || !user?.mattrmindrToken) {
         return res.status(400).json({ message: "MattrMindr not connected" });
       }
-      const cases = await fetchMattrMindrCases(user.mattrmindrUrl, user.mattrmindrToken);
+      const cases = await fetchMattrMindrCases(user.mattrmindrUrl, user.mattrmindrToken, { name: user.name, email: user.email });
       res.json(cases);
     } catch (err: any) {
       if (err.status === 401) {
