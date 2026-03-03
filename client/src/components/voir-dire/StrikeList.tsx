@@ -11,7 +11,9 @@ import {
   AlertTriangle,
   Check,
   X,
-  Pencil
+  Pencil,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { Juror } from '../../types';
 import { useDropzone } from 'react-dropzone';
@@ -105,6 +107,8 @@ export function StrikeList({
   const [isParsing, setIsParsing] = useState(false);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newJuror, setNewJuror] = useState({ name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' });
 
   const handleAIParse = useCallback(async (fileOrText: File | string) => {
     setIsParsing(true);
@@ -157,6 +161,33 @@ export function StrikeList({
       return { ...updatedJuror, needsReview: hasIllegible };
     });
     onJurorsLoaded(updated);
+  };
+
+  const handleAddJuror = () => {
+    if (!newJuror.name.trim()) return;
+    const maxNumber = jurors.length > 0 ? Math.max(...jurors.map(j => j.number)) : 0;
+    const juror: Juror = {
+      number: maxNumber + 1,
+      name: newJuror.name.trim(),
+      address: '',
+      cityStateZip: '',
+      sex: newJuror.sex.trim() || 'Unknown',
+      race: newJuror.race.trim() || 'Unknown',
+      birthDate: newJuror.birthDate.trim() || 'Unknown',
+      occupation: newJuror.occupation.trim() || 'Unknown',
+      employer: newJuror.employer.trim() || 'Unknown',
+      responses: [],
+      lean: 'unknown',
+      riskTier: 'unassessed',
+      notes: '',
+    };
+    onJurorsLoaded([...jurors, juror]);
+    setNewJuror({ name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' });
+    setShowAddForm(false);
+  };
+
+  const handleDeleteJuror = (jurorNumber: number) => {
+    onJurorsLoaded(jurors.filter(j => j.number !== jurorNumber));
   };
 
   const reviewCount = jurors.filter((j: any) => j.needsReview).length;
@@ -326,6 +357,7 @@ export function StrikeList({
                     <th className="px-4 py-3 font-semibold">Occupation</th>
                     <th className="px-4 py-3 font-semibold">Employer</th>
                     <th className="px-4 py-3 font-semibold w-10"></th>
+                    <th className="px-2 py-3 font-semibold w-10"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -390,6 +422,16 @@ export function StrikeList({
                             <AlertTriangle className="w-4 h-4 text-amber-500" title="This juror has fields that need review" />
                           )}
                         </td>
+                        <td className="px-2 py-2.5">
+                          <button
+                            onClick={() => handleDeleteJuror(juror.number)}
+                            data-testid={`button-delete-juror-${juror.number}`}
+                            className="text-slate-300 hover:text-rose-500 transition-colors p-0.5 rounded"
+                            title="Remove juror"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -397,17 +439,106 @@ export function StrikeList({
               </table>
             </div>
 
+            {showAddForm && (
+              <div className="border-t border-slate-200 bg-emerald-50/50 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Plus className="w-4 h-4 text-emerald-600" />
+                  <span className="text-sm font-semibold text-slate-800">Add Juror Manually</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 mb-3">
+                  <input
+                    value={newJuror.name}
+                    onChange={(e) => setNewJuror(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Name *"
+                    data-testid="input-add-juror-name"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddJuror()}
+                  />
+                  <input
+                    value={newJuror.sex}
+                    onChange={(e) => setNewJuror(prev => ({ ...prev, sex: e.target.value }))}
+                    placeholder="Sex"
+                    data-testid="input-add-juror-sex"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddJuror()}
+                  />
+                  <input
+                    value={newJuror.race}
+                    onChange={(e) => setNewJuror(prev => ({ ...prev, race: e.target.value }))}
+                    placeholder="Race"
+                    data-testid="input-add-juror-race"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddJuror()}
+                  />
+                  <input
+                    value={newJuror.birthDate}
+                    onChange={(e) => setNewJuror(prev => ({ ...prev, birthDate: e.target.value }))}
+                    placeholder="DOB"
+                    data-testid="input-add-juror-dob"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddJuror()}
+                  />
+                  <input
+                    value={newJuror.occupation}
+                    onChange={(e) => setNewJuror(prev => ({ ...prev, occupation: e.target.value }))}
+                    placeholder="Occupation"
+                    data-testid="input-add-juror-occupation"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddJuror()}
+                  />
+                  <input
+                    value={newJuror.employer}
+                    onChange={(e) => setNewJuror(prev => ({ ...prev, employer: e.target.value }))}
+                    placeholder="Employer"
+                    data-testid="input-add-juror-employer"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddJuror()}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleAddJuror}
+                    disabled={!newJuror.name.trim()}
+                    data-testid="button-confirm-add-juror"
+                    className="inline-flex items-center px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  >
+                    <Check className="w-4 h-4 mr-1.5" />
+                    Add Juror
+                  </button>
+                  <button
+                    onClick={() => { setShowAddForm(false); setNewJuror({ name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' }); }}
+                    data-testid="button-cancel-add-juror"
+                    className="inline-flex items-center px-4 py-2 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="bg-slate-50 border-t border-slate-200 p-4 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => onJurorsLoaded([])}
+                  data-testid="button-clear-jurors"
+                  className="text-slate-500 hover:text-slate-700 font-medium text-sm">
+                  Clear & Re-upload
+                </button>
+                {!showAddForm && (
+                  <button
+                    onClick={() => setShowAddForm(true)}
+                    data-testid="button-add-juror"
+                    className="inline-flex items-center text-emerald-600 hover:text-emerald-700 font-medium text-sm transition-colors"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Juror
+                  </button>
+                )}
+              </div>
               <button
-              onClick={() => onJurorsLoaded([])}
-              data-testid="button-clear-jurors"
-              className="text-slate-500 hover:text-slate-700 font-medium text-sm">
-                Clear & Re-upload
-              </button>
-              <button
-              onClick={onProceed}
-              data-testid="button-confirm-proceed"
-              className="inline-flex items-center px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-xl hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors shadow-sm">
+                onClick={onProceed}
+                data-testid="button-confirm-proceed"
+                className="inline-flex items-center px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-xl hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors shadow-sm">
                 Confirm & Proceed
                 <ArrowRight className="w-5 h-5 ml-2" />
               </button>
