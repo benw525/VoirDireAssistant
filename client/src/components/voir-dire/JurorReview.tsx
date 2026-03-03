@@ -463,9 +463,15 @@ export function JurorReview({
                             <div className="mt-2 space-y-2">
                               {response.followUps.map((fu: {question: string, answer: string}, idx: number) => (
                                 <div key={idx} className="bg-white p-3 rounded-lg border border-slate-200">
-                                  <div className="text-xs font-semibold text-slate-500 mb-1">
-                                    {fu.question}
-                                  </div>
+                                  {fu.question ? (
+                                    <div className="text-xs font-semibold text-slate-500 mb-1">
+                                      {fu.question}
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs font-semibold text-slate-400 mb-1">
+                                      Follow-up response
+                                    </div>
+                                  )}
                                   <p className="text-sm text-slate-800">
                                     "{fu.answer}"
                                   </p>

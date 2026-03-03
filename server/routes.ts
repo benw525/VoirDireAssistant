@@ -129,8 +129,8 @@ export async function registerRoutes(
 
   app.post("/api/responses/:id/follow-ups", async (req, res) => {
     const { question, answer } = req.body;
-    if (!question || !answer) return res.status(400).json({ message: "question and answer are required" });
-    const updated = await storage.addFollowUpToResponse(req.params.id, { question, answer });
+    if (!answer) return res.status(400).json({ message: "answer is required" });
+    const updated = await storage.addFollowUpToResponse(req.params.id, { question: question || '', answer });
     if (!updated) return res.status(404).json({ message: "Response not found" });
     res.json(updated);
   });

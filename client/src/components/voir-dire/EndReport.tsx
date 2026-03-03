@@ -365,7 +365,11 @@ export function EndReport({
                                     <div className="mt-2 pl-3 border-l-2 border-violet-200 space-y-1">
                                       {r.followUps.map((fu, fi) => (
                                         <div key={fi}>
-                                          <p className="text-xs text-violet-600 font-medium">Follow-up: {fu.question}</p>
+                                          {fu.question ? (
+                                            <p className="text-xs text-violet-600 font-medium">Follow-up: {fu.question}</p>
+                                          ) : (
+                                            <p className="text-xs text-violet-400 font-medium">Follow-up response</p>
+                                          )}
                                           <p className="text-xs text-slate-700">{fu.answer}</p>
                                         </div>
                                       ))}
