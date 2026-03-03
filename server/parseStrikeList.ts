@@ -86,6 +86,7 @@ Other rules:
     ],
     response_format: { type: "json_object" },
     temperature: 0.1,
+    store: false,
   });
 
   const content = response.choices[0]?.message?.content || "{}";

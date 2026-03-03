@@ -109,6 +109,7 @@ Write a 1-2 sentence summary explaining this juror's classification.`;
     ],
     temperature: 0.3,
     max_tokens: 150,
+    store: false,
   });
 
   return completion.choices[0]?.message?.content || "Unable to generate summary.";
@@ -170,6 +171,7 @@ Provide your risk assessment analysis for this juror.`;
     ],
     temperature: 0.4,
     max_tokens: 800,
+    store: false,
   });
 
   return completion.choices[0]?.message?.content || "Unable to generate analysis.";
@@ -284,6 +286,7 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
     temperature: 0.3,
     max_tokens: 4000,
     response_format: { type: "json_object" },
+    store: false,
   });
 
   const raw = completion.choices[0]?.message?.content || '{"strikes":[]}';

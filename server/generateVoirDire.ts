@@ -241,6 +241,7 @@ export async function generateFullVoirDire(
     ],
     response_format: { type: "json_object" },
     temperature: 0.3,
+    store: false,
   });
 
   const content = response.choices[0]?.message?.content || "{}";
@@ -306,6 +307,7 @@ export async function refineUserQuestions(
     ],
     response_format: { type: "json_object" },
     temperature: 0.3,
+    store: false,
   });
 
   const content = response.choices[0]?.message?.content || "{}";
