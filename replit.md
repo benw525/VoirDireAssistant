@@ -32,8 +32,9 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `client/src/types/index.ts` — Frontend TypeScript types
 - `client/src/components/voir-dire/` — UI components for each phase
 - `client/src/components/voir-dire/SettingsPanel.tsx` — Settings page (profile, AI toggle, MattrMindr, password, logout)
-- `client/src/components/AIAssistant/AIAssistantButton.tsx` — Floating draggable AI chat button
-- `client/src/components/AIAssistant/AIAssistantPanel.tsx` — AI Assistant chat panel with streaming
+- `client/src/components/voir-dire/HelpCenter.tsx` — Help Center modal (4 tabs: Tutorials, FAQ, AI Assistant, Contact)
+- `client/src/components/AIAssistant/AIAssistantButton.tsx` — Floating draggable AI chat button (pointer capture)
+- `client/src/components/AIAssistant/AIAssistantPanel.tsx` — AI Assistant chat panel with streaming and context awareness
 
 ## Application Phases
 0. Welcome Screen (past cases, new case)
@@ -46,12 +47,23 @@ A full-stack jury selection assistant application with user authentication, AI-p
 
 ## AI Assistant
 - Floating circular button (bottom-right) with BrainCircuit icon in slate-900/amber-500
-- Mobile: long-press (500ms) enables drag mode to reposition
+- Mobile: long-press (500ms) enables drag mode to reposition; uses pointer capture for reliable dragging
 - Desktop: right-click context menu with "Move" and "Reset Position"
 - Opens a slide-in chat panel with streaming AI responses
+- **Context-aware**: Sends current case info (name, area of law, side, summary, traits), juror panel summary (lean/risk breakdown + individual juror details), and current phase to the AI system prompt dynamically with each message
+- Server accepts optional `context` field in POST `/api/conversations/:id/messages` and appends it to the system prompt
 - Legal assistant system prompt specializing in Alabama jury selection law
 - Suggestion chips for common queries
 - Can be hidden via Settings toggle (persisted in sessionStorage)
+
+## Help Center
+- Pop-up modal accessible from sidebar "Help Center" button (HelpCircle icon)
+- 4 tabs with amber underline indicator:
+  - **Tutorials**: Accordion sections for each workflow phase (Getting Started, Strike List, Voir Dire Questions, Recording Responses, Review & Strategy, Final Report)
+  - **FAQ**: 7 expandable Q&A items covering file formats, AI analysis, question locking, MattrMindr, security, multiple cases, AI model
+  - **AI Assistant**: Overview page with BrainCircuit icon, description, "Open AI Assistant" button, and 4 capability cards (Case Strategy, Juror Assessment, Legal Research, App Guidance)
+  - **Contact**: Form with pre-filled email, subject, message, and "Send to Support" button (frontend-only, shows success toast)
+- Component: `client/src/components/voir-dire/HelpCenter.tsx`
 
 ## Settings Page
 - Accessible via gear icon in sidebar footer

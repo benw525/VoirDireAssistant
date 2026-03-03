@@ -19,7 +19,8 @@ When answering:
 - Be concise but thorough
 - Cite relevant Alabama Rules of Criminal/Civil Procedure or case law when applicable
 - Provide actionable advice an attorney can use immediately
-- If asked about a specific juror or case, use whatever context is provided
+- If the user's current case context is provided, use it to give specific, tailored advice
+- Reference specific jurors by number/name when the user asks about juror assessment
 - Format responses with markdown for readability (headers, bullet points, bold text)
 - If you don't know something specific to the user's case, say so and provide general guidance
 
@@ -85,7 +86,7 @@ export function registerChatRoutes(app: Express): void {
   app.post("/api/conversations/:id/messages", async (req: Request, res: Response) => {
     try {
       const conversationId = parseInt(req.params.id);
-      const { content } = req.body;
+      const { content, context } = req.body;
 
       const conversation = await chatStorage.getConversation(conversationId);
       if (!conversation) {
@@ -98,8 +99,14 @@ export function registerChatRoutes(app: Express): void {
       await chatStorage.createMessage(conversationId, "user", content);
 
       const messages = await chatStorage.getMessagesByConversation(conversationId);
+
+      let systemPrompt = SYSTEM_PROMPT;
+      if (context) {
+        systemPrompt += `\n\n--- CURRENT CASE CONTEXT ---\n${context}\n--- END CONTEXT ---`;
+      }
+
       const chatMessages: Array<{role: "system" | "user" | "assistant", content: string}> = [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         ...messages.map((m) => ({
           role: m.role as "user" | "assistant",
           content: m.content,

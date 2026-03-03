@@ -8,7 +8,8 @@ import {
   X,
   LogOut,
   Link2,
-  Settings
+  Settings,
+  HelpCircle,
 } from 'lucide-react';
 import { AppPhase, CaseInfo } from '../../types';
 
@@ -25,6 +26,7 @@ interface SidebarProps {
   onOpenMattrMindr?: () => void;
   isMattrMindrConnected?: boolean;
   onOpenSettings?: () => void;
+  onOpenHelpCenter?: () => void;
 }
 
 const PHASES = [
@@ -49,6 +51,7 @@ export function Sidebar({
   onOpenMattrMindr,
   isMattrMindrConnected,
   onOpenSettings,
+  onOpenHelpCenter,
 }: SidebarProps) {
   return (
     <>
@@ -158,6 +161,17 @@ export function Sidebar({
               {isMattrMindrConnected && (
                 <span className="w-2 h-2 rounded-full bg-emerald-500" title="MattrMindr connected" />
               )}
+            </button>
+          )}
+
+          {onOpenHelpCenter && (
+            <button
+              onClick={onOpenHelpCenter}
+              data-testid="button-open-help-center"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"
+            >
+              <HelpCircle className="w-4 h-4" />
+              <span className="flex-1 text-left">Help Center</span>
             </button>
           )}
 

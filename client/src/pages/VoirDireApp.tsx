@@ -18,6 +18,7 @@ import { ResponseRecording } from '../components/voir-dire/ResponseRecording';
 import { JurorReview } from '../components/voir-dire/JurorReview';
 import { EndReport } from '../components/voir-dire/EndReport';
 import { SettingsPanel } from '../components/voir-dire/SettingsPanel';
+import { HelpCenter } from '../components/voir-dire/HelpCenter';
 import { AIAssistantButton } from '../components/AIAssistant/AIAssistantButton';
 import { AIAssistantPanel } from '../components/AIAssistant/AIAssistantPanel';
 import { useAuth } from '../lib/auth';
@@ -62,6 +63,7 @@ export default function VoirDireApp() {
   const [isMattrMindrConnected, setIsMattrMindrConnected] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
+  const [showHelpCenter, setShowHelpCenter] = useState(false);
   const [aiHidden, setAiHidden] = useState(() => sessionStorage.getItem('voir_dire_ai_hidden') === 'true');
 
   useEffect(() => {
@@ -424,6 +426,7 @@ export default function VoirDireApp() {
           onOpenMattrMindr={() => setShowSettings(true)}
           isMattrMindrConnected={isMattrMindrConnected}
           onOpenSettings={() => setShowSettings(true)}
+          onOpenHelpCenter={() => setShowHelpCenter(true)}
         />
       )}
 
@@ -466,12 +469,21 @@ export default function VoirDireApp() {
         onClick={() => setShowAIPanel(true)}
       />
 
+      <HelpCenter
+        isOpen={showHelpCenter}
+        onClose={() => setShowHelpCenter(false)}
+        onOpenAIAssistant={() => setShowAIPanel(true)}
+      />
+
       <AnimatePresence>
         {showAIPanel && (
           <AIAssistantPanel
             isOpen={showAIPanel}
             onClose={() => setShowAIPanel(false)}
             contextLabel={PHASE_LABELS[currentPhase] || ''}
+            caseInfo={caseInfo}
+            jurors={jurors}
+            currentPhase={currentPhase}
           />
         )}
       </AnimatePresence>

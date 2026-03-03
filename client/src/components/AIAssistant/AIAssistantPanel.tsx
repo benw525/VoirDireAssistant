@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, BrainCircuit, Loader2, Sparkles, Trash2 } from 'lucide-react';
 import { getAuthToken } from '../../lib/auth';
+import type { CaseInfo, Juror } from '../../types';
 
 interface Message {
   id: number;
@@ -13,6 +14,9 @@ interface AIAssistantPanelProps {
   isOpen: boolean;
   onClose: () => void;
   contextLabel?: string;
+  caseInfo?: CaseInfo | null;
+  jurors?: Juror[];
+  currentPhase?: number;
 }
 
 const SUGGESTIONS = [
@@ -21,7 +25,52 @@ const SUGGESTIONS = [
   "Which jurors are highest risk?",
 ];
 
-export function AIAssistantPanel({ isOpen, onClose, contextLabel }: AIAssistantPanelProps) {
+function buildContextBlock(caseInfo?: CaseInfo | null, jurors?: Juror[], currentPhase?: number): string {
+  const parts: string[] = [];
+
+  if (currentPhase !== undefined && currentPhase !== null) {
+    const phaseNames: Record<number, string> = {
+      0: 'Welcome Screen',
+      1: 'Case Setup',
+      2: 'Strike List / Juror Entry',
+      3: 'Voir Dire Questions',
+      4: 'Recording Responses',
+      5: 'Review & Strategy',
+      6: 'Final Report',
+    };
+    parts.push(`The user is currently on: ${phaseNames[currentPhase] || 'Unknown'} (Phase ${currentPhase})`);
+  }
+
+  if (caseInfo) {
+    parts.push(`Active Case: "${caseInfo.name}"`);
+    parts.push(`Area of Law: ${caseInfo.areaOfLaw}`);
+    parts.push(`Side: ${caseInfo.side}`);
+    if (caseInfo.summary) parts.push(`Case Summary: ${caseInfo.summary}`);
+    if (caseInfo.favorableTraits?.length) parts.push(`Favorable juror traits: ${caseInfo.favorableTraits.join(', ')}`);
+    if (caseInfo.riskTraits?.length) parts.push(`Risk juror traits: ${caseInfo.riskTraits.join(', ')}`);
+  }
+
+  if (jurors && jurors.length > 0) {
+    parts.push(`\nJuror Panel (${jurors.length} jurors):`);
+    const leanCounts = { favorable: 0, neutral: 0, unfavorable: 0, unknown: 0 };
+    const riskCounts = { low: 0, medium: 0, high: 0, unassessed: 0 };
+    jurors.forEach(j => {
+      leanCounts[j.lean] = (leanCounts[j.lean] || 0) + 1;
+      riskCounts[j.riskTier] = (riskCounts[j.riskTier] || 0) + 1;
+    });
+    parts.push(`Lean breakdown: ${leanCounts.favorable} favorable, ${leanCounts.neutral} neutral, ${leanCounts.unfavorable} unfavorable, ${leanCounts.unknown} unknown`);
+    parts.push(`Risk breakdown: ${riskCounts.low} low, ${riskCounts.medium} medium, ${riskCounts.high} high, ${riskCounts.unassessed} unassessed`);
+
+    const jurorSummaries = jurors.slice(0, 30).map(j =>
+      `#${j.number} ${j.name} | ${j.occupation} | ${j.sex}/${j.race} | lean:${j.lean} risk:${j.riskTier}${j.notes ? ` | notes: ${j.notes.slice(0, 80)}` : ''}`
+    );
+    parts.push(jurorSummaries.join('\n'));
+  }
+
+  return parts.length > 0 ? parts.join('\n') : '';
+}
+
+export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, jurors, currentPhase }: AIAssistantPanelProps) {
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -116,13 +165,18 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel }: AIAssistantP
 
     try {
       const token = getAuthToken();
+      const contextBlock = buildContextBlock(caseInfo, jurors, currentPhase);
+
       const res = await fetch(`/api/conversations/${convId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ content: content.trim() }),
+        body: JSON.stringify({
+          content: content.trim(),
+          context: contextBlock || undefined,
+        }),
       });
 
       if (!res.ok) {

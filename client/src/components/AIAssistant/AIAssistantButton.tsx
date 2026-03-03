@@ -9,10 +9,13 @@ interface AIAssistantButtonProps {
 
 const STORAGE_KEY = 'voir_dire_ai_btn_pos';
 
-function loadPosition() {
+function loadPosition(): { x: number; y: number } | null {
   try {
     const saved = sessionStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const pos = JSON.parse(saved);
+      if (typeof pos.x === 'number' && typeof pos.y === 'number') return pos;
+    }
   } catch {}
   return null;
 }
@@ -27,14 +30,16 @@ function savePosition(pos: { x: number; y: number } | null) {
 
 export function AIAssistantButton({ hidden, onClick }: AIAssistantButtonProps) {
   const [position, setPosition] = useState<{ x: number; y: number } | null>(loadPosition);
-  const [isDragging, setIsDragging] = useState(false);
   const [dragMode, setDragMode] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
+
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dragStart = useRef<{ x: number; y: number; bx: number; by: number } | null>(null);
+  const isDraggingRef = useRef(false);
+  const hasMoved = useRef(false);
+  const startPos = useRef<{ px: number; py: number; ex: number; ey: number }>({ px: 0, py: 0, ex: 0, ey: 0 });
   const btnRef = useRef<HTMLDivElement>(null);
-  const didDrag = useRef(false);
 
   const resetPosition = useCallback(() => {
     setPosition(null);
@@ -43,71 +48,94 @@ export function AIAssistantButton({ hidden, onClick }: AIAssistantButtonProps) {
   }, []);
 
   useEffect(() => {
-    const handler = () => setShowContextMenu(false);
+    const handler = (e: MouseEvent) => {
+      setShowContextMenu(false);
+    };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
   }, []);
 
+  const getButtonPosition = useCallback(() => {
+    if (position) return position;
+    return { x: window.innerWidth - 56 - 24, y: window.innerHeight - 56 - 24 };
+  }, [position]);
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button === 2) return;
-    didDrag.current = false;
+
+    const btnPos = getButtonPosition();
+    startPos.current = { px: btnPos.x, py: btnPos.y, ex: e.clientX, ey: e.clientY };
+    hasMoved.current = false;
 
     if (dragMode) {
       e.preventDefault();
-      const rect = btnRef.current?.getBoundingClientRect();
-      if (rect) {
-        dragStart.current = { x: e.clientX, y: e.clientY, bx: rect.left, by: rect.top };
-        setIsDragging(true);
-      }
+      isDraggingRef.current = true;
+      setIsDragging(true);
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
       return;
     }
 
     longPressTimer.current = setTimeout(() => {
+      isDraggingRef.current = true;
+      hasMoved.current = true;
       setDragMode(true);
-      const rect = btnRef.current?.getBoundingClientRect();
-      if (rect) {
-        dragStart.current = { x: e.clientX, y: e.clientY, bx: rect.left, by: rect.top };
-        setIsDragging(true);
-        didDrag.current = true;
-      }
+      setIsDragging(true);
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     }, 500);
-  }, [dragMode]);
+  }, [dragMode, getButtonPosition]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isDragging || !dragStart.current) return;
+    const dx = e.clientX - startPos.current.ex;
+    const dy = e.clientY - startPos.current.ey;
+
+    if (!isDraggingRef.current && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+    }
+
+    if (!isDraggingRef.current) return;
     e.preventDefault();
-    didDrag.current = true;
+    hasMoved.current = true;
 
-    const newLeft = dragStart.current.bx + (e.clientX - dragStart.current.x);
-    const newTop = dragStart.current.by + (e.clientY - dragStart.current.y);
-
+    const newX = startPos.current.px + dx;
+    const newY = startPos.current.py + dy;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const clampedLeft = Math.max(0, Math.min(newLeft, vw - 56));
-    const clampedTop = Math.max(0, Math.min(newTop, vh - 56));
+    const clamped = {
+      x: Math.max(0, Math.min(newX, vw - 56)),
+      y: Math.max(0, Math.min(newY, vh - 56)),
+    };
+    setPosition(clamped);
+    savePosition(clamped);
+  }, []);
 
-    const absPos = { x: clampedLeft, y: clampedTop };
-    setPosition(absPos);
-    savePosition(absPos);
-  }, [isDragging]);
-
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    if (isDragging) {
-      setIsDragging(false);
-      dragStart.current = null;
-      if (dragMode && didDrag.current) {
-        setTimeout(() => setDragMode(false), 100);
+
+    const wasDragging = isDraggingRef.current;
+    isDraggingRef.current = false;
+    setIsDragging(false);
+
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+
+    if (wasDragging) {
+      if (dragMode) {
+        setTimeout(() => setDragMode(false), 50);
       }
       return;
     }
-    if (!didDrag.current) {
+
+    if (!hasMoved.current) {
       onClick();
     }
-  }, [isDragging, dragMode, onClick]);
+  }, [dragMode, onClick]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -117,9 +145,14 @@ export function AIAssistantButton({ hidden, onClick }: AIAssistantButtonProps) {
 
   if (hidden) return null;
 
-  const style: React.CSSProperties = position && typeof position.x === 'number' && position.x >= 0
-    ? { position: 'fixed', left: position.x, top: position.y, right: 'auto', bottom: 'auto', zIndex: 60 }
-    : { position: 'fixed', right: 24, bottom: 24, zIndex: 60 };
+  const pos = getButtonPosition();
+  const style: React.CSSProperties = {
+    position: 'fixed',
+    left: pos.x,
+    top: pos.y,
+    zIndex: 60,
+    touchAction: 'none',
+  };
 
   return (
     <>
@@ -141,11 +174,11 @@ export function AIAssistantButton({ hidden, onClick }: AIAssistantButtonProps) {
         <div className={`w-14 h-14 rounded-full bg-slate-900 shadow-lg shadow-slate-900/30 flex items-center justify-center transition-all duration-200 ${dragMode ? 'ring-2 ring-amber-500 ring-offset-2' : 'hover:shadow-xl hover:scale-105'}`}>
           <BrainCircuit className="w-7 h-7 text-amber-500" />
         </div>
-        {dragMode && !isDragging && (
+        {dragMode && (
           <motion.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap"
+            className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap pointer-events-none"
           >
             Drag to move
           </motion.div>
