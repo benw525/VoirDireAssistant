@@ -41,6 +41,7 @@ const generateSampleJurors = (): Juror[] => {
     birthDate: `19${60 + i * 3}-0${i % 9 + 1}-15`,
     occupation: occupations[i], employer: 'Various',
     responses: [], lean: 'unknown' as const, riskTier: 'unassessed' as const, notes: '',
+    aiSummary: '', aiAnalysis: '',
   }));
 };
 
@@ -61,6 +62,7 @@ export default function VoirDireApp() {
 
   const [mattrmindrCaseId, setMattrmindrCaseId] = useState<string | null>(null);
   const [isMattrMindrConnected, setIsMattrMindrConnected] = useState(false);
+  const [savedStrikesForCause, setSavedStrikesForCause] = useState<any[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showHelpCenter, setShowHelpCenter] = useState(false);
@@ -127,6 +129,7 @@ export default function VoirDireApp() {
       setActiveCaseId(fullCase.id);
       setCurrentPhase(fullCase.lastPhase);
       setMattrmindrCaseId(saved.mattrmindrCaseId || null);
+      setSavedStrikesForCause(fullCase.strikesForCause || []);
     } catch (err) {
       console.error('Failed to load case:', err);
     }
@@ -417,6 +420,9 @@ export default function VoirDireApp() {
             questions={questions}
             mattrmindrCaseId={mattrmindrCaseId}
             isMattrMindrConnected={isMattrMindrConnected}
+            activeCaseId={activeCaseId}
+            onUpdateJuror={handleUpdateJuror}
+            savedStrikesForCause={savedStrikesForCause}
           />
         );
       default:

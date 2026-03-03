@@ -44,6 +44,7 @@ interface DbCase {
   questionsLocked: boolean;
   savedAt: number;
   mattrmindrCaseId?: string | null;
+  strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; argument: string }>;
 }
 
 interface DbJuror {
@@ -61,6 +62,8 @@ interface DbJuror {
   lean: string;
   riskTier: string;
   notes: string;
+  aiSummary: string;
+  aiAnalysis: string;
 }
 
 interface DbQuestion {
@@ -110,6 +113,7 @@ function dbCaseToSavedCase(c: DbCase, jurors: Juror[] = [], questions: VoirDireQ
     responses,
     completedPhases: c.completedPhases,
     mattrmindrCaseId: c.mattrmindrCaseId || null,
+    strikesForCause: c.strikesForCause || [],
   };
 }
 
@@ -128,6 +132,8 @@ function dbJurorToJuror(j: DbJuror): Juror {
     lean: j.lean as Juror['lean'],
     riskTier: j.riskTier as Juror['riskTier'],
     notes: j.notes,
+    aiSummary: j.aiSummary || '',
+    aiAnalysis: j.aiAnalysis || '',
   };
 }
 
@@ -294,6 +300,8 @@ export async function parseStrikeList(fileOrText: File | string): Promise<Juror[
     lean: 'unknown' as const,
     riskTier: 'unassessed' as const,
     notes: '',
+    aiSummary: '',
+    aiAnalysis: '',
     needsReview: Boolean(j.needsReview),
   }));
 }
@@ -488,6 +496,8 @@ export async function updateJurorOnServer(caseId: string, jurorNumber: number, u
     if (updates.lean !== undefined) patchData.lean = updates.lean;
     if (updates.riskTier !== undefined) patchData.riskTier = updates.riskTier;
     if (updates.notes !== undefined) patchData.notes = updates.notes;
+    if (updates.aiSummary !== undefined) patchData.aiSummary = updates.aiSummary;
+    if (updates.aiAnalysis !== undefined) patchData.aiAnalysis = updates.aiAnalysis;
     await fetchJson(`${API_BASE}/jurors/${dbJuror.id}`, {
       method: 'PATCH',
       body: JSON.stringify(patchData),

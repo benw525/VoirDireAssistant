@@ -35,7 +35,11 @@ export function JurorReview({
   const [viewMode, setViewMode] = useState<'board' | 'table'>('board');
   const [filterLean, setFilterLean] = useState<string>('all');
   const [selectedJuror, setSelectedJuror] = useState<Juror | null>(null);
-  const [aiAnalysis, setAiAnalysis] = useState<Record<number, string>>({});
+  const [aiAnalysis, setAiAnalysis] = useState<Record<number, string>>(() => {
+    const initial: Record<number, string> = {};
+    jurors.forEach(j => { if (j.aiAnalysis) initial[j.number] = j.aiAnalysis; });
+    return initial;
+  });
   const [analyzingJuror, setAnalyzingJuror] = useState<number | null>(null);
 
   const handleAnalyzeJuror = async (juror: Juror) => {
@@ -45,6 +49,7 @@ export function JurorReview({
       const jurorResponses = responses.filter(r => r.jurorNumber === juror.number);
       const analysis = await api.analyzeJuror(caseInfo, juror, jurorResponses, questions);
       setAiAnalysis(prev => ({ ...prev, [juror.number]: analysis }));
+      onUpdateJuror(juror.number, { aiAnalysis: analysis });
     } catch (err) {
       console.error('Failed to analyze juror:', err);
       setAiAnalysis(prev => ({ ...prev, [juror.number]: 'Unable to generate analysis. Please try again.' }));

@@ -180,6 +180,8 @@ export function StrikeList({
       lean: 'unknown',
       riskTier: 'unassessed',
       notes: '',
+      aiSummary: '',
+      aiAnalysis: '',
     };
     onJurorsLoaded([...jurors, juror]);
     setNewJuror({ name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' });

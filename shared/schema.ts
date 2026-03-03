@@ -31,6 +31,7 @@ export const cases = pgTable("cases", {
   questionsLocked: boolean("questions_locked").notNull().default(false),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   mattrmindrCaseId: text("mattrmindr_case_id"),
+  strikesForCause: jsonb("strikes_for_cause").$type<Array<{ jurorNumber: number; category: string; basis: string; argument: string }>>().notNull().default([]),
   savedAt: bigint("saved_at", { mode: "number" }).notNull(),
 });
 
@@ -49,6 +50,8 @@ export const jurors = pgTable("jurors", {
   lean: text("lean").notNull().default("unknown"),
   riskTier: text("risk_tier").notNull().default("unassessed"),
   notes: text("notes").notNull().default(""),
+  aiSummary: text("ai_summary").notNull().default(""),
+  aiAnalysis: text("ai_analysis").notNull().default(""),
 });
 
 export const questions = pgTable("questions", {

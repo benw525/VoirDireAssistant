@@ -34,6 +34,8 @@ export interface Juror {
   lean: 'favorable' | 'neutral' | 'unfavorable' | 'unknown';
   riskTier: 'low' | 'medium' | 'high' | 'unassessed';
   notes: string;
+  aiSummary: string;
+  aiAnalysis: string;
 }
 
 export interface VoirDireQuestion {
@@ -88,4 +90,5 @@ export interface SavedCase {
   responses: JurorResponse[];
   completedPhases: number[];
   mattrmindrCaseId?: string | null;
+  strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; argument: string }>;
 }

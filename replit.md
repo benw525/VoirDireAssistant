@@ -175,8 +175,8 @@ A full-stack jury selection assistant application with user authentication, AI-p
 
 ## Database Tables
 - `users` — User accounts (email, passwordHash, name, mattrmindrUrl, mattrmindrToken, subscriptionTier, stripeCustomerId, stripeSubscriptionId, casesUsed, casesPurchased)
-- `cases` — Case metadata (name, area of law, summary, side, traits, phase state, userId, mattrmindrCaseId)
-- `jurors` — Juror demographic data per case
+- `cases` — Case metadata (name, area of law, summary, side, traits, phase state, userId, mattrmindrCaseId, strikesForCause JSONB)
+- `jurors` — Juror demographic data per case (includes `ai_summary` and `ai_analysis` text columns for persisted AI outputs)
 - `questions` — Voir dire questions per case
 - `responses` — Recorded juror responses per case (includes `follow_ups` JSONB)
 - `conversations` — AI Assistant chat conversations (userId, title, createdAt)

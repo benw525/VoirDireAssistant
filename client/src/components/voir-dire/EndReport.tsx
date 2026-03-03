@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText,
@@ -48,6 +48,9 @@ interface EndReportProps {
   questions: VoirDireQuestion[];
   mattrmindrCaseId?: string | null;
   isMattrMindrConnected?: boolean;
+  activeCaseId?: string | null;
+  onUpdateJuror?: (jurorNumber: number, updates: Partial<Juror>) => void;
+  savedStrikesForCause?: StrikeForCauseResult[];
 }
 
 export function EndReport({
@@ -57,11 +60,18 @@ export function EndReport({
   questions,
   mattrmindrCaseId,
   isMattrMindrConnected,
+  activeCaseId,
+  onUpdateJuror,
+  savedStrikesForCause,
 }: EndReportProps) {
   const [sortField, setSortField] = useState<SortField>('number');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expandedJuror, setExpandedJuror] = useState<number | null>(null);
-  const [aiSummaries, setAiSummaries] = useState<Record<number, string>>({});
+  const [aiSummaries, setAiSummaries] = useState<Record<number, string>>(() => {
+    const initial: Record<number, string> = {};
+    jurors.forEach(j => { if (j.aiSummary) initial[j.number] = j.aiSummary; });
+    return initial;
+  });
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingToMm, setIsSendingToMm] = useState(false);
   const [mmSendResult, setMmSendResult] = useState<'success' | 'error' | null>(null);
@@ -69,7 +79,7 @@ export function EndReport({
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [plaintiffStrikes, setPlaintiffStrikes] = useState<Set<number>>(new Set());
   const [defenseStrikes, setDefenseStrikes] = useState<Set<number>>(new Set());
-  const [causeStrikes, setCauseStrikes] = useState<StrikeForCauseResult[]>([]);
+  const [causeStrikes, setCauseStrikes] = useState<StrikeForCauseResult[]>(savedStrikesForCause || []);
   const [isAnalyzingCause, setIsAnalyzingCause] = useState(false);
   const [causeAnalysisError, setCauseAnalysisError] = useState('');
   const [collapsedCauseCategories, setCollapsedCauseCategories] = useState<Set<string>>(new Set());
@@ -216,6 +226,12 @@ export function EndReport({
     try {
       const summaries = await api.analyzeJurorsBatch(caseInfo, jurors, responses, questions);
       setAiSummaries(summaries);
+      if (activeCaseId && onUpdateJuror) {
+        for (const [numStr, summary] of Object.entries(summaries)) {
+          const jurorNumber = parseInt(numStr, 10);
+          onUpdateJuror(jurorNumber, { aiSummary: summary });
+        }
+      }
     } catch (err) {
       console.error('Failed to generate summaries:', err);
     } finally {
@@ -229,6 +245,13 @@ export function EndReport({
     try {
       const results = await api.analyzeStrikesForCause(caseInfo, jurors, responses, questions);
       setCauseStrikes(results);
+      if (activeCaseId) {
+        try {
+          await api.updateCase(activeCaseId, { strikesForCause: results });
+        } catch (err) {
+          console.error('Failed to persist strikes for cause:', err);
+        }
+      }
     } catch (err: any) {
       console.error('Failed to analyze strikes for cause:', err);
       setCauseAnalysisError(err.message || 'Failed to analyze strikes for cause');
