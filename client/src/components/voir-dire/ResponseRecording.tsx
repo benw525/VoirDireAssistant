@@ -56,8 +56,11 @@ export function ResponseRecording({
     jurorInputRef.current?.focus();
   }, [stage]);
 
-  const yourSideLabel = caseInfo.side === 'plaintiff' ? 'Plaintiff' : 'Defense';
-  const opposingSideLabel = caseInfo.side === 'plaintiff' ? 'Defense' : 'Plaintiff / Prosecution';
+  const lcArea = caseInfo.areaOfLaw.toLowerCase();
+  const isCriminal = lcArea.includes('criminal') || lcArea.includes('felony') || lcArea.includes('misdemeanor');
+  const plaintiffTerm = isCriminal ? 'Prosecution' : 'Plaintiff';
+  const yourSideLabel = caseInfo.side === 'plaintiff' ? plaintiffTerm : 'Defense';
+  const opposingSideLabel = caseInfo.side === 'plaintiff' ? 'Defense' : plaintiffTerm;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

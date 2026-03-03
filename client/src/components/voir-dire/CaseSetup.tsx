@@ -361,8 +361,12 @@ export function CaseSetup({
                     : 'border-slate-200 hover:border-slate-300 bg-white'
                 }`}
               >
-                <div className="font-bold text-slate-900 text-lg">Plaintiff / Prosecution</div>
-                <div className="text-sm text-slate-500 mt-1">Bringing the charges or claims</div>
+                <div className="font-bold text-slate-900 text-lg">
+                  {/criminal|felony|misdemeanor/i.test(areaOfLaw) ? 'Prosecution' : 'Plaintiff'}
+                </div>
+                <div className="text-sm text-slate-500 mt-1">
+                  {/criminal|felony|misdemeanor/i.test(areaOfLaw) ? 'Prosecuting the charges' : 'Bringing the claims'}
+                </div>
               </button>
               <button
                 type="button"

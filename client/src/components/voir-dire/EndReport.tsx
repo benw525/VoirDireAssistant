@@ -16,9 +16,20 @@ import {
   Send,
   CheckCircle2,
   AlertCircle,
+  Gavel,
+  UserX,
 } from 'lucide-react';
 import { CaseInfo, Juror, JurorResponse, VoirDireQuestion } from '../../types';
 import * as api from '../../lib/api';
+
+function isCriminalCase(areaOfLaw: string): boolean {
+  const lc = areaOfLaw.toLowerCase();
+  return lc.includes('criminal') || lc.includes('felony') || lc.includes('misdemeanor');
+}
+
+function getPlaintiffLabel(areaOfLaw: string): string {
+  return isCriminalCase(areaOfLaw) ? 'Prosecution' : 'Plaintiff';
+}
 
 type SortField = 'number' | 'name' | 'lean' | 'riskTier';
 type SortDir = 'asc' | 'desc';
@@ -51,6 +62,37 @@ export function EndReport({
   const [isSendingToMm, setIsSendingToMm] = useState(false);
   const [mmSendResult, setMmSendResult] = useState<'success' | 'error' | null>(null);
   const [mmSendMessage, setMmSendMessage] = useState('');
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [plaintiffStrikes, setPlaintiffStrikes] = useState<Set<number>>(new Set());
+  const [defenseStrikes, setDefenseStrikes] = useState<Set<number>>(new Set());
+
+  const plaintiffLabel = getPlaintiffLabel(caseInfo.areaOfLaw);
+
+  const toggleStrike = (side: 'plaintiff' | 'defense', jurorNumber: number) => {
+    if (side === 'plaintiff') {
+      setPlaintiffStrikes(prev => {
+        const next = new Set(prev);
+        if (next.has(jurorNumber)) {
+          next.delete(jurorNumber);
+        } else {
+          next.add(jurorNumber);
+          setDefenseStrikes(d => { const nd = new Set(d); nd.delete(jurorNumber); return nd; });
+        }
+        return next;
+      });
+    } else {
+      setDefenseStrikes(prev => {
+        const next = new Set(prev);
+        if (next.has(jurorNumber)) {
+          next.delete(jurorNumber);
+        } else {
+          next.add(jurorNumber);
+          setPlaintiffStrikes(p => { const np = new Set(p); np.delete(jurorNumber); return np; });
+        }
+        return next;
+      });
+    }
+  };
 
   const jurorsWithResponses = useMemo(() => {
     return jurors.map(juror => {
@@ -235,7 +277,9 @@ export function EndReport({
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Side Represented</div>
-              <div className="font-medium text-slate-900 capitalize" data-testid="text-side">{caseInfo.side}</div>
+              <div className="font-medium text-slate-900 capitalize" data-testid="text-side">
+                {caseInfo.side === 'plaintiff' ? plaintiffLabel : 'Defense'}
+              </div>
             </div>
             <div>
               <div className="text-xs font-semibold text-slate-500 uppercase mb-1">Panel Overview</div>
@@ -258,34 +302,55 @@ export function EndReport({
 
         <section>
           <div className="flex items-center justify-between mb-4 no-print-controls">
-            <h3 className="text-lg font-bold text-slate-900 flex items-center">
+            <button
+              onClick={() => setPanelCollapsed(!panelCollapsed)}
+              data-testid="button-toggle-panel"
+              className="text-lg font-bold text-slate-900 flex items-center hover:text-slate-700 transition-colors"
+            >
               <Users className="w-5 h-5 mr-2 text-slate-500" />
               Complete Juror Panel ({jurors.length})
-            </h3>
-            <button
-              onClick={handleGenerateSummaries}
-              disabled={isGenerating}
-              data-testid="button-generate-summaries"
-              className="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-xl transition-colors bg-violet-100 text-violet-700 border border-violet-200 hover:bg-violet-200 disabled:opacity-50"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Generating Summaries...
-                </>
-              ) : Object.keys(aiSummaries).length > 0 ? (
-                <>
-                  <Brain className="w-4 h-4 mr-2" />
-                  Regenerate AI Summaries
-                </>
+              {panelCollapsed ? (
+                <ChevronDown className="w-5 h-5 ml-2 text-slate-400" />
               ) : (
-                <>
-                  <Brain className="w-4 h-4 mr-2" />
-                  Generate AI Summaries
-                </>
+                <ChevronUp className="w-5 h-5 ml-2 text-slate-400" />
               )}
             </button>
+            {!panelCollapsed && (
+              <button
+                onClick={handleGenerateSummaries}
+                disabled={isGenerating}
+                data-testid="button-generate-summaries"
+                className="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-xl transition-colors bg-violet-100 text-violet-700 border border-violet-200 hover:bg-violet-200 disabled:opacity-50"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Generating Summaries...
+                  </>
+                ) : Object.keys(aiSummaries).length > 0 ? (
+                  <>
+                    <Brain className="w-4 h-4 mr-2" />
+                    Regenerate AI Summaries
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-4 h-4 mr-2" />
+                    Generate AI Summaries
+                  </>
+                )}
+              </button>
+            )}
           </div>
+
+          <AnimatePresence>
+            {!panelCollapsed && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="grid grid-cols-[60px_1fr_1fr_100px_100px_60px] md:grid-cols-[60px_1.5fr_1fr_100px_100px_2fr_60px] gap-2 px-4 py-3 bg-slate-50 border-b border-slate-200 items-center">
@@ -298,21 +363,31 @@ export function EndReport({
               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Resp</div>
             </div>
 
-            {sortedJurors.map(juror => (
-              <div key={juror.number} className="border-b border-slate-100 last:border-b-0 print-juror-row">
+            {sortedJurors.map(juror => {
+              const isStruckPlaintiff = plaintiffStrikes.has(juror.number);
+              const isStruckDefense = defenseStrikes.has(juror.number);
+              const isStruck = isStruckPlaintiff || isStruckDefense;
+
+              return (
+              <div key={juror.number} className={`border-b border-slate-100 last:border-b-0 print-juror-row ${isStruck ? 'bg-rose-50/40' : ''}`}>
                 <button
                   onClick={() => setExpandedJuror(expandedJuror === juror.number ? null : juror.number)}
                   data-testid={`button-expand-juror-${juror.number}`}
-                  className="w-full grid grid-cols-[60px_1fr_1fr_100px_100px_60px] md:grid-cols-[60px_1.5fr_1fr_100px_100px_2fr_60px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center text-left"
+                  className={`w-full grid grid-cols-[60px_1fr_1fr_100px_100px_60px] md:grid-cols-[60px_1.5fr_1fr_100px_100px_2fr_60px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center text-left ${isStruck ? 'opacity-60' : ''}`}
                 >
                   <div className="font-bold text-slate-900" data-testid={`text-juror-number-${juror.number}`}>
                     #{juror.number}
                   </div>
                   <div>
-                    <div className="font-semibold text-slate-900 text-sm" data-testid={`text-juror-name-${juror.number}`}>
+                    <div className={`font-semibold text-slate-900 text-sm ${isStruck ? 'line-through' : ''}`} data-testid={`text-juror-name-${juror.number}`}>
                       {juror.name}
                     </div>
                     <div className="text-xs text-slate-500">{juror.sex}/{juror.race}</div>
+                    {isStruck && (
+                      <span className="text-[10px] font-bold uppercase text-rose-600">
+                        Struck by {isStruckPlaintiff ? plaintiffLabel : 'Defense'}
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm text-slate-700 truncate" data-testid={`text-juror-occupation-${juror.number}`}>
                     {juror.occupation}
@@ -433,7 +508,107 @@ export function EndReport({
                   )}
                 </AnimatePresence>
               </div>
-            ))}
+            );
+            })}
+          </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+
+        <section>
+          <h3 className="text-lg font-bold text-slate-900 flex items-center mb-4">
+            <Gavel className="w-5 h-5 mr-2 text-slate-500" />
+            Peremptory Strikes
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-2xl border border-blue-200 shadow-sm overflow-hidden">
+              <div className="bg-blue-50 px-4 py-3 border-b border-blue-200 flex items-center justify-between">
+                <h4 className="font-bold text-sm text-blue-900 flex items-center gap-2">
+                  <UserX className="w-4 h-4" />
+                  {plaintiffLabel} Strikes
+                </h4>
+                <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full" data-testid="count-plaintiff-strikes">
+                  {plaintiffStrikes.size}
+                </span>
+              </div>
+              <div className="p-3 space-y-1 max-h-60 overflow-y-auto">
+                {sortedJurors.map(juror => {
+                  const isStruckHere = plaintiffStrikes.has(juror.number);
+                  const isStruckOther = defenseStrikes.has(juror.number);
+                  return (
+                    <button
+                      key={juror.number}
+                      onClick={() => toggleStrike('plaintiff', juror.number)}
+                      disabled={isStruckOther}
+                      data-testid={`strike-plaintiff-${juror.number}`}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between transition-colors ${
+                        isStruckHere
+                          ? 'bg-blue-100 text-blue-900 font-semibold border border-blue-300'
+                          : isStruckOther
+                          ? 'bg-slate-50 text-slate-400 cursor-not-allowed'
+                          : 'hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <span className={isStruckHere ? '' : ''}>
+                        <span className="font-bold mr-1.5">#{juror.number}</span>
+                        <span className={isStruckHere ? 'line-through' : ''}>{juror.name}</span>
+                      </span>
+                      {isStruckHere && (
+                        <span className="text-[10px] font-bold uppercase text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Struck</span>
+                      )}
+                      {isStruckOther && (
+                        <span className="text-[10px] italic text-slate-400">Struck by Defense</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-rose-200 shadow-sm overflow-hidden">
+              <div className="bg-rose-50 px-4 py-3 border-b border-rose-200 flex items-center justify-between">
+                <h4 className="font-bold text-sm text-rose-900 flex items-center gap-2">
+                  <UserX className="w-4 h-4" />
+                  Defense Strikes
+                </h4>
+                <span className="text-xs font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full" data-testid="count-defense-strikes">
+                  {defenseStrikes.size}
+                </span>
+              </div>
+              <div className="p-3 space-y-1 max-h-60 overflow-y-auto">
+                {sortedJurors.map(juror => {
+                  const isStruckHere = defenseStrikes.has(juror.number);
+                  const isStruckOther = plaintiffStrikes.has(juror.number);
+                  return (
+                    <button
+                      key={juror.number}
+                      onClick={() => toggleStrike('defense', juror.number)}
+                      disabled={isStruckOther}
+                      data-testid={`strike-defense-${juror.number}`}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between transition-colors ${
+                        isStruckHere
+                          ? 'bg-rose-100 text-rose-900 font-semibold border border-rose-300'
+                          : isStruckOther
+                          ? 'bg-slate-50 text-slate-400 cursor-not-allowed'
+                          : 'hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <span>
+                        <span className="font-bold mr-1.5">#{juror.number}</span>
+                        <span className={isStruckHere ? 'line-through' : ''}>{juror.name}</span>
+                      </span>
+                      {isStruckHere && (
+                        <span className="text-[10px] font-bold uppercase text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">Struck</span>
+                      )}
+                      {isStruckOther && (
+                        <span className="text-[10px] italic text-slate-400">Struck by {plaintiffLabel}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </section>
 

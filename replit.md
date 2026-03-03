@@ -43,7 +43,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 3. Voir Dire Questions (enter/generate questions)
 4. Response Recording (two sub-stages: your side's examination + opposing counsel's examination)
 5. Juror Review (assess leanings and risk tiers)
-6. End Report (final analysis, recommendations, optional push to MattrMindr)
+6. End Report (final analysis, collapsible jury panel, peremptory strike boxes, recommendations, optional push to MattrMindr)
 
 ## AI Assistant
 - Floating circular button (bottom-right) with BrainCircuit icon in slate-900/amber-500
@@ -64,6 +64,15 @@ A full-stack jury selection assistant application with user authentication, AI-p
   - **AI Assistant**: Overview page with BrainCircuit icon, description, "Open AI Assistant" button, and 4 capability cards (Case Strategy, Juror Assessment, Legal Research, App Guidance)
   - **Contact**: Form with pre-filled email, subject, message, and "Send to Support" button (frontend-only, shows success toast)
 - Component: `client/src/components/voir-dire/HelpCenter.tsx`
+
+## Peremptory Strikes (Phase 6)
+- Two side-by-side strike boxes: one for Plaintiff/Prosecution, one for Defense
+- Labels are context-aware: "Prosecution" for criminal cases, "Plaintiff" for civil cases (based on `caseInfo.areaOfLaw`)
+- Click a juror in either box to mark them as struck; clicking again removes the strike
+- A juror can only be struck by one side at a time (mutual exclusion)
+- Struck jurors appear with strikethrough in the jury panel and a "Struck by [side]" label
+- The Complete Juror Panel section is collapsible (click the header to toggle)
+- The same civil/criminal label logic applies throughout: CaseSetup side selection, ResponseRecording labels, and EndReport
 
 ## Settings Page
 - Accessible via gear icon in sidebar footer
