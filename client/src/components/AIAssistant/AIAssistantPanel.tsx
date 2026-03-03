@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, BrainCircuit, Loader2, Sparkles, Trash2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { X, Send, BrainCircuit, Loader2, Trash2 } from 'lucide-react';
 import { getAuthToken } from '../../lib/auth';
 import type { CaseInfo, Juror } from '../../types';
 
@@ -245,37 +245,40 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, juro
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: '100%' }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: '100%' }}
-      transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-      className="fixed inset-0 z-[70] flex flex-col bg-white sm:inset-auto sm:right-0 sm:top-0 sm:bottom-0 sm:w-[420px] sm:shadow-2xl sm:border-l sm:border-slate-200"
+      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 20, scale: 0.95 }}
+      transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+      className="fixed bottom-24 right-6 z-[70] w-[370px] max-h-[520px] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden
+        max-sm:bottom-0 max-sm:right-0 max-sm:left-0 max-sm:top-0 max-sm:w-full max-sm:max-h-full max-sm:rounded-none"
       data-testid="panel-ai-assistant"
     >
-      <div className="bg-slate-900 px-5 py-4 flex items-center justify-between shrink-0">
+      <div className="px-5 py-4 flex items-center justify-between shrink-0 border-b border-slate-100">
         <div className="flex items-center gap-3">
-          <div className="bg-amber-500 p-1.5 rounded-lg">
-            <BrainCircuit className="w-5 h-5 text-slate-900" />
+          <div className="bg-amber-100 p-2 rounded-xl">
+            <BrainCircuit className="w-5 h-5 text-amber-600" />
           </div>
           <div>
-            <h2 className="text-white font-bold text-base">AI Assistant</h2>
+            <h2 className="text-slate-900 font-bold text-[15px] leading-tight">AI Assistant</h2>
             {contextLabel && (
               <p className="text-slate-400 text-xs">{contextLabel}</p>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleNewChat}
-            className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-slate-800"
-            title="New chat"
-            data-testid="button-ai-new-chat"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+        <div className="flex items-center gap-1">
+          {messages.length > 0 && (
+            <button
+              onClick={handleNewChat}
+              className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100"
+              title="New chat"
+              data-testid="button-ai-new-chat"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-slate-800"
+            className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100"
             data-testid="button-ai-close"
           >
             <X className="w-5 h-5" />
@@ -283,39 +286,37 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, juro
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
+      <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
         {messages.length === 0 && !streamingContent ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="bg-slate-100 p-5 rounded-2xl mb-5">
-              <BrainCircuit className="w-12 h-12 text-amber-500" />
+          <div className="flex flex-col items-center justify-center h-full text-center py-6">
+            <div className="bg-amber-50 p-4 rounded-2xl mb-4">
+              <BrainCircuit className="w-10 h-10 text-amber-500" />
             </div>
-            <h3 className="text-slate-900 font-bold text-lg mb-2">How can I help?</h3>
-            <p className="text-slate-500 text-sm mb-6 max-w-[280px]">
-              Ask me anything — Alabama law, case strategy, or how to use Voir Dire Analyst.
+            <p className="text-slate-500 text-sm mb-5 max-w-[260px] leading-relaxed">
+              Ask me anything — Alabama law, office procedures, or how to use Voir Dire Analyst.
             </p>
-            <div className="space-y-2 w-full max-w-[300px]">
+            <div className="flex flex-wrap justify-center gap-2">
               {SUGGESTIONS.map((s, i) => (
                 <button
                   key={i}
                   onClick={() => sendMessage(s)}
-                  className="w-full text-left px-4 py-3 rounded-xl border border-amber-200 bg-amber-50/50 text-sm text-slate-700 hover:bg-amber-50 hover:border-amber-300 transition-all flex items-center gap-2.5"
+                  className="px-3 py-1.5 rounded-full border border-amber-200 bg-amber-50/60 text-xs text-amber-700 hover:bg-amber-100 hover:border-amber-300 transition-all"
                   data-testid={`button-ai-suggestion-${i}`}
                 >
-                  <Sparkles className="w-4 h-4 text-amber-500 flex-shrink-0" />
                   {s}
                 </button>
               ))}
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {messages.map((msg) => (
               <div
                 key={msg.id}
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                     msg.role === 'user'
                       ? 'bg-amber-500 text-white rounded-br-md'
                       : 'bg-slate-100 text-slate-800 rounded-bl-md'
@@ -334,7 +335,7 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, juro
 
             {streamingContent && (
               <div className="flex justify-start">
-                <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-slate-100 text-slate-800 px-4 py-3 text-sm leading-relaxed">
+                <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-slate-100 text-slate-800 px-3.5 py-2.5 text-sm leading-relaxed">
                   <div className="prose prose-sm prose-slate max-w-none whitespace-pre-wrap">
                     {streamingContent}
                     <span className="inline-block w-1.5 h-4 bg-amber-500 animate-pulse ml-0.5 align-middle" />
@@ -345,7 +346,7 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, juro
 
             {isStreaming && !streamingContent && (
               <div className="flex justify-start">
-                <div className="rounded-2xl rounded-bl-md bg-slate-100 px-4 py-3 flex items-center gap-2 text-sm text-slate-500">
+                <div className="rounded-2xl rounded-bl-md bg-slate-100 px-3.5 py-2.5 flex items-center gap-2 text-sm text-slate-500">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Thinking...
                 </div>
@@ -359,7 +360,7 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, juro
 
       <form
         onSubmit={handleSubmit}
-        className="border-t border-slate-200 px-4 py-3 flex items-center gap-2 shrink-0 bg-white"
+        className="border-t border-slate-100 px-4 py-3 flex items-center gap-2 shrink-0 bg-white"
       >
         <input
           ref={inputRef}
@@ -367,14 +368,14 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, juro
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask anything..."
-          className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm bg-slate-50 outline-none"
+          className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-400 focus:border-transparent text-sm bg-slate-50 outline-none"
           disabled={isStreaming}
           data-testid="input-ai-message"
         />
         <button
           type="submit"
           disabled={!input.trim() || isStreaming}
-          className="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+          className="bg-amber-500 text-white p-2 rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
           data-testid="button-ai-send"
         >
           <Send className="w-4 h-4" />
