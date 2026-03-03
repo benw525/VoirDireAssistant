@@ -10,6 +10,9 @@ import {
   Loader2,
   ExternalLink,
   Search,
+  Mic,
+  MicOff,
+  Square,
 } from 'lucide-react';
 import { CaseInfo } from '../../types';
 import * as api from '../../lib/api';
@@ -101,6 +104,56 @@ export function CaseSetup({
   const [side, setSide] = useState<'plaintiff' | 'defense' | null>(existingInfo?.side || null);
   const [isInitialized, setIsInitialized] = useState(!!existingInfo);
   const [selectedMattrMindrId, setSelectedMattrMindrId] = useState<string | null>(null);
+
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [voiceError, setVoiceError] = useState('');
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const startRecording = async () => {
+    setVoiceError('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(track => track.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        if (audioBlob.size > 0) {
+          setIsTranscribing(true);
+          try {
+            const text = await api.transcribeAudio(audioBlob);
+            setSummary(prev => prev ? `${prev} ${text}` : text);
+          } catch (err: any) {
+            setVoiceError(err.message || 'Voice transcription failed. Please try again or type your summary.');
+          } finally {
+            setIsTranscribing(false);
+          }
+        }
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      setVoiceError('Microphone access denied. Please allow microphone permissions in your browser settings.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
 
   const [showMmPicker, setShowMmPicker] = useState(false);
   const [mmCases, setMmCases] = useState<api.MattrMindrCaseListItem[]>([]);
@@ -330,19 +383,60 @@ export function CaseSetup({
           </div>
 
           <div>
-            <label className="flex items-center text-sm font-semibold text-slate-900 mb-2">
-              <FileText className="w-4 h-4 mr-2 text-slate-500" />
-              Case Summary
+            <label className="flex items-center justify-between text-sm font-semibold text-slate-900 mb-2">
+              <span className="flex items-center">
+                <FileText className="w-4 h-4 mr-2 text-slate-500" />
+                Case Summary
+              </span>
+              <span className="flex items-center gap-2">
+                {isTranscribing && (
+                  <span className="flex items-center text-xs text-violet-600 font-normal">
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    Transcribing...
+                  </span>
+                )}
+                {isRecording ? (
+                  <button
+                    type="button"
+                    onClick={stopRecording}
+                    data-testid="button-stop-recording"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-100 text-rose-700 text-xs font-medium rounded-lg hover:bg-rose-200 transition-colors animate-pulse"
+                  >
+                    <Square className="w-3 h-3 fill-current" />
+                    Stop Recording
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startRecording}
+                    disabled={isTranscribing}
+                    data-testid="button-voice-input"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-200 hover:text-slate-800 transition-colors disabled:opacity-50"
+                    title="Dictate case summary using voice"
+                  >
+                    <Mic className="w-3 h-3" />
+                    Voice Input
+                  </button>
+                )}
+              </span>
             </label>
             <textarea
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
-              placeholder="Provide a brief summary of the facts..."
+              placeholder="Provide a brief summary of the facts, or use voice input..."
               rows={4}
-              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-slate-50 transition-colors resize-none"
+              className={`w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-slate-50 transition-colors resize-none ${
+                isRecording ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300'
+              }`}
               data-testid="input-summary"
               required
             />
+            {voiceError && (
+              <p className="mt-2 text-xs text-rose-600 flex items-center gap-1" data-testid="text-voice-error">
+                <MicOff className="w-3 h-3" />
+                {voiceError}
+              </p>
+            )}
           </div>
 
           <div>

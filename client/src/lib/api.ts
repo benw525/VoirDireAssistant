@@ -550,6 +550,28 @@ export async function fetchMattrMindrCase(caseId: string): Promise<MattrMindrCas
   return fetchJson(`${API_BASE}/mattrmindr/cases/${caseId}`);
 }
 
+export async function transcribeAudio(audioBlob: Blob): Promise<string> {
+  const formData = new FormData();
+  formData.append('audio', audioBlob, 'recording.webm');
+
+  const token = localStorage.getItem('auth_token');
+  const response = await fetch(`${API_BASE}/transcribe`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ message: 'Transcription failed' }));
+    throw new Error(err.message || 'Transcription failed');
+  }
+
+  const result = await response.json();
+  return result.text;
+}
+
 export async function pushJuryAnalysisToMattrMindr(
   caseId: string,
   data: { jurors: any[]; strikeStrategy: string; strikesForCause?: Array<{ jurorNumber: number; jurorName: string; category: string; basis: string; argument: string }> }

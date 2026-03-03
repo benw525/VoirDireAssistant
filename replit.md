@@ -8,7 +8,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - **Backend**: Express.js server with REST API
 - **Database**: PostgreSQL with Drizzle ORM
 - **Auth**: JWT-based authentication with bcrypt password hashing, per-user data isolation
-- **AI**: OpenAI via Replit AI Integrations for strike list parsing, voir dire generation, juror analysis, and AI chat assistant
+- **AI**: OpenAI (user's own API key) for strike list parsing (gpt-4o), voir dire generation (gpt-5.2), juror analysis (gpt-4o), AI chat assistant (gpt-4o-mini), and voice transcription (whisper-1)
 - **MattrMindr**: Optional integration to import cases from MattrMindr (filtered to Trial Center only) and push jury analysis back
 - **Build**: Vite for frontend, tsx for server
 

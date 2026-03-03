@@ -78,7 +78,7 @@ Other rules:
 - Return ONLY a JSON object in this exact format: { "jurors": [ { ... }, { ... } ] }`;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.2",
+    model: "gpt-4o",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: `Parse the following strike list document and extract all juror data:\n\n${rawText}` },

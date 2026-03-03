@@ -172,6 +172,7 @@ export async function registerRoutes(
   app.use("/api/questions", authMiddleware);
   app.use("/api/responses", authMiddleware);
   app.use("/api/parse-strike-list", authMiddleware);
+  app.use("/api/transcribe", authMiddleware);
   app.use("/api/generate-voir-dire", authMiddleware);
   app.use("/api/refine-questions", authMiddleware);
   app.use("/api/analyze-juror", authMiddleware);
@@ -334,6 +335,33 @@ export async function registerRoutes(
     const c = await storage.getCase(updated.caseId);
     if (!c || c.userId !== req.user!.id) return res.status(404).json({ message: "Response not found" });
     res.json(updated);
+  });
+
+  // --- Voice Transcription ---
+  app.post("/api/transcribe", upload.single("audio"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No audio file provided" });
+      }
+      const allowedMimes = ['audio/webm', 'audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/m4a', 'audio/mp4', 'audio/ogg', 'audio/flac'];
+      if (req.file.mimetype && !allowedMimes.includes(req.file.mimetype)) {
+        return res.status(400).json({ message: `Unsupported audio format: ${req.file.mimetype}` });
+      }
+      const OpenAI = (await import("openai")).default;
+      const { toFile } = await import("openai/uploads");
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const file = await toFile(req.file.buffer, req.file.originalname || "audio.webm", {
+        type: req.file.mimetype || "audio/webm",
+      });
+      const transcription = await openai.audio.transcriptions.create({
+        file,
+        model: "whisper-1",
+      });
+      res.json({ text: transcription.text });
+    } catch (err: any) {
+      console.error("Transcription error:", err);
+      res.status(500).json({ message: err.message || "Failed to transcribe audio" });
+    }
   });
 
   // --- AI Strike List Parsing ---
