@@ -185,8 +185,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 ## Environment Variables
 - `DATABASE_URL` — PostgreSQL connection string (auto-provided)
 - `JWT_SECRET` — JWT signing secret (falls back to default in dev)
-- `AI_INTEGRATIONS_OPENAI_API_KEY` — OpenAI API key (via Replit AI Integrations)
-- `AI_INTEGRATIONS_OPENAI_BASE_URL` — OpenAI base URL (via Replit AI Integrations)
+- `OPENAI_API_KEY` — OpenAI API key (user's own key, used directly with OpenAI API)
 - `STRIPE_SECRET_KEY` — Stripe secret API key (sk_test_* or sk_live_*)
 - `STRIPE_WEBHOOK_SECRET` — Stripe webhook signing secret (whsec_*, optional but recommended for production)
 
