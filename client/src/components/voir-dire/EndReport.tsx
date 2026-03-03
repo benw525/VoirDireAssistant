@@ -73,6 +73,9 @@ export function EndReport({
   const [isAnalyzingCause, setIsAnalyzingCause] = useState(false);
   const [causeAnalysisError, setCauseAnalysisError] = useState('');
   const [collapsedCauseCategories, setCollapsedCauseCategories] = useState<Set<string>>(new Set());
+  const [peremptoryCollapsed, setPeremptoryCollapsed] = useState(false);
+  const [causeCollapsed, setCauseCollapsed] = useState(false);
+  const [strikeOrderCollapsed, setStrikeOrderCollapsed] = useState(false);
 
   const plaintiffLabel = getPlaintiffLabel(caseInfo.areaOfLaw);
 
@@ -560,11 +563,28 @@ export function EndReport({
           </AnimatePresence>
         </section>
 
-        <section>
-          <h3 className="text-lg font-bold text-slate-900 flex items-center mb-4">
-            <Gavel className="w-5 h-5 mr-2 text-slate-500" />
-            Peremptory Strikes
-          </h3>
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <button
+            onClick={() => setPeremptoryCollapsed(p => !p)}
+            className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+            data-testid="toggle-peremptory-strikes"
+          >
+            <h3 className="text-lg font-bold text-slate-900 flex items-center">
+              <Gavel className="w-5 h-5 mr-2 text-slate-500" />
+              Peremptory Strikes
+            </h3>
+            {peremptoryCollapsed ? <ChevronDown className="w-5 h-5 text-slate-400" /> : <ChevronUp className="w-5 h-5 text-slate-400" />}
+          </button>
+          <AnimatePresence initial={false}>
+            {!peremptoryCollapsed && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="px-6 pb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white rounded-2xl border border-blue-200 shadow-sm overflow-hidden">
               <div className="bg-blue-50 px-4 py-3 border-b border-blue-200 flex items-center justify-between">
@@ -654,34 +674,54 @@ export function EndReport({
               </div>
             </div>
           </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </section>
 
-        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-4">
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div
+            onClick={() => setCauseCollapsed(p => !p)}
+            className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer"
+            data-testid="toggle-cause-strikes"
+          >
             <h3 className="text-lg font-bold text-slate-900 flex items-center">
               <Scale className="w-5 h-5 mr-2 text-indigo-500" />
               Strikes for Cause
             </h3>
-            <button
-              onClick={handleAnalyzeCauseStrikes}
-              disabled={isAnalyzingCause || jurors.length === 0}
-              data-testid="button-analyze-cause-strikes"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-sm"
-            >
-              {isAnalyzingCause ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <Brain className="w-4 h-4" />
-                  {causeStrikes.length > 0 ? 'Re-Analyze' : 'Analyze Strikes for Cause'}
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); handleAnalyzeCauseStrikes(); }}
+                disabled={isAnalyzingCause || jurors.length === 0}
+                data-testid="button-analyze-cause-strikes"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-sm"
+              >
+                {isAnalyzingCause ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-4 h-4" />
+                    {causeStrikes.length > 0 ? 'Re-Analyze' : 'Analyze'}
+                  </>
+                )}
+              </button>
+              {causeCollapsed ? <ChevronDown className="w-5 h-5 text-slate-400" /> : <ChevronUp className="w-5 h-5 text-slate-400" />}
+            </div>
           </div>
-
+          <AnimatePresence initial={false}>
+            {!causeCollapsed && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="px-6 pb-6">
           {causeAnalysisError && (
             <div className="flex items-center gap-2 p-3 rounded-xl text-sm font-medium bg-rose-50 border border-rose-200 text-rose-700 mb-4" data-testid="text-cause-error">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -691,20 +731,20 @@ export function EndReport({
 
           {causeStrikes.length === 0 && !isAnalyzingCause && !causeAnalysisError && (
             <div className="bg-slate-50 rounded-xl border border-slate-200 p-8 text-center text-slate-500" data-testid="text-cause-empty">
-              Click <span className="font-semibold text-indigo-600">Analyze Strikes for Cause</span> to evaluate all jurors for potential cause challenges using AI.
+              Click <span className="font-semibold text-indigo-600">Analyze</span> to evaluate all jurors for potential cause challenges using AI.
             </div>
           )}
 
           {causeStrikes.length > 0 && (
             <div className="space-y-4">
               {([
-                { key: 'Highly Likely', icon: ShieldCheck, color: 'emerald', borderColor: 'border-emerald-300', bgColor: 'bg-emerald-50', headerBg: 'bg-emerald-100', textColor: 'text-emerald-900', badgeBg: 'bg-emerald-200', badgeText: 'text-emerald-800', basisBg: 'bg-emerald-100', basisText: 'text-emerald-700' },
-                { key: 'Possible', icon: ShieldQuestion, color: 'amber', borderColor: 'border-amber-300', bgColor: 'bg-amber-50', headerBg: 'bg-amber-100', textColor: 'text-amber-900', badgeBg: 'bg-amber-200', badgeText: 'text-amber-800', basisBg: 'bg-amber-100', basisText: 'text-amber-700' },
-                { key: 'Unlikely', icon: ShieldOff, color: 'slate', borderColor: 'border-slate-200', bgColor: 'bg-slate-50', headerBg: 'bg-slate-100', textColor: 'text-slate-700', badgeBg: 'bg-slate-200', badgeText: 'text-slate-600', basisBg: 'bg-slate-100', basisText: 'text-slate-600' },
+                { key: 'Highly Likely', icon: ShieldCheck, borderColor: 'border-emerald-300', bgColor: 'bg-emerald-50', headerBg: 'bg-emerald-100', textColor: 'text-emerald-900', badgeBg: 'bg-emerald-200', badgeText: 'text-emerald-800', basisBg: 'bg-emerald-100', basisText: 'text-emerald-700' },
+                { key: 'Possible', icon: ShieldQuestion, borderColor: 'border-amber-300', bgColor: 'bg-amber-50', headerBg: 'bg-amber-100', textColor: 'text-amber-900', badgeBg: 'bg-amber-200', badgeText: 'text-amber-800', basisBg: 'bg-amber-100', basisText: 'text-amber-700' },
+                { key: 'Unlikely', icon: ShieldOff, borderColor: 'border-slate-200', bgColor: 'bg-slate-50', headerBg: 'bg-slate-100', textColor: 'text-slate-700', badgeBg: 'bg-slate-200', badgeText: 'text-slate-600', basisBg: 'bg-slate-100', basisText: 'text-slate-600' },
               ] as const).map(({ key, icon: Icon, borderColor, bgColor, headerBg, textColor, badgeBg, badgeText, basisBg, basisText }) => {
                 const items = causeByCategory[key] || [];
                 if (items.length === 0) return null;
-                const isCollapsed = collapsedCauseCategories.has(key);
+                const isCatCollapsed = collapsedCauseCategories.has(key);
                 return (
                   <div key={key} className={`rounded-xl border ${borderColor} overflow-hidden shadow-sm`} data-testid={`cause-category-${key.toLowerCase().replace(/\s+/g, '-')}`}>
                     <button
@@ -719,14 +759,14 @@ export function EndReport({
                           {items.length}
                         </span>
                       </div>
-                      {isCollapsed ? (
+                      {isCatCollapsed ? (
                         <ChevronDown className={`w-4 h-4 ${textColor}`} />
                       ) : (
                         <ChevronUp className={`w-4 h-4 ${textColor}`} />
                       )}
                     </button>
                     <AnimatePresence initial={false}>
-                      {!isCollapsed && (
+                      {!isCatCollapsed && (
                         <motion.div
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
@@ -762,14 +802,34 @@ export function EndReport({
               })}
             </div>
           )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </section>
 
-        <section>
-          <h3 className="text-lg font-bold text-slate-900 flex items-center mb-4">
-            <Target className="w-5 h-5 mr-2 text-rose-500" />
-            Suggested Strike Order
-          </h3>
-
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <button
+            onClick={() => setStrikeOrderCollapsed(p => !p)}
+            className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+            data-testid="toggle-strike-order"
+          >
+            <h3 className="text-lg font-bold text-slate-900 flex items-center">
+              <Target className="w-5 h-5 mr-2 text-rose-500" />
+              Suggested Strike Order
+            </h3>
+            {strikeOrderCollapsed ? <ChevronDown className="w-5 h-5 text-slate-400" /> : <ChevronUp className="w-5 h-5 text-slate-400" />}
+          </button>
+          <AnimatePresence initial={false}>
+            {!strikeOrderCollapsed && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="px-6 pb-6">
           {strikeOrder.length === 0 ? (
             <div className="bg-slate-50 rounded-xl border border-slate-200 p-8 text-center text-slate-500">
               No strike recommendations based on current classifications.
@@ -810,6 +870,10 @@ export function EndReport({
               ))}
             </div>
           )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </section>
 
         <div className="space-y-4 pt-8 border-t border-slate-200 no-print-controls">
