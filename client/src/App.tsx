@@ -6,6 +6,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import VoirDireApp from "@/pages/VoirDireApp";
 import AuthPage from "@/pages/AuthPage";
+import LandingPage from "@/pages/LandingPage";
+import TermsPage from "@/pages/TermsPage";
+import PrivacyPage from "@/pages/PrivacyPage";
 import { AuthProvider, useAuth } from "./lib/auth";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -38,7 +41,7 @@ function AuthRoute() {
   }
 
   if (isAuthenticated) {
-    return <Redirect to="/" />;
+    return <Redirect to="/app" />;
   }
 
   return <AuthPage />;
@@ -47,10 +50,13 @@ function AuthRoute() {
 function Router() {
   return (
     <Switch>
+      <Route path="/" component={LandingPage} />
       <Route path="/auth" component={AuthRoute} />
-      <Route path="/">
+      <Route path="/app">
         <ProtectedRoute component={VoirDireApp} />
       </Route>
+      <Route path="/terms" component={TermsPage} />
+      <Route path="/privacy" component={PrivacyPage} />
       <Route component={NotFound} />
     </Switch>
   );

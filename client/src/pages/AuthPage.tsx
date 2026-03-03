@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Scale, LogIn, UserPlus, AlertCircle } from 'lucide-react';
+import { Scale, LogIn, UserPlus, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Link } from 'wouter';
 import { useAuth } from '../lib/auth';
 
 export default function AuthPage() {
@@ -35,8 +36,15 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-md">
+        <div className="mb-6">
+          <Link href="/" data-testid="link-back-home" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Home
+          </Link>
+        </div>
+
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-900 text-amber-500 mb-4 shadow-lg">
             <Scale className="w-8 h-8" />
@@ -144,6 +152,16 @@ export default function AuthPage() {
               )}
             </button>
           </form>
+        </div>
+
+        <div className="mt-6 text-center text-xs text-slate-400 space-x-3">
+          <Link href="/terms" data-testid="link-terms" className="hover:text-slate-600 transition-colors">
+            Terms of Service
+          </Link>
+          <span>·</span>
+          <Link href="/privacy" data-testid="link-privacy" className="hover:text-slate-600 transition-colors">
+            Privacy Policy
+          </Link>
         </div>
       </div>
     </div>

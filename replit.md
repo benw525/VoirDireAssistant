@@ -12,9 +12,17 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - **MattrMindr**: Optional integration to import cases from MattrMindr (filtered to Trial Center only) and push jury analysis back
 - **Build**: Vite for frontend, tsx for server
 
+## Routing
+- `/` — Public landing page (LandingPage.tsx) — product info, features, pricing, footer with legal links
+- `/auth` — Login/registration page (redirects to `/app` if authenticated)
+- `/app` — Authenticated dashboard (VoirDireApp.tsx, protected route)
+- `/terms` — Terms of Service (public)
+- `/privacy` — Privacy Policy (public)
+
 ## Key Files
 - `shared/schema.ts` — Drizzle database schema (users, cases, jurors, questions, responses, conversations, messages)
 - `server/routes.ts` — API routes (all prefixed with `/api`), auth middleware applied
+- `server/billing.ts` — Billing logic (canCreateCase, getUserBillingInfo, Stripe checkout/portal stubs)
 - `server/storage.ts` — Database storage layer implementing IStorage interface
 - `server/db.ts` — Drizzle database instance export (shared by storage and chat modules)
 - `server/auth.ts` — JWT authentication middleware, password hashing, token management
@@ -24,8 +32,11 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `server/parseStrikeList.ts` — AI-powered strike list document parser (OpenAI + pdf-parse)
 - `server/generateVoirDire.ts` — AI voir dire strategy agent (full generation + question refinement)
 - `server/analyzeJuror.ts` — AI juror risk assessment agent (individual juror analysis)
-- `client/src/App.tsx` — Root component with AuthProvider wrapper and protected routing
-- `client/src/pages/AuthPage.tsx` — Login/registration page
+- `client/src/App.tsx` — Root component with routing (public landing, auth, protected app, legal pages)
+- `client/src/pages/LandingPage.tsx` — Public marketing landing page (hero, features, pricing, footer)
+- `client/src/pages/AuthPage.tsx` — Login/registration page with links to terms/privacy
+- `client/src/pages/TermsPage.tsx` — Terms of Service page
+- `client/src/pages/PrivacyPage.tsx` — Privacy Policy page
 - `client/src/pages/VoirDireApp.tsx` — Main application component with phase-based workflow
 - `client/src/lib/auth.ts` — AuthProvider context, useAuth hook, token management
 - `client/src/lib/api.ts` — Frontend API client with auth headers and type conversions
