@@ -19,11 +19,50 @@ interface AIAssistantPanelProps {
   currentPhase?: number;
 }
 
-const SUGGESTIONS = [
-  "What should I focus on in voir dire?",
-  "Summarize my current case",
-  "Which jurors are highest risk?",
-];
+const PHASE_SUGGESTIONS: Record<number, string[]> = {
+  0: [
+    "What should I know before starting a case?",
+    "How does jury selection work in Alabama?",
+    "Tips for organizing case information",
+  ],
+  1: [
+    "What case details matter most for voir dire?",
+    "How do I identify favorable juror traits?",
+    "What risk factors should I flag?",
+  ],
+  2: [
+    "What should I look for on a strike list?",
+    "How do demographics affect jury selection?",
+    "Red flags in juror backgrounds",
+  ],
+  3: [
+    "What are the best voir dire questions?",
+    "How do I uncover juror bias?",
+    "Tips for follow-up questions",
+  ],
+  4: [
+    "What juror responses are concerning?",
+    "How do I evaluate body language cues?",
+    "When should I flag a response?",
+  ],
+  5: [
+    "Which jurors are highest risk?",
+    "How should I rank my strikes?",
+    "What makes a juror favorable?",
+  ],
+  6: [
+    "Summarize my jury analysis",
+    "Which jurors should I strike for cause?",
+    "What's my overall jury composition?",
+  ],
+};
+
+function getSuggestions(phase?: number): string[] {
+  if (phase !== undefined && phase !== null && PHASE_SUGGESTIONS[phase]) {
+    return PHASE_SUGGESTIONS[phase];
+  }
+  return PHASE_SUGGESTIONS[0];
+}
 
 function buildContextBlock(caseInfo?: CaseInfo | null, jurors?: Juror[], currentPhase?: number): string {
   const parts: string[] = [];
@@ -76,6 +115,8 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, juro
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [showPhaseSuggestions, setShowPhaseSuggestions] = useState(true);
+  const lastPhaseRef = useRef<number | undefined>(currentPhase);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -87,6 +128,13 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, juro
       setTimeout(() => inputRef.current?.focus(), 300);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (currentPhase !== lastPhaseRef.current) {
+      lastPhaseRef.current = currentPhase;
+      setShowPhaseSuggestions(true);
+    }
+  }, [currentPhase]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -162,6 +210,7 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, juro
     setInput('');
     setIsStreaming(true);
     setStreamingContent('');
+    setShowPhaseSuggestions(false);
 
     try {
       const token = getAuthToken();
@@ -296,9 +345,9 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, juro
               Ask me anything — Alabama law, office procedures, or how to use Voir Dire Analyst.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s, i) => (
+              {getSuggestions(currentPhase).map((s, i) => (
                 <button
-                  key={i}
+                  key={`${currentPhase}-${i}`}
                   onClick={() => sendMessage(s)}
                   className="px-3 py-1.5 rounded-full border border-amber-200 bg-amber-50/60 text-xs text-amber-700 hover:bg-amber-100 hover:border-amber-300 transition-all"
                   data-testid={`button-ai-suggestion-${i}`}
@@ -349,6 +398,23 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, juro
                 <div className="rounded-2xl rounded-bl-md bg-slate-100 px-3.5 py-2.5 flex items-center gap-2 text-sm text-slate-500">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Thinking...
+                </div>
+              </div>
+            )}
+
+            {showPhaseSuggestions && !isStreaming && !streamingContent && (
+              <div className="pt-2 pb-1">
+                <div className="flex flex-wrap gap-1.5">
+                  {getSuggestions(currentPhase).map((s, i) => (
+                    <button
+                      key={`phase-${currentPhase}-${i}`}
+                      onClick={() => sendMessage(s)}
+                      className="px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50/60 text-xs text-amber-700 hover:bg-amber-100 hover:border-amber-300 transition-all"
+                      data-testid={`button-ai-phase-suggestion-${i}`}
+                    >
+                      {s}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
