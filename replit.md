@@ -107,7 +107,9 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - Frontend gating: `handleNewCase()` in VoirDireApp checks `billingStatus.canCreateCase` before allowing Phase 1
 - WelcomeScreen shows remaining cases count and billing error with "Open Settings to Upgrade" link
 - Settings panel has "Subscription & Billing" section with plan cards ($20/mo unlimited, $20 single case)
-- Stripe integration: simulated (ready to swap in real Stripe when `STRIPE_SECRET_KEY` is provided)
+- Stripe integration: LIVE — real Stripe Checkout, Billing Portal, and webhook handling via `stripe` npm package
+- Webhook endpoint: `POST /api/billing/webhook` (no auth, uses raw body + Stripe signature verification)
+- Stripe products/prices auto-created on first checkout via lookup keys (`vda_monthly_20`, `vda_per_case_20`)
 - DB fields on users: `subscriptionTier` (free/monthly/per_case), `stripeCustomerId`, `stripeSubscriptionId`, `casesUsed`, `casesPurchased`
 
 ## Settings Page
@@ -123,10 +125,11 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `GET /api/auth/me` — Get current user info (protected)
 - `PATCH /api/auth/change-password` — Change password (protected, requires current password)
 
-### Billing (protected)
+### Billing (protected except webhook)
 - `GET /api/billing/status` — Get billing info (tier, casesUsed, casesPurchased, casesRemaining, canCreateCase)
 - `POST /api/billing/checkout` — Create Stripe Checkout session (body: `{ plan: 'monthly' | 'per_case' }`) → `{ url }`
 - `POST /api/billing/portal` — Create Stripe billing portal session → `{ url }`
+- `POST /api/billing/webhook` — Stripe webhook endpoint (no auth, raw body, signature verified via `STRIPE_WEBHOOK_SECRET`)
 
 ### Cases (protected, user-scoped, billing-gated)
 - `GET/POST /api/cases` — List user's cases / create case (POST checks billing limits)
@@ -184,6 +187,8 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `JWT_SECRET` — JWT signing secret (falls back to default in dev)
 - `AI_INTEGRATIONS_OPENAI_API_KEY` — OpenAI API key (via Replit AI Integrations)
 - `AI_INTEGRATIONS_OPENAI_BASE_URL` — OpenAI base URL (via Replit AI Integrations)
+- `STRIPE_SECRET_KEY` — Stripe secret API key (sk_test_* or sk_live_*)
+- `STRIPE_WEBHOOK_SECRET` — Stripe webhook signing secret (whsec_*, optional but recommended for production)
 
 ## Dependencies
 - `react-dropzone` — File drag-and-drop for strike list upload

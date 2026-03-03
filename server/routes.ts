@@ -10,7 +10,7 @@ import { analyzeJuror, generateBriefSummary, analyzeStrikesForCause } from "./an
 import { authMiddleware, hashPassword, comparePassword, createToken } from "./auth";
 import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMattrMindrCase, pushJuryAnalysis } from "./mattrmindr";
 import { registerChatRoutes } from "./replit_integrations/chat";
-import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession } from "./billing";
+import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession, handleWebhook } from "./billing";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -146,6 +146,23 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Portal error:", err);
       res.status(500).json({ message: "Failed to create portal session" });
+    }
+  });
+
+  app.post("/api/billing/webhook", async (req, res) => {
+    try {
+      const signature = req.headers["stripe-signature"] as string;
+      const rawBody = (req as any).rawBody as Buffer;
+
+      if (!rawBody) {
+        return res.status(400).json({ message: "Missing raw body" });
+      }
+
+      await handleWebhook(rawBody, signature || "");
+      res.json({ received: true });
+    } catch (err: any) {
+      console.error("Webhook error:", err);
+      res.status(400).json({ message: err.message || "Webhook processing failed" });
     }
   });
 
