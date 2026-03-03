@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import {
   users, cases, jurors, questions, responses,
@@ -62,7 +62,7 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined> {
+  async updateUser(id: string, data: Partial<InsertUser> & { casesUsed?: number; casesPurchased?: number; subscriptionTier?: string; stripeCustomerId?: string | null; stripeSubscriptionId?: string | null }): Promise<User | undefined> {
     const [result] = await db.update(users).set(data).where(eq(users.id, id)).returning();
     return result;
   }
@@ -162,6 +162,16 @@ export class DatabaseStorage implements IStorage {
 
   async deleteResponsesByCase(caseId: string): Promise<void> {
     await db.delete(responses).where(eq(responses.caseId, caseId));
+  }
+
+  async createCaseWithBilling(data: InsertCase, userId: string): Promise<Case> {
+    return db.transaction(async (tx) => {
+      await tx.update(users)
+        .set({ casesUsed: sql`${users.casesUsed} + 1` })
+        .where(eq(users.id, userId));
+      const [result] = await tx.insert(cases).values(data).returning();
+      return result;
+    });
   }
 }
 

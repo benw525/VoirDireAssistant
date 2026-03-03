@@ -12,9 +12,14 @@ import {
   BrainCircuit,
   ChevronDown,
   ChevronUp,
+  CreditCard,
+  Crown,
+  Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth';
 import * as api from '../../lib/api';
+import type { BillingStatus } from '../../lib/api';
 import { getAuthToken } from '../../lib/auth';
 
 interface SettingsPanelProps {
@@ -51,11 +56,56 @@ export function SettingsPanel({
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState('');
 
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const [billingLoading, setBillingLoading] = useState(true);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+
   useEffect(() => {
     if (isOpen) {
       checkMmStatus();
+      loadBilling();
     }
   }, [isOpen]);
+
+  const loadBilling = async () => {
+    setBillingLoading(true);
+    try {
+      const status = await api.getBillingStatus();
+      setBilling(status);
+    } catch {
+      setBilling(null);
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  const handleCheckout = async (plan: 'monthly' | 'per_case') => {
+    setCheckoutLoading(plan);
+    try {
+      const result = await api.createCheckout(plan);
+      if (result.url) {
+        window.location.href = result.url;
+      }
+    } catch (err: any) {
+      console.error('Checkout error:', err);
+    } finally {
+      setCheckoutLoading(null);
+    }
+  };
+
+  const handleManageBilling = async () => {
+    setCheckoutLoading('portal');
+    try {
+      const result = await api.createPortalSession();
+      if (result.url) {
+        window.location.href = result.url;
+      }
+    } catch (err: any) {
+      console.error('Portal error:', err);
+    } finally {
+      setCheckoutLoading(null);
+    }
+  };
 
   const checkMmStatus = async () => {
     setMmLoading(true);
@@ -176,6 +226,101 @@ export function SettingsPanel({
               <div className="min-w-0">
                 <div className="font-semibold text-slate-900 truncate" data-testid="text-settings-name">{user?.name}</div>
                 <div className="text-sm text-slate-500 truncate" data-testid="text-settings-email">{user?.email}</div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-3">Subscription & Billing</h3>
+              <div className="bg-slate-50 rounded-xl p-4">
+                {billingLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                  </div>
+                ) : billing?.isFreeAccess ? (
+                  <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <Crown className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                    <div>
+                      <div className="text-sm font-semibold text-amber-800" data-testid="text-billing-plan">Unlimited Access</div>
+                      <div className="text-xs text-amber-600">Full access to all features</div>
+                    </div>
+                  </div>
+                ) : billing?.hasActiveSubscription ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <Sparkles className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                      <div>
+                        <div className="text-sm font-semibold text-emerald-800" data-testid="text-billing-plan">Monthly Unlimited</div>
+                        <div className="text-xs text-emerald-600">$20/mo — Unlimited cases</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleManageBilling}
+                      disabled={checkoutLoading === 'portal'}
+                      data-testid="button-manage-billing"
+                      className="w-full py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {checkoutLoading === 'portal' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                      Manage Subscription
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-3 bg-slate-100 border border-slate-200 rounded-xl">
+                      <CreditCard className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                      <div>
+                        <div className="text-sm font-semibold text-slate-800" data-testid="text-billing-plan">
+                          {billing?.tier === 'per_case' ? 'Pay Per Case' : 'Free Plan'}
+                        </div>
+                        <div className="text-xs text-slate-500" data-testid="text-billing-usage">
+                          {billing?.casesRemaining !== null
+                            ? `${billing?.casesRemaining} case${billing?.casesRemaining === 1 ? '' : 's'} remaining`
+                            : `${billing?.casesUsed || 0} case${(billing?.casesUsed || 0) === 1 ? '' : 's'} used`}
+                        </div>
+                      </div>
+                    </div>
+
+                    {!billing?.canCreateCase && billing?.upgradeReason && (
+                      <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700" data-testid="text-billing-upgrade-reason">
+                        {billing.upgradeReason}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => handleCheckout('monthly')}
+                        disabled={!!checkoutLoading}
+                        data-testid="button-subscribe-monthly"
+                        className="py-3 px-3 text-sm font-medium text-white bg-amber-500 rounded-xl hover:bg-amber-600 transition-colors disabled:opacity-50 flex flex-col items-center gap-1"
+                      >
+                        {checkoutLoading === 'monthly' ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4" />
+                            <span className="font-bold">$20/mo</span>
+                            <span className="text-xs text-amber-100">Unlimited</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleCheckout('per_case')}
+                        disabled={!!checkoutLoading}
+                        data-testid="button-buy-case"
+                        className="py-3 px-3 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-50 flex flex-col items-center gap-1"
+                      >
+                        {checkoutLoading === 'per_case' ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <CreditCard className="w-4 h-4" />
+                            <span className="font-bold">$20</span>
+                            <span className="text-xs text-slate-500">Single Case</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

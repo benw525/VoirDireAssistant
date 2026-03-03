@@ -10,6 +10,11 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   mattrmindrUrl: text("mattrmindr_url"),
   mattrmindrToken: text("mattrmindr_token"),
+  subscriptionTier: text("subscription_tier").notNull().default("free"),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  casesUsed: integer("cases_used").notNull().default(0),
+  casesPurchased: integer("cases_purchased").notNull().default(0),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 

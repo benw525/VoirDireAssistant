@@ -88,9 +88,20 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - Server function: `analyzeStrikesForCause()` in `server/analyzeJuror.ts`
 - Client function: `analyzeStrikesForCause()` in `client/src/lib/api.ts`
 
+## Billing & Subscription
+- Plans: Free (1 case), Monthly Unlimited ($20/mo), Per Case ($20 each)
+- Free access override list: `FREE_ACCESS_EMAILS` in `server/billing.ts` (currently `benw52592@gmail.com`)
+- Billing logic: `server/billing.ts` — `canCreateCase()`, `getUserBillingInfo()`, `createCheckoutSession()`, `createPortalSession()`
+- Case creation gated in `POST /api/cases` route (returns 403 with `CASE_LIMIT_REACHED` code)
+- Frontend gating: `handleNewCase()` in VoirDireApp checks `billingStatus.canCreateCase` before allowing Phase 1
+- WelcomeScreen shows remaining cases count and billing error with "Open Settings to Upgrade" link
+- Settings panel has "Subscription & Billing" section with plan cards ($20/mo unlimited, $20 single case)
+- Stripe integration: simulated (ready to swap in real Stripe when `STRIPE_SECRET_KEY` is provided)
+- DB fields on users: `subscriptionTier` (free/monthly/per_case), `stripeCustomerId`, `stripeSubscriptionId`, `casesUsed`, `casesPurchased`
+
 ## Settings Page
 - Accessible via gear icon in sidebar footer
-- Sections: User Profile, AI Assistant toggle, MattrMindr connection, Change Password, Sign Out
+- Sections: User Profile, Subscription & Billing, AI Assistant toggle, MattrMindr connection, Change Password, Sign Out
 - MattrMindr connection controls moved from standalone modal into Settings
 
 ## API Endpoints
@@ -101,8 +112,13 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `GET /api/auth/me` — Get current user info (protected)
 - `PATCH /api/auth/change-password` — Change password (protected, requires current password)
 
-### Cases (protected, user-scoped)
-- `GET/POST /api/cases` — List user's cases / create case
+### Billing (protected)
+- `GET /api/billing/status` — Get billing info (tier, casesUsed, casesPurchased, casesRemaining, canCreateCase)
+- `POST /api/billing/checkout` — Create Stripe Checkout session (body: `{ plan: 'monthly' | 'per_case' }`) → `{ url }`
+- `POST /api/billing/portal` — Create Stripe billing portal session → `{ url }`
+
+### Cases (protected, user-scoped, billing-gated)
+- `GET/POST /api/cases` — List user's cases / create case (POST checks billing limits)
 - `GET/PATCH/DELETE /api/cases/:id` — Single case operations (ownership verified)
 - `GET /api/cases/:id/full` — Load full case with jurors, questions, responses
 
@@ -144,7 +160,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - Mobile: vertical-only scroll (overflow-x-hidden) to prevent horizontal sliding
 
 ## Database Tables
-- `users` — User accounts (email, passwordHash, name, mattrmindrUrl, mattrmindrToken)
+- `users` — User accounts (email, passwordHash, name, mattrmindrUrl, mattrmindrToken, subscriptionTier, stripeCustomerId, stripeSubscriptionId, casesUsed, casesPurchased)
 - `cases` — Case metadata (name, area of law, summary, side, traits, phase state, userId, mattrmindrCaseId)
 - `jurors` — Juror demographic data per case
 - `questions` — Voir dire questions per case

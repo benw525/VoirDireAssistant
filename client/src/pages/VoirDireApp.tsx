@@ -65,11 +65,21 @@ export default function VoirDireApp() {
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showHelpCenter, setShowHelpCenter] = useState(false);
   const [aiHidden, setAiHidden] = useState(() => sessionStorage.getItem('voir_dire_ai_hidden') === 'true');
+  const [billingStatus, setBillingStatus] = useState<api.BillingStatus | null>(null);
+  const [billingError, setBillingError] = useState<string | null>(null);
+
+  const refreshBilling = useCallback(async () => {
+    try {
+      const status = await api.getBillingStatus();
+      setBillingStatus(status);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     Promise.all([
       api.fetchCases().then(cases => setSavedCases(cases)).catch(() => {}),
       api.getMattrMindrStatus().then(s => setIsMattrMindrConnected(s.connected)).catch(() => {}),
+      refreshBilling(),
     ]).finally(() => setIsLoading(false));
   }, []);
 
@@ -132,6 +142,11 @@ export default function VoirDireApp() {
   }, []);
 
   const handleNewCase = () => {
+    if (billingStatus && !billingStatus.canCreateCase) {
+      setBillingError(billingStatus.upgradeReason || 'You have reached your case limit. Open Settings to upgrade.');
+      return;
+    }
+    setBillingError(null);
     setCaseInfo(null);
     setJurors([]);
     setQuestions([]);
@@ -169,6 +184,7 @@ export default function VoirDireApp() {
         }
         const cases = await api.fetchCases();
         setSavedCases(cases);
+        refreshBilling();
       } else {
         await api.updateCase(activeCaseId, {
           name: info.name,
@@ -180,8 +196,14 @@ export default function VoirDireApp() {
           ...(mmCaseId ? { mattrmindrCaseId: mmCaseId } : {}),
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save case:', err);
+      if (err.code === 'CASE_LIMIT_REACHED' || err.status === 403) {
+        setBillingError(err.message || 'You have reached your case limit. Open Settings to upgrade.');
+        setCurrentPhase(0);
+        refreshBilling();
+        return;
+      }
     }
   };
 
@@ -327,6 +349,9 @@ export default function VoirDireApp() {
             savedCases={savedCases}
             onResumeCase={handleResumeCase}
             onDeleteCase={handleDeleteCase}
+            billingError={billingError}
+            billingStatus={billingStatus}
+            onOpenSettings={() => setShowSettings(true)}
           />
         );
       case 1:

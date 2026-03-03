@@ -10,6 +10,7 @@ import { analyzeJuror, generateBriefSummary, analyzeStrikesForCause } from "./an
 import { authMiddleware, hashPassword, comparePassword, createToken } from "./auth";
 import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMattrMindrCase, pushJuryAnalysis } from "./mattrmindr";
 import { registerChatRoutes } from "./replit_integrations/chat";
+import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession } from "./billing";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -105,6 +106,49 @@ export async function registerRoutes(
     }
   });
 
+  // --- Billing (protected) ---
+  app.get("/api/billing/status", authMiddleware, async (req, res) => {
+    try {
+      const user = await storage.getUserById(req.user!.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      res.json(getUserBillingInfo(user));
+    } catch (err: any) {
+      console.error("Billing status error:", err);
+      res.status(500).json({ message: "Failed to get billing status" });
+    }
+  });
+
+  app.post("/api/billing/checkout", authMiddleware, async (req, res) => {
+    try {
+      const parsed = z.object({
+        plan: z.enum(["monthly", "per_case"]),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid plan" });
+
+      const user = await storage.getUserById(req.user!.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const session = await createCheckoutSession(user, parsed.data.plan);
+      res.json(session);
+    } catch (err: any) {
+      console.error("Checkout error:", err);
+      res.status(500).json({ message: "Failed to create checkout session" });
+    }
+  });
+
+  app.post("/api/billing/portal", authMiddleware, async (req, res) => {
+    try {
+      const user = await storage.getUserById(req.user!.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const session = await createPortalSession(user);
+      res.json(session);
+    } catch (err: any) {
+      console.error("Portal error:", err);
+      res.status(500).json({ message: "Failed to create portal session" });
+    }
+  });
+
   // --- All routes below require authentication ---
   app.use("/api/cases", authMiddleware);
   app.use("/api/jurors", authMiddleware);
@@ -132,9 +176,17 @@ export async function registerRoutes(
   });
 
   app.post("/api/cases", async (req, res) => {
+    const user = await storage.getUserById(req.user!.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const billingCheck = canCreateCase(user);
+    if (!billingCheck.allowed) {
+      return res.status(403).json({ message: billingCheck.reason || "Case limit reached", code: "CASE_LIMIT_REACHED" });
+    }
+
     const parsed = insertCaseSchema.safeParse({ ...req.body, userId: req.user!.id });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
-    const c = await storage.createCase(parsed.data);
+    const c = await storage.createCaseWithBilling(parsed.data, req.user!.id);
     res.status(201).json(c);
   });
 

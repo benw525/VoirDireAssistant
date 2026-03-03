@@ -14,11 +14,15 @@ import {
   Briefcase } from
 'lucide-react';
 import { SavedCase } from '../../types';
+import type { BillingStatus } from '../../lib/api';
 interface WelcomeScreenProps {
   onNewCase: () => void;
   savedCases: SavedCase[];
   onResumeCase: (saved: SavedCase) => void;
   onDeleteCase: (id: string) => void;
+  billingError?: string | null;
+  billingStatus?: BillingStatus | null;
+  onOpenSettings?: () => void;
 }
 const PHASE_LABELS: Record<number, string> = {
   1: 'Case Setup',
@@ -32,7 +36,10 @@ export function WelcomeScreen({
   onNewCase,
   savedCases,
   onResumeCase,
-  onDeleteCase
+  onDeleteCase,
+  billingError,
+  billingStatus,
+  onOpenSettings,
 }: WelcomeScreenProps) {
   const [showPastCases, setShowPastCases] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -212,11 +219,33 @@ export function WelcomeScreen({
 
               <button
               onClick={onNewCase}
-              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-slate-900 bg-amber-500 rounded-full overflow-hidden transition-all hover:bg-amber-400 hover:scale-105 hover:shadow-lg hover:shadow-amber-500/30 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2">
+              className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-slate-900 bg-amber-500 rounded-full overflow-hidden transition-all hover:bg-amber-400 hover:scale-105 hover:shadow-lg hover:shadow-amber-500/30 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+              data-testid="button-start-new-case">
 
                 <ArrowRight className="w-5 h-5 mr-2 group-hover:translate-x-0.5 transition-transform" />
                 <span>START NEW CASE</span>
               </button>
+
+              {billingError && (
+                <div className="mt-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 text-center max-w-md" data-testid="text-billing-error">
+                  <p>{billingError}</p>
+                  {onOpenSettings && (
+                    <button
+                      onClick={onOpenSettings}
+                      className="mt-2 text-amber-600 font-semibold underline hover:text-amber-700"
+                      data-testid="button-open-settings-billing"
+                    >
+                      Open Settings to Upgrade
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {!billingError && billingStatus && !billingStatus.isFreeAccess && !billingStatus.hasActiveSubscription && billingStatus.casesRemaining !== null && (
+                <div className="text-xs text-slate-400 mt-2" data-testid="text-billing-remaining">
+                  {billingStatus.casesRemaining} free case{billingStatus.casesRemaining === 1 ? '' : 's'} remaining
+                </div>
+              )}
 
               <button
               onClick={() => setShowPastCases(true)}

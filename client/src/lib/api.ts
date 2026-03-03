@@ -3,6 +3,16 @@ import { getAuthToken } from './auth';
 
 const API_BASE = '/api';
 
+class ApiError extends Error {
+  status: number;
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const token = getAuthToken();
   const headers: Record<string, string> = {
@@ -15,7 +25,7 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || 'Request failed');
+    throw new ApiError(err.message || 'Request failed', res.status, err.code);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -440,6 +450,34 @@ export async function analyzeStrikesForCause(
     body: JSON.stringify({ caseInfo, jurors: jurorsWithResponses }),
   });
   return result.strikes;
+}
+
+export interface BillingStatus {
+  tier: string;
+  casesUsed: number;
+  casesPurchased: number;
+  casesRemaining: number | null;
+  isFreeAccess: boolean;
+  hasActiveSubscription: boolean;
+  canCreateCase: boolean;
+  upgradeReason?: string;
+}
+
+export async function getBillingStatus(): Promise<BillingStatus> {
+  return fetchJson<BillingStatus>(`${API_BASE}/billing/status`);
+}
+
+export async function createCheckout(plan: 'monthly' | 'per_case'): Promise<{ url: string }> {
+  return fetchJson<{ url: string }>(`${API_BASE}/billing/checkout`, {
+    method: 'POST',
+    body: JSON.stringify({ plan }),
+  });
+}
+
+export async function createPortalSession(): Promise<{ url: string }> {
+  return fetchJson<{ url: string }>(`${API_BASE}/billing/portal`, {
+    method: 'POST',
+  });
 }
 
 export async function updateJurorOnServer(caseId: string, jurorNumber: number, updates: Partial<Juror>): Promise<void> {
