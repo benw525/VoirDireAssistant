@@ -1,0 +1,45 @@
+This app needs to integrate with MattrMindr, a criminal defense case management system, via its external API. The integration allows users to log in with their existing MattrMindr credentials, browse their cases, and push jury analysis data back to MattrMindr.
+
+Base URL: The MattrMindr deployment URL (the user will configure this, e.g. https://mattrmindr.replit.app).
+
+Authentication:
+
+POST /api/external/auth/login — Send { "email": "...", "password": "..." } (MattrMindr credentials). Returns { "token": "...", "user": { "id", "name", "email", "roles", "offices" } }. The token is a JWT valid for 24 hours.
+POST /api/external/auth/verify — Send with Authorization: Bearer <token> header. Returns { "valid": true, "user": {...} }. Use this to check if a stored token is still valid on app launch.
+All subsequent requests must include the Authorization: Bearer <token> header.
+Fetching Cases:
+
+GET /api/external/cases — Returns an array of active cases the user has access to. Each case: { "id", "caseNum", "title", "defendantName", "caseType", "status", "stage", "court", "judge" }.
+GET /api/external/cases/:id — Returns full case detail including charges (array), key dates (arrestDate, arraignmentDate, nextCourtDate, trialDate, sentencingDate, dispositionDate), custodyStatus, bondAmount, prosecutor, court, judge, county, parties (array with name, partyType, entityKind, phone, email), and notes (array with content, category, createdAt).
+Pushing Jury Analysis:
+
+POST /api/external/cases/:id/jury-analysis — Sends jury panel analysis to MattrMindr. One analysis per case (upserts — sending again replaces the previous analysis).
+Request body:
+{
+  "jurors": [
+    {
+      "number": 1,
+      "name": "Jane Smith",
+      "sex": "F",
+      "race": "White",
+      "birthDate": "1985-03-15",
+      "occupation": "Teacher",
+      "employer": "Mobile County Schools",
+      "lean": "favorable",
+      "riskTier": "low",
+      "notes": "Good eye contact, seemed sympathetic",
+      "aiSummary": "Likely sympathetic to defense based on occupation and demeanor."
+    }
+  ],
+  "strikeStrategy": "Consider striking Juror #3 due to law enforcement background..."
+}
+lean must be one of: favorable, neutral, unfavorable, unknown
+riskTier must be one of: low, medium, high, unassessed
+Maximum 200 jurors per submission
+Returns: { "id", "caseId", "jurorCount", "importedAt" }
+Important notes:
+
+The connection to MattrMindr is entirely optional — the app should work standalone and only connect when the user chooses to configure it.
+Store the MattrMindr base URL and JWT token securely (environment variable for URL, session/secure storage for token).
+Handle 401 responses by prompting the user to re-authenticate.
+The source badge in MattrMindr will show "Voir Dire Analyst" for any data pushed through this API.
