@@ -1,7 +1,8 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import {
-  cases, jurors, questions, responses,
+  users, cases, jurors, questions, responses,
+  type User, type InsertUser,
   type Case, type InsertCase,
   type Juror, type InsertJuror,
   type Question, type InsertQuestion,
@@ -15,6 +16,12 @@ if (!process.env.DATABASE_URL) {
 const db = drizzle(process.env.DATABASE_URL);
 
 export interface IStorage {
+  createUser(data: InsertUser): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserById(id: string): Promise<User | undefined>;
+  updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined>;
+
+  getCasesByUser(userId: string): Promise<Case[]>;
   getCases(): Promise<Case[]>;
   getCase(id: string): Promise<Case | undefined>;
   createCase(data: InsertCase): Promise<Case>;
@@ -40,6 +47,30 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  async createUser(data: InsertUser): Promise<User> {
+    const [result] = await db.insert(users).values(data).returning();
+    return result;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [result] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+    return result;
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    const [result] = await db.select().from(users).where(eq(users.id, id));
+    return result;
+  }
+
+  async updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined> {
+    const [result] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    return result;
+  }
+
+  async getCasesByUser(userId: string): Promise<Case[]> {
+    return db.select().from(cases).where(eq(cases.userId, userId)).orderBy(cases.savedAt);
+  }
+
   async getCases(): Promise<Case[]> {
     return db.select().from(cases).orderBy(cases.savedAt);
   }

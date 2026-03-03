@@ -1,57 +1,91 @@
 # Voir Dire Analyst
 
 ## Overview
-A full-stack jury selection assistant application. Helps legal professionals organize juror data, track voir dire responses, and develop strategic strike recommendations in real-time.
+A full-stack jury selection assistant application with user authentication and optional MattrMindr case management integration. Helps legal professionals organize juror data, track voir dire responses, and develop strategic strike recommendations in real-time.
 
 ## Architecture
 - **Frontend**: React + TypeScript with Tailwind CSS, wouter routing, framer-motion animations
 - **Backend**: Express.js server with REST API
 - **Database**: PostgreSQL with Drizzle ORM
-- **AI**: OpenAI via Replit AI Integrations (no API key needed) for strike list parsing + voir dire generation
+- **Auth**: JWT-based authentication with bcrypt password hashing, per-user data isolation
+- **AI**: OpenAI via Replit AI Integrations for strike list parsing, voir dire generation, juror analysis
+- **MattrMindr**: Optional integration to import cases from MattrMindr and push jury analysis back
 - **Build**: Vite for frontend, tsx for server
 
 ## Key Files
-- `shared/schema.ts` — Drizzle database schema (cases, jurors, questions, responses)
-- `server/routes.ts` — API routes (all prefixed with `/api`)
+- `shared/schema.ts` — Drizzle database schema (users, cases, jurors, questions, responses)
+- `server/routes.ts` — API routes (all prefixed with `/api`), auth middleware applied
 - `server/storage.ts` — Database storage layer implementing IStorage interface
+- `server/auth.ts` — JWT authentication middleware, password hashing, token management
+- `server/mattrmindr.ts` — MattrMindr external API proxy functions
 - `server/parseStrikeList.ts` — AI-powered strike list document parser (OpenAI + pdf-parse)
 - `server/generateVoirDire.ts` — AI voir dire strategy agent (full generation + question refinement)
 - `server/analyzeJuror.ts` — AI juror risk assessment agent (individual juror analysis)
+- `client/src/App.tsx` — Root component with AuthProvider wrapper and protected routing
+- `client/src/pages/AuthPage.tsx` — Login/registration page
 - `client/src/pages/VoirDireApp.tsx` — Main application component with phase-based workflow
-- `client/src/lib/api.ts` — Frontend API client with type conversions
+- `client/src/lib/auth.ts` — AuthProvider context, useAuth hook, token management
+- `client/src/lib/api.ts` — Frontend API client with auth headers and type conversions
 - `client/src/types/index.ts` — Frontend TypeScript types
 - `client/src/components/voir-dire/` — UI components for each phase
+- `client/src/components/voir-dire/MattrMindrSettings.tsx` — MattrMindr connection panel
 
 ## Application Phases
 0. Welcome Screen (past cases, new case)
-1. Case Initialization (name, area of law, summary, side)
+1. Case Initialization (name, area of law, summary, side) — optional MattrMindr import
 2. Strike List (upload/paste juror data — AI-powered parsing)
 3. Voir Dire Questions (enter/generate questions)
 4. Response Recording (two sub-stages: your side's examination + opposing counsel's examination)
 5. Juror Review (assess leanings and risk tiers)
-6. End Report (final analysis and recommendations)
+6. End Report (final analysis, recommendations, optional push to MattrMindr)
 
 ## API Endpoints
-- `GET/POST /api/cases` — List/create cases
-- `GET/PATCH/DELETE /api/cases/:id` — Single case operations
+
+### Auth (public)
+- `POST /api/auth/register` — Create account (name, email, password)
+- `POST /api/auth/login` — Login (email, password) → JWT token
+- `GET /api/auth/me` — Get current user info (protected)
+
+### Cases (protected, user-scoped)
+- `GET/POST /api/cases` — List user's cases / create case
+- `GET/PATCH/DELETE /api/cases/:id` — Single case operations (ownership verified)
 - `GET /api/cases/:id/full` — Load full case with jurors, questions, responses
+
+### Jurors, Questions, Responses (protected)
 - `GET/POST/DELETE /api/cases/:caseId/jurors` — Juror CRUD
 - `PATCH /api/jurors/:id` — Update single juror
 - `GET/POST/DELETE /api/cases/:caseId/questions` — Question CRUD
 - `PATCH /api/questions/:id` — Update single question
 - `GET/POST /api/cases/:caseId/responses` — Response operations
-- `POST /api/responses/:id/follow-ups` — Append follow-up Q&A to existing response
+- `POST /api/responses/:id/follow-ups` — Append follow-up Q&A
+
+### AI (protected)
 - `POST /api/parse-strike-list` — AI document parsing (multipart file or text body)
-- `POST /api/generate-voir-dire` — AI full voir dire generation (caseInfo + jurors → strategic document)
-- `POST /api/refine-questions` — AI question refinement (raw questions + case context → enhanced questions)
-- `POST /api/analyze-juror` — AI juror risk assessment (case context + juror profile + responses → strategic analysis)
-- `POST /api/analyze-jurors-batch` — AI batch brief summaries for all jurors (used by Final Report)
+- `POST /api/generate-voir-dire` — AI full voir dire generation
+- `POST /api/refine-questions` — AI question refinement
+- `POST /api/analyze-juror` — AI individual juror risk assessment
+- `POST /api/analyze-jurors-batch` — AI batch brief summaries for all jurors
+
+### MattrMindr Integration (protected)
+- `POST /api/mattrmindr/connect` — Login to MattrMindr, store credentials
+- `POST /api/mattrmindr/disconnect` — Clear MattrMindr credentials
+- `GET /api/mattrmindr/status` — Check connection status
+- `GET /api/mattrmindr/cases` — List MattrMindr cases
+- `GET /api/mattrmindr/cases/:id` — Get MattrMindr case detail
+- `POST /api/mattrmindr/cases/:id/jury-analysis` — Push jury analysis to MattrMindr
 
 ## Database Tables
-- `cases` — Case metadata (name, area of law, summary, side, traits, phase state)
+- `users` — User accounts (email, passwordHash, name, mattrmindrUrl, mattrmindrToken)
+- `cases` — Case metadata (name, area of law, summary, side, traits, phase state, userId, mattrmindrCaseId)
 - `jurors` — Juror demographic data per case
 - `questions` — Voir dire questions per case
-- `responses` — Recorded juror responses per case (includes `follow_ups` JSONB for nested follow-up Q&A pairs)
+- `responses` — Recorded juror responses per case (includes `follow_ups` JSONB)
+
+## Environment Variables
+- `DATABASE_URL` — PostgreSQL connection string (auto-provided)
+- `JWT_SECRET` — JWT signing secret (falls back to default in dev)
+- `AI_INTEGRATIONS_OPENAI_API_KEY` — OpenAI API key (via Replit AI Integrations)
+- `AI_INTEGRATIONS_OPENAI_BASE_URL` — OpenAI base URL (via Replit AI Integrations)
 
 ## Dependencies
 - `react-dropzone` — File drag-and-drop for strike list upload
@@ -61,3 +95,5 @@ A full-stack jury selection assistant application. Helps legal professionals org
 - `openai` — AI client for document parsing
 - `multer` — File upload middleware
 - `pdf-parse` — PDF text extraction
+- `bcrypt` — Password hashing
+- `jsonwebtoken` — JWT token management

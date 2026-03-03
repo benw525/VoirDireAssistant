@@ -7,6 +7,8 @@ import multer from "multer";
 import { extractTextFromPdf, parseStrikeListWithAI, isAllowedFileType } from "./parseStrikeList";
 import { generateFullVoirDire, refineUserQuestions } from "./generateVoirDire";
 import { analyzeJuror, generateBriefSummary } from "./analyzeJuror";
+import { authMiddleware, hashPassword, comparePassword, createToken } from "./auth";
+import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMattrMindrCase, pushJuryAnalysis } from "./mattrmindr";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -15,43 +17,133 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  // --- Auth (public) ---
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const parsed = z.object({
+        email: z.string().email(),
+        password: z.string().min(6),
+        name: z.string().min(1),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.issues.map(i => i.message).join(", ") });
+
+      const existing = await storage.getUserByEmail(parsed.data.email.toLowerCase());
+      if (existing) return res.status(409).json({ message: "An account with this email already exists" });
+
+      const passwordHash = await hashPassword(parsed.data.password);
+      const user = await storage.createUser({
+        email: parsed.data.email.toLowerCase(),
+        passwordHash,
+        name: parsed.data.name,
+        createdAt: Date.now(),
+      });
+
+      const token = createToken(user.id, user.email);
+      res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name } });
+    } catch (err: any) {
+      console.error("Registration error:", err);
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const parsed = z.object({
+        email: z.string().email(),
+        password: z.string().min(1),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid email or password" });
+
+      const user = await storage.getUserByEmail(parsed.data.email.toLowerCase());
+      if (!user) return res.status(401).json({ message: "Invalid email or password" });
+
+      const valid = await comparePassword(parsed.data.password, user.passwordHash);
+      if (!valid) return res.status(401).json({ message: "Invalid email or password" });
+
+      const token = createToken(user.id, user.email);
+      res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+    } catch (err: any) {
+      console.error("Login error:", err);
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  app.get("/api/auth/me", authMiddleware, async (req, res) => {
+    const user = await storage.getUserById(req.user!.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      hasMattrMindr: !!(user.mattrmindrUrl && user.mattrmindrToken),
+    });
+  });
+
+  // --- All routes below require authentication ---
+  app.use("/api/cases", authMiddleware);
+  app.use("/api/jurors", authMiddleware);
+  app.use("/api/questions", authMiddleware);
+  app.use("/api/responses", authMiddleware);
+  app.use("/api/parse-strike-list", authMiddleware);
+  app.use("/api/generate-voir-dire", authMiddleware);
+  app.use("/api/refine-questions", authMiddleware);
+  app.use("/api/analyze-juror", authMiddleware);
+  app.use("/api/analyze-jurors-batch", authMiddleware);
+  app.use("/api/mattrmindr", authMiddleware);
+
   // --- Cases ---
-  app.get("/api/cases", async (_req, res) => {
-    const cases = await storage.getCases();
+  app.get("/api/cases", async (req, res) => {
+    const cases = await storage.getCasesByUser(req.user!.id);
     res.json(cases);
   });
 
   app.get("/api/cases/:id", async (req, res) => {
     const c = await storage.getCase(req.params.id);
-    if (!c) return res.status(404).json({ message: "Case not found" });
+    if (!c || c.userId !== req.user!.id) return res.status(404).json({ message: "Case not found" });
     res.json(c);
   });
 
   app.post("/api/cases", async (req, res) => {
-    const parsed = insertCaseSchema.safeParse(req.body);
+    const parsed = insertCaseSchema.safeParse({ ...req.body, userId: req.user!.id });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const c = await storage.createCase(parsed.data);
     res.status(201).json(c);
   });
 
   app.patch("/api/cases/:id", async (req, res) => {
+    const existing = await storage.getCase(req.params.id);
+    if (!existing || existing.userId !== req.user!.id) return res.status(404).json({ message: "Case not found" });
     const c = await storage.updateCase(req.params.id, req.body);
-    if (!c) return res.status(404).json({ message: "Case not found" });
     res.json(c);
   });
 
   app.delete("/api/cases/:id", async (req, res) => {
+    const existing = await storage.getCase(req.params.id);
+    if (!existing || existing.userId !== req.user!.id) return res.status(404).json({ message: "Case not found" });
     await storage.deleteCase(req.params.id);
     res.status(204).send();
   });
 
+  async function verifyCaseOwnership(req: any, res: any): Promise<boolean> {
+    const caseId = req.params.caseId || req.params.id;
+    if (!caseId) return false;
+    const c = await storage.getCase(caseId);
+    if (!c || c.userId !== req.user!.id) {
+      res.status(404).json({ message: "Case not found" });
+      return false;
+    }
+    return true;
+  }
+
   // --- Jurors ---
   app.get("/api/cases/:caseId/jurors", async (req, res) => {
+    if (!(await verifyCaseOwnership(req, res))) return;
     const jurors = await storage.getJurorsByCase(req.params.caseId);
     res.json(jurors);
   });
 
   app.post("/api/cases/:caseId/jurors", async (req, res) => {
+    if (!(await verifyCaseOwnership(req, res))) return;
     const caseId = req.params.caseId;
     const body = req.body;
 
@@ -71,21 +163,26 @@ export async function registerRoutes(
   app.patch("/api/jurors/:id", async (req, res) => {
     const juror = await storage.updateJuror(req.params.id, req.body);
     if (!juror) return res.status(404).json({ message: "Juror not found" });
+    const c = await storage.getCase(juror.caseId);
+    if (!c || c.userId !== req.user!.id) return res.status(404).json({ message: "Juror not found" });
     res.json(juror);
   });
 
   app.delete("/api/cases/:caseId/jurors", async (req, res) => {
+    if (!(await verifyCaseOwnership(req, res))) return;
     await storage.deleteJurorsByCase(req.params.caseId);
     res.status(204).send();
   });
 
   // --- Questions ---
   app.get("/api/cases/:caseId/questions", async (req, res) => {
+    if (!(await verifyCaseOwnership(req, res))) return;
     const questions = await storage.getQuestionsByCase(req.params.caseId);
     res.json(questions);
   });
 
   app.post("/api/cases/:caseId/questions", async (req, res) => {
+    if (!(await verifyCaseOwnership(req, res))) return;
     const caseId = req.params.caseId;
     const body = req.body;
 
@@ -105,21 +202,26 @@ export async function registerRoutes(
   app.patch("/api/questions/:id", async (req, res) => {
     const question = await storage.updateQuestion(req.params.id, req.body);
     if (!question) return res.status(404).json({ message: "Question not found" });
+    const c = await storage.getCase(question.caseId);
+    if (!c || c.userId !== req.user!.id) return res.status(404).json({ message: "Question not found" });
     res.json(question);
   });
 
   app.delete("/api/cases/:caseId/questions", async (req, res) => {
+    if (!(await verifyCaseOwnership(req, res))) return;
     await storage.deleteQuestionsByCase(req.params.caseId);
     res.status(204).send();
   });
 
   // --- Responses ---
   app.get("/api/cases/:caseId/responses", async (req, res) => {
+    if (!(await verifyCaseOwnership(req, res))) return;
     const responses = await storage.getResponsesByCase(req.params.caseId);
     res.json(responses);
   });
 
   app.post("/api/cases/:caseId/responses", async (req, res) => {
+    if (!(await verifyCaseOwnership(req, res))) return;
     const data = { ...req.body, caseId: req.params.caseId };
     const parsed = insertResponseSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
@@ -132,6 +234,8 @@ export async function registerRoutes(
     if (!answer) return res.status(400).json({ message: "answer is required" });
     const updated = await storage.addFollowUpToResponse(req.params.id, { question: question || '', answer });
     if (!updated) return res.status(404).json({ message: "Response not found" });
+    const c = await storage.getCase(updated.caseId);
+    if (!c || c.userId !== req.user!.id) return res.status(404).json({ message: "Response not found" });
     res.json(updated);
   });
 
@@ -322,10 +426,126 @@ export async function registerRoutes(
     }
   });
 
+  // --- MattrMindr Integration ---
+  app.post("/api/mattrmindr/connect", async (req, res) => {
+    try {
+      const parsed = z.object({
+        url: z.string().min(1),
+        email: z.string().email(),
+        password: z.string().min(1),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid request" });
+
+      let baseUrl = parsed.data.url.trim();
+      if (!baseUrl.startsWith('http')) baseUrl = `https://${baseUrl}`;
+      baseUrl = baseUrl.replace(/\/$/, '');
+
+      try {
+        const urlObj = new URL(baseUrl);
+        if (!['https:', 'http:'].includes(urlObj.protocol)) {
+          return res.status(400).json({ message: "Invalid URL protocol" });
+        }
+        const hostname = urlObj.hostname.toLowerCase();
+        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0' ||
+            hostname.startsWith('10.') || hostname.startsWith('192.168.') || hostname.startsWith('172.') ||
+            hostname === '[::1]' || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+          return res.status(400).json({ message: "Private/local URLs are not allowed" });
+        }
+      } catch {
+        return res.status(400).json({ message: "Invalid URL format" });
+      }
+
+      const result = await loginToMattrMindr(baseUrl, parsed.data.email, parsed.data.password);
+      await storage.updateUser(req.user!.id, {
+        mattrmindrUrl: baseUrl,
+        mattrmindrToken: result.token,
+      });
+
+      res.json({ connected: true, user: result.user });
+    } catch (err: any) {
+      console.error("MattrMindr connect error:", err);
+      res.status(err.status || 500).json({ message: err.message || "Failed to connect to MattrMindr" });
+    }
+  });
+
+  app.post("/api/mattrmindr/disconnect", async (req, res) => {
+    await storage.updateUser(req.user!.id, {
+      mattrmindrUrl: null,
+      mattrmindrToken: null,
+    });
+    res.json({ connected: false });
+  });
+
+  app.get("/api/mattrmindr/status", async (req, res) => {
+    const user = await storage.getUserById(req.user!.id);
+    if (!user?.mattrmindrUrl || !user?.mattrmindrToken) {
+      return res.json({ connected: false });
+    }
+
+    const result = await verifyMattrMindrToken(user.mattrmindrUrl, user.mattrmindrToken);
+    if (!result.valid) {
+      await storage.updateUser(req.user!.id, { mattrmindrToken: null });
+      return res.json({ connected: false, expired: true });
+    }
+
+    res.json({ connected: true, url: user.mattrmindrUrl, user: result.user });
+  });
+
+  app.get("/api/mattrmindr/cases", async (req, res) => {
+    try {
+      const user = await storage.getUserById(req.user!.id);
+      if (!user?.mattrmindrUrl || !user?.mattrmindrToken) {
+        return res.status(400).json({ message: "MattrMindr not connected" });
+      }
+      const cases = await fetchMattrMindrCases(user.mattrmindrUrl, user.mattrmindrToken);
+      res.json(cases);
+    } catch (err: any) {
+      if (err.status === 401) {
+        await storage.updateUser(req.user!.id, { mattrmindrToken: null });
+        return res.status(401).json({ message: "MattrMindr session expired. Please reconnect." });
+      }
+      res.status(500).json({ message: err.message || "Failed to fetch MattrMindr cases" });
+    }
+  });
+
+  app.get("/api/mattrmindr/cases/:id", async (req, res) => {
+    try {
+      const user = await storage.getUserById(req.user!.id);
+      if (!user?.mattrmindrUrl || !user?.mattrmindrToken) {
+        return res.status(400).json({ message: "MattrMindr not connected" });
+      }
+      const caseDetail = await fetchMattrMindrCase(user.mattrmindrUrl, user.mattrmindrToken, req.params.id);
+      res.json(caseDetail);
+    } catch (err: any) {
+      if (err.status === 401) {
+        await storage.updateUser(req.user!.id, { mattrmindrToken: null });
+        return res.status(401).json({ message: "MattrMindr session expired. Please reconnect." });
+      }
+      res.status(500).json({ message: err.message || "Failed to fetch case details" });
+    }
+  });
+
+  app.post("/api/mattrmindr/cases/:id/jury-analysis", async (req, res) => {
+    try {
+      const user = await storage.getUserById(req.user!.id);
+      if (!user?.mattrmindrUrl || !user?.mattrmindrToken) {
+        return res.status(400).json({ message: "MattrMindr not connected" });
+      }
+      const result = await pushJuryAnalysis(user.mattrmindrUrl, user.mattrmindrToken, req.params.id, req.body);
+      res.json(result);
+    } catch (err: any) {
+      if (err.status === 401) {
+        await storage.updateUser(req.user!.id, { mattrmindrToken: null });
+        return res.status(401).json({ message: "MattrMindr session expired. Please reconnect." });
+      }
+      res.status(500).json({ message: err.message || "Failed to push jury analysis" });
+    }
+  });
+
   // --- Full case load (for resuming) ---
   app.get("/api/cases/:id/full", async (req, res) => {
     const c = await storage.getCase(req.params.id);
-    if (!c) return res.status(404).json({ message: "Case not found" });
+    if (!c || c.userId !== req.user!.id) return res.status(404).json({ message: "Case not found" });
     const [jurors, questions, responses] = await Promise.all([
       storage.getJurorsByCase(c.id),
       storage.getQuestionsByCase(c.id),

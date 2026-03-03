@@ -7,8 +7,8 @@ import {
   Juror,
   VoirDireQuestion,
   JurorResponse,
-  SavedCase } from
-'../types';
+  SavedCase,
+} from '../types';
 import { Sidebar } from '../components/voir-dire/Sidebar';
 import { WelcomeScreen } from '../components/voir-dire/WelcomeScreen';
 import { CaseSetup } from '../components/voir-dire/CaseSetup';
@@ -17,41 +17,32 @@ import { VoirDireQuestions } from '../components/voir-dire/VoirDireQuestions';
 import { ResponseRecording } from '../components/voir-dire/ResponseRecording';
 import { JurorReview } from '../components/voir-dire/JurorReview';
 import { EndReport } from '../components/voir-dire/EndReport';
+import { MattrMindrSettings } from '../components/voir-dire/MattrMindrSettings';
+import { useAuth } from '../lib/auth';
 import * as api from '../lib/api';
 
 const generateSampleJurors = (): Juror[] => {
   const names = [
-  'James Smith', 'Maria Garcia', 'Robert Johnson', 'Linda Davis',
-  'William Miller', 'Elizabeth Wilson', 'David Moore', 'Jennifer Taylor',
-  'Richard Anderson', 'Susan Thomas'];
+    'James Smith', 'Maria Garcia', 'Robert Johnson', 'Linda Davis',
+    'William Miller', 'Elizabeth Wilson', 'David Moore', 'Jennifer Taylor',
+    'Richard Anderson', 'Susan Thomas',
+  ];
   const occupations = [
-  'Teacher', 'Software Engineer', 'Retired', 'Nurse', 'Construction Manager',
-  'Accountant', 'Retail Manager', 'Mechanic', 'Bank Teller', 'Sales Rep'];
+    'Teacher', 'Software Engineer', 'Retired', 'Nurse', 'Construction Manager',
+    'Accountant', 'Retail Manager', 'Mechanic', 'Bank Teller', 'Sales Rep',
+  ];
   return names.map((name, i) => ({
     number: i + 1, name,
     address: `${100 + i} Main St`, cityStateZip: 'Mobile, AL 36602',
     sex: i % 2 === 0 ? 'M' : 'F', race: ['W', 'B', 'H', 'A', 'O'][i % 5],
     birthDate: `19${60 + i * 3}-0${i % 9 + 1}-15`,
     occupation: occupations[i], employer: 'Various',
-    responses: [], lean: 'unknown' as const, riskTier: 'unassessed' as const, notes: ''
-  }));
-};
-
-const generateSampleQuestions = (): VoirDireQuestion[] => {
-  const qTexts = [
-  'Have you or a close family member ever been involved in a lawsuit?',
-  'Do you have any strong feelings about awarding damages for emotional distress?',
-  'Have you ever had a negative experience with a large corporation?',
-  'Do you believe that if someone is injured, someone else must be at fault?'];
-  return qTexts.map((text, i) => ({
-    id: i + 1, originalText: text,
-    rephrase: `(Rephrase) ${text.replace(/\?$/, '')} - how does that apply to you?`,
-    followUps: ['Can you elaborate on that?', 'Would that affect your impartiality?'],
-    locked: false
+    responses: [], lean: 'unknown' as const, riskTier: 'unassessed' as const, notes: '',
   }));
 };
 
 export default function VoirDireApp() {
+  const { user, logout } = useAuth();
   const [currentPhase, setCurrentPhase] = useState<AppPhase>(0);
   const [completedPhases, setCompletedPhases] = useState<Set<AppPhase>>(new Set<AppPhase>([0]));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -65,11 +56,15 @@ export default function VoirDireApp() {
   const [isLoading, setIsLoading] = useState(true);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [mattrmindrCaseId, setMattrmindrCaseId] = useState<string | null>(null);
+  const [isMattrMindrConnected, setIsMattrMindrConnected] = useState(false);
+  const [showMattrMindrSettings, setShowMattrMindrSettings] = useState(false);
+
   useEffect(() => {
-    api.fetchCases().then(cases => {
-      setSavedCases(cases);
-      setIsLoading(false);
-    }).catch(() => setIsLoading(false));
+    Promise.all([
+      api.fetchCases().then(cases => setSavedCases(cases)).catch(() => {}),
+      api.getMattrMindrStatus().then(s => setIsMattrMindrConnected(s.connected)).catch(() => {}),
+    ]).finally(() => setIsLoading(false));
   }, []);
 
   const persistToServer = useCallback(async () => {
@@ -115,6 +110,7 @@ export default function VoirDireApp() {
       setCompletedPhases(new Set(fullCase.completedPhases as AppPhase[]));
       setActiveCaseId(fullCase.id);
       setCurrentPhase(fullCase.lastPhase);
+      setMattrmindrCaseId(saved.mattrmindrCaseId || null);
     } catch (err) {
       console.error('Failed to load case:', err);
     }
@@ -137,6 +133,7 @@ export default function VoirDireApp() {
     setResponses([]);
     setCompletedPhases(new Set<AppPhase>([0]));
     setActiveCaseId(null);
+    setMattrmindrCaseId(null);
     setCurrentPhase(1);
   };
 
@@ -153,13 +150,17 @@ export default function VoirDireApp() {
     setCurrentPhase(nextPhase);
   };
 
-  const handleCaseSetup = async (info: CaseInfo) => {
+  const handleCaseSetup = async (info: CaseInfo, mmCaseId?: string) => {
     setCaseInfo(info);
     markPhaseComplete(1);
+    if (mmCaseId) setMattrmindrCaseId(mmCaseId);
     try {
       if (!activeCaseId) {
         const id = await api.createCase(info, 1, [0, 1]);
         setActiveCaseId(id);
+        if (mmCaseId) {
+          await api.updateCase(id, { mattrmindrCaseId: mmCaseId });
+        }
         const cases = await api.fetchCases();
         setSavedCases(cases);
       } else {
@@ -170,6 +171,7 @@ export default function VoirDireApp() {
           side: info.side,
           favorableTraits: info.favorableTraits,
           riskTraits: info.riskTraits,
+          ...(mmCaseId ? { mattrmindrCaseId: mmCaseId } : {}),
         });
       }
     } catch (err) {
@@ -231,7 +233,7 @@ export default function VoirDireApp() {
     const newResponse: JurorResponse = {
       ...response,
       id: Math.random().toString(36).substr(2, 9),
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
     setResponses(prev => [...prev, newResponse]);
 
@@ -240,7 +242,7 @@ export default function VoirDireApp() {
         if (j.number === response.jurorNumber) {
           const jResponses = [
             ...responses.filter(r => r.jurorNumber === j.number),
-            newResponse
+            newResponse,
           ];
           let newRisk = j.riskTier;
           let newLean = j.lean;
@@ -271,11 +273,10 @@ export default function VoirDireApp() {
     }
   };
 
-  const handleAddFollowUp = async (responseId: string, followUp: {question: string, answer: string}) => {
+  const handleAddFollowUp = async (responseId: string, followUp: { question: string; answer: string }) => {
     setResponses(prev =>
-      prev.map(r => r.id === responseId
-        ? { ...r, followUps: [...(r.followUps || []), followUp] }
-        : r
+      prev.map(r =>
+        r.id === responseId ? { ...r, followUps: [...(r.followUps || []), followUp] } : r
       )
     );
     try {
@@ -286,9 +287,7 @@ export default function VoirDireApp() {
   };
 
   const handleUpdateJuror = async (jurorNumber: number, updates: Partial<Juror>) => {
-    setJurors(prev =>
-      prev.map(j => j.number === jurorNumber ? { ...j, ...updates } : j)
-    );
+    setJurors(prev => prev.map(j => (j.number === jurorNumber ? { ...j, ...updates } : j)));
     if (activeCaseId) {
       try {
         await api.updateJurorOnServer(activeCaseId, jurorNumber, updates);
@@ -306,14 +305,17 @@ export default function VoirDireApp() {
             onNewCase={handleNewCase}
             savedCases={savedCases}
             onResumeCase={handleResumeCase}
-            onDeleteCase={handleDeleteCase} />
+            onDeleteCase={handleDeleteCase}
+          />
         );
       case 1:
         return (
           <CaseSetup
             existingInfo={caseInfo}
             onCaseSetup={handleCaseSetup}
-            onProceed={() => proceedToPhase(2)} />
+            onProceed={() => proceedToPhase(2)}
+            isMattrMindrConnected={isMattrMindrConnected}
+          />
         );
       case 2:
         return (
@@ -321,7 +323,8 @@ export default function VoirDireApp() {
             jurors={jurors}
             onJurorsLoaded={handleJurorsLoaded}
             onProceed={() => proceedToPhase(3)}
-            generateSampleJurors={generateSampleJurors} />
+            generateSampleJurors={generateSampleJurors}
+          />
         );
       case 3:
         return (
@@ -333,7 +336,8 @@ export default function VoirDireApp() {
             onUnlockQuestions={handleUnlockQuestions}
             onProceed={() => proceedToPhase(4)}
             caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
-            jurors={jurors} />
+            jurors={jurors}
+          />
         );
       case 4:
         return (
@@ -344,7 +348,8 @@ export default function VoirDireApp() {
             onRecordResponse={handleRecordResponse}
             onAddFollowUp={handleAddFollowUp}
             onProceed={() => proceedToPhase(5)}
-            caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }} />
+            caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
+          />
         );
       case 5:
         return (
@@ -354,7 +359,8 @@ export default function VoirDireApp() {
             questions={questions}
             caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
             onUpdateJuror={handleUpdateJuror}
-            onProceed={() => proceedToPhase(6)} />
+            onProceed={() => proceedToPhase(6)}
+          />
         );
       case 6:
         return (
@@ -362,7 +368,10 @@ export default function VoirDireApp() {
             caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
             jurors={jurors}
             responses={responses}
-            questions={questions} />
+            questions={questions}
+            mattrmindrCaseId={mattrmindrCaseId}
+            isMattrMindrConnected={isMattrMindrConnected}
+          />
         );
       default:
         return <div>Phase not found</div>;
@@ -379,29 +388,34 @@ export default function VoirDireApp() {
 
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans">
-      {currentPhase !== 0 &&
-      <Sidebar
-        currentPhase={currentPhase}
-        caseInfo={caseInfo}
-        jurorCount={jurors.length}
-        completedPhases={completedPhases}
-        onPhaseSelect={(p) => {
-          setCurrentPhase(p);
-          setIsSidebarOpen(false);
-        }}
-        isOpen={isSidebarOpen}
-        setIsOpen={setIsSidebarOpen} />
-      }
+      {currentPhase !== 0 && (
+        <Sidebar
+          currentPhase={currentPhase}
+          caseInfo={caseInfo}
+          jurorCount={jurors.length}
+          completedPhases={completedPhases}
+          onPhaseSelect={(p) => {
+            setCurrentPhase(p);
+            setIsSidebarOpen(false);
+          }}
+          isOpen={isSidebarOpen}
+          setIsOpen={setIsSidebarOpen}
+          userName={user?.name}
+          onLogout={logout}
+          onOpenMattrMindr={() => setShowMattrMindrSettings(true)}
+          isMattrMindrConnected={isMattrMindrConnected}
+        />
+      )}
 
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {currentPhase !== 0 &&
-        <div className="lg:hidden bg-slate-900 text-white p-4 flex items-center justify-between shrink-0">
+        {currentPhase !== 0 && (
+          <div className="lg:hidden bg-slate-900 text-white p-4 flex items-center justify-between shrink-0">
             <div className="font-bold">Voir Dire Analyst</div>
             <button onClick={() => setIsSidebarOpen(true)} className="p-1">
               <Menu className="w-6 h-6" />
             </button>
           </div>
-        }
+        )}
 
         <div className="flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
@@ -411,12 +425,19 @@ export default function VoirDireApp() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
-              className="h-full">
+              className="h-full"
+            >
               {renderPhase()}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
+
+      <MattrMindrSettings
+        isOpen={showMattrMindrSettings}
+        onClose={() => setShowMattrMindrSettings(false)}
+        onConnectionChange={(connected) => setIsMattrMindrConnected(connected)}
+      />
     </div>
   );
 }

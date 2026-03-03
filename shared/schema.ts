@@ -3,6 +3,16 @@ import { pgTable, text, varchar, integer, boolean, jsonb, bigint } from "drizzle
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  name: text("name").notNull(),
+  mattrmindrUrl: text("mattrmindr_url"),
+  mattrmindrToken: text("mattrmindr_token"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
 export const cases = pgTable("cases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -14,6 +24,8 @@ export const cases = pgTable("cases", {
   lastPhase: integer("last_phase").notNull().default(1),
   completedPhases: jsonb("completed_phases").$type<number[]>().notNull().default([]),
   questionsLocked: boolean("questions_locked").notNull().default(false),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  mattrmindrCaseId: text("mattrmindr_case_id"),
   savedAt: bigint("saved_at", { mode: "number" }).notNull(),
 });
 
@@ -56,11 +68,14 @@ export const responses = pgTable("responses", {
   timestamp: bigint("timestamp", { mode: "number" }).notNull(),
 });
 
+export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertCaseSchema = createInsertSchema(cases).omit({ id: true });
 export const insertJurorSchema = createInsertSchema(jurors).omit({ id: true });
 export const insertQuestionSchema = createInsertSchema(questions).omit({ id: true });
 export const insertResponseSchema = createInsertSchema(responses).omit({ id: true });
 
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Case = typeof cases.$inferSelect;
 export type InsertCase = z.infer<typeof insertCaseSchema>;
 export type Juror = typeof jurors.$inferSelect;

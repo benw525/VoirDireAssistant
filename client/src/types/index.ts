@@ -87,4 +87,5 @@ export interface SavedCase {
   questionsLocked: boolean;
   responses: JurorResponse[];
   completedPhases: number[];
+  mattrmindrCaseId?: string | null;
 }

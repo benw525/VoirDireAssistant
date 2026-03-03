@@ -12,7 +12,10 @@ import {
   Loader2,
   MessageSquare,
   Download,
-  Users
+  Users,
+  Send,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { CaseInfo, Juror, JurorResponse, VoirDireQuestion } from '../../types';
 import * as api from '../../lib/api';
@@ -28,19 +31,26 @@ interface EndReportProps {
   jurors: Juror[];
   responses: JurorResponse[];
   questions: VoirDireQuestion[];
+  mattrmindrCaseId?: string | null;
+  isMattrMindrConnected?: boolean;
 }
 
 export function EndReport({
   caseInfo,
   jurors,
   responses,
-  questions
+  questions,
+  mattrmindrCaseId,
+  isMattrMindrConnected,
 }: EndReportProps) {
   const [sortField, setSortField] = useState<SortField>('number');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expandedJuror, setExpandedJuror] = useState<number | null>(null);
   const [aiSummaries, setAiSummaries] = useState<Record<number, string>>({});
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSendingToMm, setIsSendingToMm] = useState(false);
+  const [mmSendResult, setMmSendResult] = useState<'success' | 'error' | null>(null);
+  const [mmSendMessage, setMmSendMessage] = useState('');
 
   const jurorsWithResponses = useMemo(() => {
     return jurors.map(juror => {
@@ -95,6 +105,44 @@ export function EndReport({
     } else {
       setSortField(field);
       setSortDir('asc');
+    }
+  };
+
+  const handleSendToMattrMindr = async () => {
+    if (!mattrmindrCaseId) return;
+    setIsSendingToMm(true);
+    setMmSendResult(null);
+    setMmSendMessage('');
+    try {
+      const jurorData = jurors.map(j => ({
+        number: j.number,
+        name: j.name,
+        sex: j.sex,
+        race: j.race,
+        birthDate: j.birthDate,
+        occupation: j.occupation,
+        employer: j.employer,
+        lean: j.lean,
+        riskTier: j.riskTier,
+        notes: j.notes,
+        aiSummary: aiSummaries[j.number] || '',
+      }));
+
+      const strikeStrategy = strikeOrder.length > 0
+        ? `Suggested strike order: ${strikeOrder.map((j, i) => `${i + 1}. #${j.number} ${j.name} (${j.lean}, ${j.riskTier} risk)`).join('; ')}`
+        : 'No strikes recommended based on current classifications.';
+
+      await api.pushJuryAnalysisToMattrMindr(mattrmindrCaseId, {
+        jurors: jurorData,
+        strikeStrategy,
+      });
+      setMmSendResult('success');
+      setMmSendMessage('Jury analysis sent to MattrMindr successfully');
+    } catch (err: any) {
+      setMmSendResult('error');
+      setMmSendMessage(err.message || 'Failed to send to MattrMindr');
+    } finally {
+      setIsSendingToMm(false);
     }
   };
 
@@ -437,15 +485,53 @@ export function EndReport({
           )}
         </section>
 
-        <div className="flex justify-center gap-4 pt-8 border-t border-slate-200 no-print-controls">
-          <button
-            onClick={() => window.print()}
-            data-testid="button-download-pdf"
-            className="inline-flex items-center px-8 py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-lg"
-          >
-            <Download className="w-5 h-5 mr-2" />
-            Download as PDF
-          </button>
+        <div className="space-y-4 pt-8 border-t border-slate-200 no-print-controls">
+          {mmSendResult && (
+            <div className={`flex items-center gap-2 p-3 rounded-xl text-sm font-medium ${
+              mmSendResult === 'success'
+                ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                : 'bg-rose-50 border border-rose-200 text-rose-700'
+            }`}>
+              {mmSendResult === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              )}
+              {mmSendMessage}
+            </div>
+          )}
+
+          <div className="flex justify-center gap-4">
+            <button
+              onClick={() => window.print()}
+              data-testid="button-download-pdf"
+              className="inline-flex items-center px-8 py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-lg"
+            >
+              <Download className="w-5 h-5 mr-2" />
+              Download as PDF
+            </button>
+
+            {isMattrMindrConnected && mattrmindrCaseId && (
+              <button
+                onClick={handleSendToMattrMindr}
+                disabled={isSendingToMm}
+                data-testid="button-send-mattrmindr"
+                className="inline-flex items-center px-8 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50"
+              >
+                {isSendingToMm ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5 mr-2" />
+                    Send to MattrMindr
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
