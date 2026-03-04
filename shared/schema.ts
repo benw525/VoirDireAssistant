@@ -31,7 +31,7 @@ export const cases = pgTable("cases", {
   questionsLocked: boolean("questions_locked").notNull().default(false),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   mattrmindrCaseId: text("mattrmindr_case_id"),
-  strikesForCause: jsonb("strikes_for_cause").$type<Array<{ jurorNumber: number; category: string; basis: string; argument: string }>>().notNull().default([]),
+  strikesForCause: jsonb("strikes_for_cause").$type<Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string }>>().notNull().default([]),
   savedAt: bigint("saved_at", { mode: "number" }).notNull(),
 });
 

@@ -44,7 +44,7 @@ interface DbCase {
   questionsLocked: boolean;
   savedAt: number;
   mattrmindrCaseId?: string | null;
-  strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; argument: string }>;
+  strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string }>;
 }
 
 interface DbJuror {
@@ -421,6 +421,7 @@ export async function analyzeJurorsBatch(
 export interface StrikeForCauseResult {
   jurorNumber: number;
   category: "Highly Likely" | "Possible" | "Unlikely";
+  reasoning: string;
   argument: string;
   basis: string;
 }

@@ -179,6 +179,7 @@ Provide your risk assessment analysis for this juror.`;
 export interface StrikeForCauseEntry {
   jurorNumber: number;
   category: "Highly Likely" | "Possible" | "Unlikely";
+  reasoning: string;
   argument: string;
   basis: string;
 }
@@ -215,19 +216,38 @@ You MUST respond with valid JSON in this exact format:
     {
       "jurorNumber": <number>,
       "category": "Highly Likely" | "Possible" | "Unlikely",
-      "argument": "<The specific legal argument the attorney should make to the judge to strike this juror for cause. Reference specific statements, responses, or facts. Write as if speaking to the judge.>",
+      "reasoning": "<Plain-English explanation of WHY you assigned this category. What specific statements, facts, behavioral indicators, or patterns from the juror's responses and profile led to this classification. Be analytical and specific.>",
+      "argument": "<See instructions below based on category>",
       "basis": "<Short 2-5 word label for the grounds, e.g., 'Stated bias', 'Personal connection to victim', 'Cannot follow law', 'Prior lawsuit experience', 'Fixed opinion on guilt', 'No significant basis'>"
     }
   ]
 }
 
+ARGUMENT FORMAT BY CATEGORY:
+
+For "Highly Likely" jurors — Write a FULL courtroom script the attorney can read verbatim to the judge. The script must include:
+1. A formal address: "Your Honor, [the defense/the State/plaintiff's counsel] moves to strike Juror #[number], [full name], for cause."
+2. A statement of the specific grounds, quoting the juror's actual words from voir dire where possible (e.g., "When asked about [topic], this juror stated, '[exact quote from responses].'")
+3. The legal basis — why these statements or facts demonstrate bias, inability to follow the law, or inability to be impartial
+4. An explanation of why rehabilitation would not cure the issue (e.g., "Despite further questioning, this juror was unable to commit to setting aside [their stated belief/experience]. The bias expressed goes to the core of the issues in this case.")
+5. A closing: "We respectfully ask the Court to excuse Juror #[number] for cause."
+
+For "Possible" jurors — Write a courtroom script similar to above, but:
+1. Same formal address and opening
+2. Quote the concerning statements
+3. State the legal basis
+4. Acknowledge that further development may be needed (e.g., "While this juror attempted to indicate they could be fair, their initial response of '[quote]' raises substantial concern about whether they can truly set aside [the issue]. We believe further examination would reveal this juror cannot be rehabilitated on this point.")
+5. Same closing request
+
+For "Unlikely" jurors — Keep it brief: 1-2 sentences explaining why no significant cause basis was identified.
+
 Rules:
 - Evaluate EVERY juror — do not skip any
 - Be specific — reference actual responses and facts from the juror's profile
-- Write arguments as the attorney would present them to the judge
-- For "Unlikely" jurors, the argument should briefly explain why no cause basis exists
+- Quote the juror's actual words from their recorded responses whenever possible
 - Frame everything from the perspective of the attorney's side
-- Keep each argument to 2-4 sentences`;
+- The courtroom scripts should sound natural and professional — as a seasoned trial attorney would speak to a judge
+- Use the case context (area of law, side) to determine proper party references (e.g., "the defense" vs. "the State" vs. "plaintiff's counsel")`;
 
 export async function analyzeStrikesForCause(
   caseContext: CaseContext,
@@ -283,7 +303,7 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
       { role: "user", content: userPrompt },
     ],
     temperature: 0.3,
-    max_tokens: 4000,
+    max_tokens: 8000,
     response_format: { type: "json_object" },
     store: false,
   });
@@ -306,6 +326,7 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
     .map((s: any) => ({
       jurorNumber: s.jurorNumber,
       category: VALID_CATEGORIES.has(s.category) ? s.category : "Unlikely",
+      reasoning: typeof s.reasoning === 'string' ? s.reasoning : '',
       argument: typeof s.argument === 'string' ? s.argument : 'No argument provided.',
       basis: typeof s.basis === 'string' ? s.basis : 'Not assessed',
     }));
@@ -316,6 +337,7 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
       validatedStrikes.push({
         jurorNumber: j.number,
         category: "Unlikely",
+        reasoning: `No concerning statements or indicators were identified in Juror #${j.number}'s responses or profile.`,
         argument: `No specific basis for a cause challenge was identified for Juror #${j.number} (${j.name}) based on available information.`,
         basis: "No significant basis",
       });

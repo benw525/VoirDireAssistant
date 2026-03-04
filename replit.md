@@ -93,7 +93,8 @@ A full-stack jury selection assistant application with user authentication, AI-p
   - **Highly Likely** (emerald/green) — Strong articulable grounds; judge would likely grant
   - **Possible** (amber/yellow) — Concerning indicators but may need development or rehabilitation
   - **Unlikely** (slate/gray) — No significant cause basis identified
-- Each entry shows: juror number + name, basis tag (short label), and full legal argument written as if addressing the judge
+- Each entry shows: juror number + name, basis tag (short label), AI reasoning (why it was categorized), and for Highly Likely/Possible jurors a full courtroom-ready script the attorney can read verbatim to the judge
+- Output fields per juror: `reasoning` (analytical explanation of categorization), `argument` (courtroom script for HL/Possible, brief note for Unlikely), `basis` (short label)
 - Categories are collapsible; ordered from Highly Likely → Possible → Unlikely
 - Placed in End Report between Peremptory Strikes and Suggested Strike Order sections
 - Server function: `analyzeStrikesForCause()` in `server/analyzeJuror.ts`

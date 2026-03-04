@@ -90,5 +90,5 @@ export interface SavedCase {
   responses: JurorResponse[];
   completedPhases: number[];
   mattrmindrCaseId?: string | null;
-  strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; argument: string }>;
+  strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string }>;
 }

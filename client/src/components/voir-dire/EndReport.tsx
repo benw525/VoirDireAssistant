@@ -202,6 +202,7 @@ export function EndReport({
           jurorName: juror?.name || `Juror #${s.jurorNumber}`,
           category: s.category,
           basis: s.basis,
+          reasoning: s.reasoning || '',
           argument: s.argument,
         };
       });
@@ -812,9 +813,10 @@ export function EndReport({
                           <div className={`${bgColor} divide-y ${borderColor}`}>
                             {items.map(strike => {
                               const juror = jurors.find(j => j.number === strike.jurorNumber);
+                              const showScript = strike.category === 'Highly Likely' || strike.category === 'Possible';
                               return (
                                 <div key={strike.jurorNumber} className="px-4 py-3" data-testid={`cause-strike-${strike.jurorNumber}`}>
-                                  <div className="flex items-center gap-2 mb-1">
+                                  <div className="flex items-center gap-2 mb-2">
                                     <span className="font-bold text-sm text-slate-900">
                                       #{strike.jurorNumber} {juror?.name || 'Unknown'}
                                     </span>
@@ -822,9 +824,28 @@ export function EndReport({
                                       {strike.basis}
                                     </span>
                                   </div>
-                                  <p className="text-sm text-slate-700 leading-relaxed">
-                                    {strike.argument}
-                                  </p>
+                                  {strike.reasoning && (
+                                    <div className="mb-2">
+                                      <div className="text-[10px] font-bold uppercase text-slate-500 mb-1 tracking-wide">Analysis</div>
+                                      <p className="text-sm text-slate-600 leading-relaxed italic">
+                                        {strike.reasoning}
+                                      </p>
+                                    </div>
+                                  )}
+                                  {showScript ? (
+                                    <div>
+                                      <div className="text-[10px] font-bold uppercase text-slate-500 mb-1 tracking-wide">Courtroom Argument</div>
+                                      <div className="bg-white/60 border border-slate-200 rounded-lg p-3">
+                                        <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+                                          {strike.argument}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-slate-700 leading-relaxed">
+                                      {strike.argument}
+                                    </p>
+                                  )}
                                 </div>
                               );
                             })}
