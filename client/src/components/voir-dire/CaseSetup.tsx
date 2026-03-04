@@ -66,20 +66,23 @@ function buildCaseSummary(detail: api.MattrMindrCaseDetail): string {
     parts.push(`Charges: ${chargeDesc}`);
   }
 
-  if (detail.court) parts.push(`Court: ${detail.court}`);
-  if (detail.judge) parts.push(`Judge: ${detail.judge}`);
-  if (detail.prosecutor) parts.push(`Prosecutor: ${detail.prosecutor}`);
-  if (detail.county) parts.push(`County: ${detail.county}`);
-  if (detail.custodyStatus) parts.push(`Custody Status: ${detail.custodyStatus}`);
-  if (detail.bondAmount) parts.push(`Bond: ${detail.bondAmount}`);
-
   if (detail.trialDate) parts.push(`Trial Date: ${detail.trialDate}`);
 
-  const defendants = detail.parties?.filter(p => p.partyType?.toLowerCase().includes('defendant'));
+  const coDefendants = detail.parties?.filter(p => {
+    const pt = p.partyType?.toLowerCase() || '';
+    return pt.includes('co-defendant') || pt.includes('codefendant');
+  });
   const witnesses = detail.parties?.filter(p => p.partyType?.toLowerCase().includes('witness'));
+  const experts = detail.parties?.filter(p => p.partyType?.toLowerCase().includes('expert'));
 
+  if (coDefendants && coDefendants.length > 0) {
+    parts.push(`Co-Defendants: ${coDefendants.map(d => d.name).join(', ')}`);
+  }
   if (witnesses && witnesses.length > 0) {
     parts.push(`Witnesses: ${witnesses.map(w => w.name).join(', ')}`);
+  }
+  if (experts && experts.length > 0) {
+    parts.push(`Experts: ${experts.map(e => e.name).join(', ')}`);
   }
 
   const relevantNotes = detail.notes?.filter(n =>
