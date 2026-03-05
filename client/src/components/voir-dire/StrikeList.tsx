@@ -108,7 +108,8 @@ export function StrikeList({
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newJuror, setNewJuror] = useState({ name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' });
+  const [newJuror, setNewJuror] = useState({ number: '', name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' });
+  const [renumberConflict, setRenumberConflict] = useState<{ existingJuror: Juror; newJuror: Juror; newNumber: string } | null>(null);
 
   const handleAIParse = useCallback(async (fileOrText: File | string) => {
     setIsParsing(true);
@@ -163,28 +164,69 @@ export function StrikeList({
     onJurorsLoaded(updated);
   };
 
+  const buildNewJuror = (jurorNumber: number): Juror => ({
+    number: jurorNumber,
+    name: newJuror.name.trim(),
+    address: '',
+    cityStateZip: '',
+    sex: newJuror.sex.trim() || 'Unknown',
+    race: newJuror.race.trim() || 'Unknown',
+    birthDate: newJuror.birthDate.trim() || 'Unknown',
+    occupation: newJuror.occupation.trim() || 'Unknown',
+    employer: newJuror.employer.trim() || 'Unknown',
+    responses: [],
+    lean: 'unknown',
+    riskTier: 'unassessed',
+    notes: '',
+    aiSummary: '',
+    aiAnalysis: '',
+  });
+
   const handleAddJuror = () => {
     if (!newJuror.name.trim()) return;
-    const maxNumber = jurors.length > 0 ? Math.max(...jurors.map(j => j.number)) : 0;
-    const juror: Juror = {
-      number: maxNumber + 1,
-      name: newJuror.name.trim(),
-      address: '',
-      cityStateZip: '',
-      sex: newJuror.sex.trim() || 'Unknown',
-      race: newJuror.race.trim() || 'Unknown',
-      birthDate: newJuror.birthDate.trim() || 'Unknown',
-      occupation: newJuror.occupation.trim() || 'Unknown',
-      employer: newJuror.employer.trim() || 'Unknown',
-      responses: [],
-      lean: 'unknown',
-      riskTier: 'unassessed',
-      notes: '',
-      aiSummary: '',
-      aiAnalysis: '',
-    };
-    onJurorsLoaded([...jurors, juror]);
-    setNewJuror({ name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' });
+
+    const specifiedNumber = newJuror.number.trim() ? parseInt(newJuror.number.trim(), 10) : null;
+
+    if (specifiedNumber !== null && !isNaN(specifiedNumber) && specifiedNumber > 0) {
+      const existing = jurors.find(j => j.number === specifiedNumber);
+      if (existing) {
+        const maxNumber = Math.max(...jurors.map(j => j.number));
+        setRenumberConflict({
+          existingJuror: existing,
+          newJuror: buildNewJuror(specifiedNumber),
+          newNumber: String(maxNumber + 1),
+        });
+        return;
+      }
+      const juror = buildNewJuror(specifiedNumber);
+      onJurorsLoaded([...jurors, juror].sort((a, b) => a.number - b.number));
+    } else {
+      const maxNumber = jurors.length > 0 ? Math.max(...jurors.map(j => j.number)) : 0;
+      const juror = buildNewJuror(maxNumber + 1);
+      onJurorsLoaded([...jurors, juror].sort((a, b) => a.number - b.number));
+    }
+
+    setNewJuror({ number: '', name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' });
+    setShowAddForm(false);
+  };
+
+  const handleConfirmRenumber = () => {
+    if (!renumberConflict) return;
+    const renumberTo = parseInt(renumberConflict.newNumber.trim(), 10);
+    if (isNaN(renumberTo) || renumberTo <= 0) return;
+
+    if (renumberTo === renumberConflict.newJuror.number) return;
+    const conflictWithNew = jurors.find(j => j.number === renumberTo && j.number !== renumberConflict.existingJuror.number);
+    if (conflictWithNew) return;
+
+    const updated = jurors.map(j =>
+      j.number === renumberConflict.existingJuror.number
+        ? { ...j, number: renumberTo }
+        : j
+    );
+    onJurorsLoaded([...updated, renumberConflict.newJuror].sort((a, b) => a.number - b.number));
+    setRenumberConflict(null);
+    setNewJuror({ number: '', name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' });
     setShowAddForm(false);
   };
 
@@ -447,7 +489,15 @@ export function StrikeList({
                   <Plus className="w-4 h-4 text-emerald-600" />
                   <span className="text-sm font-semibold text-slate-800">Add Juror Manually</span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 mb-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2 mb-3">
+                  <input
+                    value={newJuror.number}
+                    onChange={(e) => setNewJuror(prev => ({ ...prev, number: e.target.value.replace(/\D/g, '') }))}
+                    placeholder={`# (default ${jurors.length > 0 ? Math.max(...jurors.map(j => j.number)) + 1 : 1})`}
+                    data-testid="input-add-juror-number"
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white w-24"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddJuror()}
+                  />
                   <input
                     value={newJuror.name}
                     onChange={(e) => setNewJuror(prev => ({ ...prev, name: e.target.value }))}
@@ -508,12 +558,73 @@ export function StrikeList({
                     Add Juror
                   </button>
                   <button
-                    onClick={() => { setShowAddForm(false); setNewJuror({ name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' }); }}
+                    onClick={() => { setShowAddForm(false); setNewJuror({ number: '', name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' }); }}
                     data-testid="button-cancel-add-juror"
                     className="inline-flex items-center px-4 py-2 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-100 transition-colors"
                   >
                     Cancel
                   </button>
+                </div>
+              </div>
+            )}
+
+            {renumberConflict && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" data-testid="dialog-renumber-conflict">
+                <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+                  <div className="bg-amber-50 px-6 py-4 border-b border-amber-200">
+                    <h3 className="font-bold text-amber-900 flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5" />
+                      Juror Number Conflict
+                    </h3>
+                  </div>
+                  <div className="px-6 py-4 space-y-3">
+                    <p className="text-sm text-slate-700">
+                      Juror <span className="font-bold">#{renumberConflict.existingJuror.number} ({renumberConflict.existingJuror.name})</span> already
+                      has that number. Please assign a new number for the existing juror.
+                    </p>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        New number for {renumberConflict.existingJuror.name}
+                      </label>
+                      <input
+                        value={renumberConflict.newNumber}
+                        onChange={(e) => setRenumberConflict(prev => prev ? { ...prev, newNumber: e.target.value.replace(/\D/g, '') } : null)}
+                        data-testid="input-renumber-juror"
+                        className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                        onKeyDown={(e) => e.key === 'Enter' && handleConfirmRenumber()}
+                        autoFocus
+                      />
+                      {renumberConflict.newNumber && parseInt(renumberConflict.newNumber) === renumberConflict.newJuror.number && (
+                        <p className="text-xs text-rose-600 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          That number is being assigned to the new juror.
+                        </p>
+                      )}
+                      {renumberConflict.newNumber && parseInt(renumberConflict.newNumber) !== renumberConflict.newJuror.number && jurors.some(j => j.number === parseInt(renumberConflict.newNumber) && j.number !== renumberConflict.existingJuror.number) && (
+                        <p className="text-xs text-rose-600 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          That number is already taken by another juror.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+                    <button
+                      onClick={() => setRenumberConflict(null)}
+                      data-testid="button-cancel-renumber"
+                      className="px-4 py-2 text-sm font-medium text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleConfirmRenumber}
+                      disabled={!renumberConflict.newNumber.trim() || parseInt(renumberConflict.newNumber) <= 0 || parseInt(renumberConflict.newNumber) === renumberConflict.newJuror.number || jurors.some(j => j.number === parseInt(renumberConflict.newNumber) && j.number !== renumberConflict.existingJuror.number)}
+                      data-testid="button-confirm-renumber"
+                      className="px-4 py-2 text-sm font-bold text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                    >
+                      Renumber & Add
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
