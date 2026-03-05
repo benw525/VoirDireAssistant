@@ -353,3 +353,180 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
 
   return validatedStrikes;
 }
+
+interface BatsonDefensiveEntry {
+  jurorNumber: number;
+  jurorName: string;
+  protectedClass: string;
+  riskLevel: string;
+  statisticalFlag: string;
+  comparativeConcern: string;
+  currentJustification: string;
+  recommendedArticulation: string;
+  warning?: string;
+}
+
+interface BatsonOffensiveEntry {
+  jurorNumber: number;
+  jurorName: string;
+  protectedClass: string;
+  strengthOfChallenge: string;
+  statisticalPattern: string;
+  comparativeEvidence: string;
+  suggestedArgument: string;
+}
+
+export interface BatsonAnalysisResult {
+  overallRisk: string;
+  summary: string;
+  defensive: BatsonDefensiveEntry[];
+  offensive: BatsonOffensiveEntry[];
+}
+
+const BATSON_PROMPT = `You are a Batson Challenge Analyst. You evaluate peremptory strike patterns for potential Batson v. Kentucky (1986) violations and its progeny (J.E.B. v. Alabama, 1994; Flowers v. Mississippi, 2019).
+
+You will receive:
+1. Case context (area of law, side represented, case summary)
+2. The full juror panel with demographics (race, sex, age/DOB, occupation, notes, AI summary)
+3. Which jurors were struck by "your side" (the attorney using this tool)
+4. Which jurors were struck by the opposing side
+
+You must perform TWO analyses:
+
+## DEFENSIVE ANALYSIS (Your Strikes)
+Evaluate whether any of the attorney's own strikes could be vulnerable to a Batson challenge from opposing counsel.
+
+For each protected class (race, sex):
+1. Count how many members of that group were in the full panel
+2. Count how many were struck by your side
+3. Calculate strike rate per group vs. overall strike rate
+4. For each potentially problematic strike, find seated jurors outside the protected class who share similar characteristics (occupation, attitudes, responses) — this is the "comparative juror analysis" from Miller-El v. Dretke (2005)
+5. Review the attorney's notes/AI summary for each struck juror to assess whether there is a legitimate race/sex-neutral justification
+
+For each flagged strike, output:
+- jurorNumber, jurorName
+- protectedClass: which class triggers concern (e.g., "Race - Black", "Sex - Female")
+- riskLevel: "High" / "Moderate" / "Low"
+- statisticalFlag: the disparity numbers (e.g., "3 of 4 Black jurors struck (75%) vs. 2 of 8 White jurors (25%)")
+- comparativeConcern: which seated jurors have similar profiles but were not struck
+- currentJustification: what the attorney's notes suggest as reasoning
+- recommendedArticulation: a stronger race/sex-neutral justification the attorney could prepare, IF one legitimately exists based on the record
+- warning: if no legitimate justification exists, state this clearly (optional field, only include when warranted)
+
+## OFFENSIVE ANALYSIS (Their Strikes)
+Evaluate whether opposing counsel's strikes show a pattern that could support a Batson challenge.
+
+Same statistical and comparative methodology. For each challengeable strike:
+- jurorNumber, jurorName
+- protectedClass
+- strengthOfChallenge: "Strong" / "Moderate" / "Weak"
+- statisticalPattern: the numbers
+- comparativeEvidence: seated jurors who share traits with the struck juror
+- suggestedArgument: what the attorney should say when raising the Batson challenge, written as if addressing the judge directly
+
+## OVERALL ASSESSMENT
+- overallRisk: "Low" / "Moderate" / "High" — how vulnerable is the attorney's strike pattern overall
+- summary: 2-4 sentence plain-English summary of the situation, noting any concerning patterns on either side
+
+## CRITICAL RULES
+- Be honest. If the attorney's strikes show a genuine Batson problem, say so directly. Do not help disguise discriminatory strikes.
+- Batson applies to race (all races), sex (both sexes), and in many jurisdictions ethnicity.
+- A prima facie case requires: (1) strikes of members of a cognizable group, (2) circumstances raising an inference of discrimination.
+- "Demeanor" alone is the weakest justification. Courts increasingly reject it without specific, documented observations.
+- If no strikes have been made by a side, output an empty array for that side's analysis.
+- If there are no concerning patterns at all, still provide the summary and set overallRisk to "Low" with empty arrays.
+
+Return valid JSON with this exact structure:
+{
+  "overallRisk": "Low" | "Moderate" | "High",
+  "summary": "string",
+  "defensive": [ { "jurorNumber": number, "jurorName": "string", "protectedClass": "string", "riskLevel": "string", "statisticalFlag": "string", "comparativeConcern": "string", "currentJustification": "string", "recommendedArticulation": "string", "warning": "string (optional)" } ],
+  "offensive": [ { "jurorNumber": number, "jurorName": "string", "protectedClass": "string", "strengthOfChallenge": "string", "statisticalPattern": "string", "comparativeEvidence": "string", "suggestedArgument": "string" } ]
+}`;
+
+export async function analyzeBatson(
+  caseContext: CaseContext,
+  jurors: Array<JurorData & { aiSummary?: string }>,
+  yourStrikes: number[],
+  theirStrikes: number[]
+): Promise<BatsonAnalysisResult> {
+  const jurorsText = jurors.map(j => {
+    const struckBy = yourStrikes.includes(j.number) ? 'YOUR SIDE' : theirStrikes.includes(j.number) ? 'OPPOSING SIDE' : 'NOT STRUCK (SEATED)';
+    return `JUROR #${j.number}: ${j.name}
+  Sex: ${j.sex} | Race: ${j.race} | DOB: ${j.birthDate}
+  Occupation: ${j.occupation} | Employer: ${j.employer}
+  Lean: ${j.lean} | Risk: ${j.riskTier}
+  Notes: ${j.notes || 'None'}
+  AI Summary: ${j.aiSummary || 'None'}
+  STRIKE STATUS: ${struckBy}`;
+  }).join('\n\n---\n\n');
+
+  const userPrompt = `CASE CONTEXT:
+Case: ${caseContext.name}
+Area of Law: ${caseContext.areaOfLaw}
+Summary: ${caseContext.summary}
+Representing: ${caseContext.side}
+
+FULL PANEL (${jurors.length} jurors):
+
+${jurorsText}
+
+YOUR STRIKES (${yourStrikes.length}): Jurors ${yourStrikes.length > 0 ? yourStrikes.map(n => `#${n}`).join(', ') : 'None'}
+OPPOSING STRIKES (${theirStrikes.length}): Jurors ${theirStrikes.length > 0 ? theirStrikes.map(n => `#${n}`).join(', ') : 'None'}
+
+Perform the full Batson analysis and return the JSON result.`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      { role: "system", content: BATSON_PROMPT },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.3,
+    max_tokens: 8000,
+    response_format: { type: "json_object" },
+    store: false,
+  });
+
+  const raw = completion.choices[0]?.message?.content || '{}';
+  let parsed: any;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = {};
+  }
+
+  const VALID_RISKS = new Set(["Low", "Moderate", "High"]);
+  const VALID_STRENGTHS = new Set(["Strong", "Moderate", "Weak"]);
+
+  const result: BatsonAnalysisResult = {
+    overallRisk: VALID_RISKS.has(parsed.overallRisk) ? parsed.overallRisk : "Low",
+    summary: typeof parsed.summary === 'string' ? parsed.summary : 'No Batson concerns identified.',
+    defensive: Array.isArray(parsed.defensive)
+      ? parsed.defensive.filter((d: any) => d && typeof d.jurorNumber === 'number').map((d: any) => ({
+          jurorNumber: d.jurorNumber,
+          jurorName: typeof d.jurorName === 'string' ? d.jurorName : `Juror #${d.jurorNumber}`,
+          protectedClass: typeof d.protectedClass === 'string' ? d.protectedClass : 'Unknown',
+          riskLevel: VALID_RISKS.has(d.riskLevel) ? d.riskLevel : 'Low',
+          statisticalFlag: typeof d.statisticalFlag === 'string' ? d.statisticalFlag : '',
+          comparativeConcern: typeof d.comparativeConcern === 'string' ? d.comparativeConcern : '',
+          currentJustification: typeof d.currentJustification === 'string' ? d.currentJustification : '',
+          recommendedArticulation: typeof d.recommendedArticulation === 'string' ? d.recommendedArticulation : '',
+          ...(typeof d.warning === 'string' ? { warning: d.warning } : {}),
+        }))
+      : [],
+    offensive: Array.isArray(parsed.offensive)
+      ? parsed.offensive.filter((o: any) => o && typeof o.jurorNumber === 'number').map((o: any) => ({
+          jurorNumber: o.jurorNumber,
+          jurorName: typeof o.jurorName === 'string' ? o.jurorName : `Juror #${o.jurorNumber}`,
+          protectedClass: typeof o.protectedClass === 'string' ? o.protectedClass : 'Unknown',
+          strengthOfChallenge: VALID_STRENGTHS.has(o.strengthOfChallenge) ? o.strengthOfChallenge : 'Weak',
+          statisticalPattern: typeof o.statisticalPattern === 'string' ? o.statisticalPattern : '',
+          comparativeEvidence: typeof o.comparativeEvidence === 'string' ? o.comparativeEvidence : '',
+          suggestedArgument: typeof o.suggestedArgument === 'string' ? o.suggestedArgument : '',
+        }))
+      : [],
+  };
+
+  return result;
+}

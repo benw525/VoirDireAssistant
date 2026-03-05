@@ -103,7 +103,7 @@ export async function pushJuryAnalysis(
   baseUrl: string,
   token: string,
   caseId: string,
-  data: { jurors: any[]; strikeStrategy: string; strikesForCause?: any[] }
+  data: { jurors: any[]; strikeStrategy: string; strikesForCause?: any[]; batsonAnalysis?: any }
 ): Promise<any> {
   return mmFetch(baseUrl, `/api/external/cases/${caseId}/jury-analysis`, token, {
     method: 'POST',

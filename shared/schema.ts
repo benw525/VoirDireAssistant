@@ -32,6 +32,12 @@ export const cases = pgTable("cases", {
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   mattrmindrCaseId: text("mattrmindr_case_id"),
   strikesForCause: jsonb("strikes_for_cause").$type<Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string }>>().notNull().default([]),
+  batsonAnalysis: jsonb("batson_analysis").$type<{
+    overallRisk: string;
+    summary: string;
+    defensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string }>;
+    offensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; strengthOfChallenge: string; statisticalPattern: string; comparativeEvidence: string; suggestedArgument: string }>;
+  } | null>().default(null),
   savedAt: bigint("saved_at", { mode: "number" }).notNull(),
 });
 

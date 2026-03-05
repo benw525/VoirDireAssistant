@@ -63,6 +63,7 @@ export default function VoirDireApp() {
   const [mattrmindrCaseId, setMattrmindrCaseId] = useState<string | null>(null);
   const [isMattrMindrConnected, setIsMattrMindrConnected] = useState(false);
   const [savedStrikesForCause, setSavedStrikesForCause] = useState<any[]>([]);
+  const [savedBatsonAnalysis, setSavedBatsonAnalysis] = useState<any>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showHelpCenter, setShowHelpCenter] = useState(false);
@@ -130,6 +131,7 @@ export default function VoirDireApp() {
       setCurrentPhase(fullCase.lastPhase);
       setMattrmindrCaseId(saved.mattrmindrCaseId || null);
       setSavedStrikesForCause(fullCase.strikesForCause || []);
+      setSavedBatsonAnalysis(fullCase.batsonAnalysis || null);
     } catch (err) {
       console.error('Failed to load case:', err);
     }
@@ -423,6 +425,7 @@ export default function VoirDireApp() {
             activeCaseId={activeCaseId}
             onUpdateJuror={handleUpdateJuror}
             savedStrikesForCause={savedStrikesForCause}
+            savedBatsonAnalysis={savedBatsonAnalysis}
           />
         );
       default:

@@ -6,7 +6,7 @@ import { z } from "zod";
 import multer from "multer";
 import { extractTextFromPdf, parseStrikeListWithAI, isAllowedFileType } from "./parseStrikeList";
 import { generateFullVoirDire, refineUserQuestions } from "./generateVoirDire";
-import { analyzeJuror, generateBriefSummary, analyzeStrikesForCause } from "./analyzeJuror";
+import { analyzeJuror, generateBriefSummary, analyzeStrikesForCause, analyzeBatson } from "./analyzeJuror";
 import { authMiddleware, hashPassword, comparePassword, createToken } from "./auth";
 import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMattrMindrCase, pushJuryAnalysis } from "./mattrmindr";
 import { registerChatRoutes } from "./replit_integrations/chat";
@@ -605,6 +605,46 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Strike for cause analysis error:", err);
       res.status(500).json({ message: err.message || "Failed to analyze strikes for cause" });
+    }
+  });
+
+  // --- Batson Challenge Analysis ---
+  app.post("/api/analyze-batson", async (req, res) => {
+    try {
+      const parsed = z.object({
+        caseInfo: z.object({
+          name: z.string(),
+          areaOfLaw: z.string(),
+          summary: z.string(),
+          side: z.string(),
+          favorableTraits: z.array(z.string()),
+          riskTraits: z.array(z.string()),
+        }),
+        jurors: z.array(z.object({
+          number: z.number(),
+          name: z.string().default('Unknown'),
+          sex: z.string().default('U'),
+          race: z.string().default('U'),
+          birthDate: z.string().default('Unknown'),
+          occupation: z.string().default('Unknown'),
+          employer: z.string().default('Unknown'),
+          lean: z.string().default('unknown'),
+          riskTier: z.string().default('unassessed'),
+          notes: z.string().optional().default(''),
+          aiSummary: z.string().optional().default(''),
+        })),
+        yourStrikes: z.array(z.number()),
+        theirStrikes: z.array(z.number()),
+      }).safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
+      }
+
+      const result = await analyzeBatson(parsed.data.caseInfo, parsed.data.jurors, parsed.data.yourStrikes, parsed.data.theirStrikes);
+      res.json(result);
+    } catch (err: any) {
+      console.error("Batson analysis error:", err);
+      res.status(500).json({ message: err.message || "Failed to analyze Batson challenge" });
     }
   });
 

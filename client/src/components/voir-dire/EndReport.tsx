@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { CaseInfo, Juror, JurorResponse, VoirDireQuestion } from '../../types';
 import * as api from '../../lib/api';
-import type { StrikeForCauseResult } from '../../lib/api';
+import type { StrikeForCauseResult, BatsonAnalysisResult } from '../../lib/api';
 
 function isCriminalCase(areaOfLaw: string): boolean {
   const lc = areaOfLaw.toLowerCase();
@@ -51,6 +51,7 @@ interface EndReportProps {
   activeCaseId?: string | null;
   onUpdateJuror?: (jurorNumber: number, updates: Partial<Juror>) => void;
   savedStrikesForCause?: StrikeForCauseResult[];
+  savedBatsonAnalysis?: BatsonAnalysisResult | null;
 }
 
 export function EndReport({
@@ -63,6 +64,7 @@ export function EndReport({
   activeCaseId,
   onUpdateJuror,
   savedStrikesForCause,
+  savedBatsonAnalysis,
 }: EndReportProps) {
   const [sortField, setSortField] = useState<SortField>('number');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -86,6 +88,16 @@ export function EndReport({
   const [peremptoryCollapsed, setPeremptoryCollapsed] = useState(false);
   const [causeCollapsed, setCauseCollapsed] = useState(false);
   const [strikeOrderCollapsed, setStrikeOrderCollapsed] = useState(false);
+  const [batsonResult, setBatsonResult] = useState<BatsonAnalysisResult | null>(savedBatsonAnalysis || null);
+  const [isAnalyzingBatson, setIsAnalyzingBatson] = useState(false);
+  const [batsonError, setBatsonError] = useState('');
+  const [batsonCollapsed, setBatsonCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (savedBatsonAnalysis && !batsonResult) {
+      setBatsonResult(savedBatsonAnalysis);
+    }
+  }, [savedBatsonAnalysis]);
 
   const plaintiffLabel = getPlaintiffLabel(caseInfo.areaOfLaw);
 
@@ -211,6 +223,7 @@ export function EndReport({
         jurors: jurorData,
         strikeStrategy,
         ...(strikesForCause.length > 0 ? { strikesForCause } : {}),
+        ...(batsonResult ? { batsonAnalysis: batsonResult } : {}),
       });
       setMmSendResult('success');
       setMmSendMessage('Jury analysis sent to MattrMindr successfully');
@@ -258,6 +271,63 @@ export function EndReport({
       setCauseAnalysisError(err.message || 'Failed to analyze strikes for cause');
     } finally {
       setIsAnalyzingCause(false);
+    }
+  };
+
+  const handleBatsonCheck = async () => {
+    setIsAnalyzingBatson(true);
+    setBatsonError('');
+    try {
+      const yourStrikeNums = caseInfo.side === 'defense'
+        ? Array.from(defenseStrikes)
+        : Array.from(plaintiffStrikes);
+      const theirStrikeNums = caseInfo.side === 'defense'
+        ? Array.from(plaintiffStrikes)
+        : Array.from(defenseStrikes);
+
+      const result = await api.analyzeBatson(caseInfo, jurors, yourStrikeNums, theirStrikeNums);
+      setBatsonResult(result);
+
+      if (activeCaseId) {
+        try {
+          await api.updateCase(activeCaseId, { batsonAnalysis: result });
+        } catch (err) {
+          console.error('Failed to persist Batson analysis:', err);
+        }
+      }
+
+      if (mattrmindrCaseId && isMattrMindrConnected) {
+        try {
+          const jurorData = jurors.map(j => ({
+            number: j.number,
+            name: j.name,
+            sex: j.sex,
+            race: j.race,
+            birthDate: j.birthDate,
+            occupation: j.occupation,
+            employer: j.employer,
+            lean: j.lean,
+            riskTier: j.riskTier,
+            notes: j.notes,
+            aiSummary: aiSummaries[j.number] || '',
+          }));
+          const strikeStrategy = strikeOrder.length > 0
+            ? `Suggested strike order: ${strikeOrder.map((j, i) => `${i + 1}. #${j.number} ${j.name} (${j.lean}, ${j.riskTier} risk)`).join('; ')}`
+            : 'No strikes recommended based on current classifications.';
+          await api.pushJuryAnalysisToMattrMindr(mattrmindrCaseId, {
+            jurors: jurorData,
+            strikeStrategy,
+            batsonAnalysis: result,
+          });
+        } catch (err) {
+          console.error('Failed to push Batson analysis to MattrMindr:', err);
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to run Batson check:', err);
+      setBatsonError(err.message || 'Failed to run Batson challenge check');
+    } finally {
+      setIsAnalyzingBatson(false);
     }
   };
 
@@ -710,6 +780,228 @@ export function EndReport({
               </div>
             </div>
           </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <button
+            onClick={() => setBatsonCollapsed(p => !p)}
+            className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+            data-testid="toggle-batson-check"
+          >
+            <h3 className="text-lg font-bold text-slate-900 flex items-center">
+              <ShieldAlert className="w-5 h-5 mr-2 text-violet-500" />
+              Batson Challenge Check
+            </h3>
+            <div className="flex items-center gap-2">
+              {batsonResult && (
+                <span
+                  className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                    batsonResult.overallRisk === 'High' ? 'bg-rose-100 text-rose-700' :
+                    batsonResult.overallRisk === 'Moderate' ? 'bg-amber-100 text-amber-700' :
+                    'bg-emerald-100 text-emerald-700'
+                  }`}
+                  data-testid="text-batson-risk"
+                >
+                  {batsonResult.overallRisk} Risk
+                </span>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); handleBatsonCheck(); }}
+                disabled={isAnalyzingBatson || (plaintiffStrikes.size === 0 && defenseStrikes.size === 0)}
+                data-testid="button-batson-check"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white text-sm font-bold rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50 shadow-sm"
+              >
+                {isAnalyzingBatson ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Checking...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-4 h-4" />
+                    {batsonResult ? 'Re-Check' : 'Batson Check'}
+                  </>
+                )}
+              </button>
+              {batsonCollapsed ? <ChevronDown className="w-5 h-5 text-slate-400" /> : <ChevronUp className="w-5 h-5 text-slate-400" />}
+            </div>
+          </button>
+          <AnimatePresence initial={false}>
+            {!batsonCollapsed && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="px-6 pb-6">
+                  {batsonError && (
+                    <div className="flex items-center gap-2 p-3 rounded-xl text-sm font-medium bg-rose-50 border border-rose-200 text-rose-700 mb-4" data-testid="text-batson-error">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      {batsonError}
+                    </div>
+                  )}
+
+                  {!batsonResult && !isAnalyzingBatson && !batsonError && (
+                    <div className="bg-slate-50 rounded-xl border border-slate-200 p-8 text-center text-slate-500" data-testid="text-batson-empty">
+                      Mark peremptory strikes above, then click <span className="font-semibold text-violet-600">Batson Check</span> to analyze strike patterns for potential Batson v. Kentucky challenges.
+                    </div>
+                  )}
+
+                  {batsonResult && (
+                    <div className="space-y-4">
+                      <div className={`rounded-xl border p-4 ${
+                        batsonResult.overallRisk === 'High' ? 'bg-rose-50 border-rose-200' :
+                        batsonResult.overallRisk === 'Moderate' ? 'bg-amber-50 border-amber-200' :
+                        'bg-emerald-50 border-emerald-200'
+                      }`} data-testid="text-batson-summary">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`text-sm font-bold ${
+                            batsonResult.overallRisk === 'High' ? 'text-rose-800' :
+                            batsonResult.overallRisk === 'Moderate' ? 'text-amber-800' :
+                            'text-emerald-800'
+                          }`}>
+                            Overall Risk: {batsonResult.overallRisk}
+                          </span>
+                        </div>
+                        <p className={`text-sm leading-relaxed ${
+                          batsonResult.overallRisk === 'High' ? 'text-rose-700' :
+                          batsonResult.overallRisk === 'Moderate' ? 'text-amber-700' :
+                          'text-emerald-700'
+                        }`}>
+                          {batsonResult.summary}
+                        </p>
+                      </div>
+
+                      {batsonResult.defensive.length > 0 && (
+                        <div className="rounded-xl border border-rose-200 overflow-hidden" data-testid="batson-defensive-section">
+                          <div className="bg-rose-50 px-4 py-3 border-b border-rose-200">
+                            <h4 className="font-bold text-sm text-rose-900 flex items-center gap-2">
+                              <ShieldAlert className="w-4 h-4" />
+                              Your Strikes — Vulnerability Analysis
+                              <span className="text-xs font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full">{batsonResult.defensive.length}</span>
+                            </h4>
+                          </div>
+                          <div className="divide-y divide-rose-100">
+                            {batsonResult.defensive.map((d, i) => (
+                              <div key={i} className="p-4 bg-white" data-testid={`batson-defensive-${d.jurorNumber}`}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="font-bold text-sm text-slate-900">
+                                    #{d.jurorNumber} {d.jurorName}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full">{d.protectedClass}</span>
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                      d.riskLevel === 'High' ? 'bg-rose-100 text-rose-700' :
+                                      d.riskLevel === 'Moderate' ? 'bg-amber-100 text-amber-700' :
+                                      'bg-emerald-100 text-emerald-700'
+                                    }`}>{d.riskLevel}</span>
+                                  </div>
+                                </div>
+                                {d.statisticalFlag && (
+                                  <div className="mb-2">
+                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Statistical Pattern</span>
+                                    <p className="text-sm text-slate-700 mt-0.5">{d.statisticalFlag}</p>
+                                  </div>
+                                )}
+                                {d.comparativeConcern && (
+                                  <div className="mb-2">
+                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Comparative Concern</span>
+                                    <p className="text-sm text-slate-700 mt-0.5">{d.comparativeConcern}</p>
+                                  </div>
+                                )}
+                                {d.currentJustification && (
+                                  <div className="mb-2">
+                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Current Justification</span>
+                                    <p className="text-sm text-slate-600 italic mt-0.5">{d.currentJustification}</p>
+                                  </div>
+                                )}
+                                {d.recommendedArticulation && (
+                                  <div className="mb-2">
+                                    <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Recommended Articulation</span>
+                                    <div className="mt-1 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                                      <p className="text-sm text-emerald-800">{d.recommendedArticulation}</p>
+                                    </div>
+                                  </div>
+                                )}
+                                {d.warning && (
+                                  <div className="mt-2 p-3 bg-rose-50 border border-rose-300 rounded-lg">
+                                    <p className="text-sm font-semibold text-rose-800 flex items-center gap-1">
+                                      <AlertCircle className="w-3.5 h-3.5" />
+                                      {d.warning}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {batsonResult.offensive.length > 0 && (
+                        <div className="rounded-xl border border-blue-200 overflow-hidden" data-testid="batson-offensive-section">
+                          <div className="bg-blue-50 px-4 py-3 border-b border-blue-200">
+                            <h4 className="font-bold text-sm text-blue-900 flex items-center gap-2">
+                              <Gavel className="w-4 h-4" />
+                              Their Strikes — Challenge Opportunities
+                              <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">{batsonResult.offensive.length}</span>
+                            </h4>
+                          </div>
+                          <div className="divide-y divide-blue-100">
+                            {batsonResult.offensive.map((o, i) => (
+                              <div key={i} className="p-4 bg-white" data-testid={`batson-offensive-${o.jurorNumber}`}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="font-bold text-sm text-slate-900">
+                                    #{o.jurorNumber} {o.jurorName}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full">{o.protectedClass}</span>
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                      o.strengthOfChallenge === 'Strong' ? 'bg-emerald-100 text-emerald-700' :
+                                      o.strengthOfChallenge === 'Moderate' ? 'bg-amber-100 text-amber-700' :
+                                      'bg-slate-100 text-slate-600'
+                                    }`}>{o.strengthOfChallenge}</span>
+                                  </div>
+                                </div>
+                                {o.statisticalPattern && (
+                                  <div className="mb-2">
+                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Statistical Pattern</span>
+                                    <p className="text-sm text-slate-700 mt-0.5">{o.statisticalPattern}</p>
+                                  </div>
+                                )}
+                                {o.comparativeEvidence && (
+                                  <div className="mb-2">
+                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Comparative Evidence</span>
+                                    <p className="text-sm text-slate-700 mt-0.5">{o.comparativeEvidence}</p>
+                                  </div>
+                                )}
+                                {o.suggestedArgument && (
+                                  <div className="mb-2">
+                                    <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Courtroom Argument</span>
+                                    <div className="mt-1 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                      <p className="text-sm text-blue-800">{o.suggestedArgument}</p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {batsonResult.defensive.length === 0 && batsonResult.offensive.length === 0 && (
+                        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-6 text-center" data-testid="text-batson-clean">
+                          <ShieldCheck className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                          <p className="text-sm font-medium text-emerald-700">No Batson concerns identified in the current strike pattern.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}

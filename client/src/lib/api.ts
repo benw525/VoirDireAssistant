@@ -45,6 +45,12 @@ interface DbCase {
   savedAt: number;
   mattrmindrCaseId?: string | null;
   strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string }>;
+  batsonAnalysis?: {
+    overallRisk: string;
+    summary: string;
+    defensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string }>;
+    offensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; strengthOfChallenge: string; statisticalPattern: string; comparativeEvidence: string; suggestedArgument: string }>;
+  } | null;
 }
 
 interface DbJuror {
@@ -114,6 +120,7 @@ function dbCaseToSavedCase(c: DbCase, jurors: Juror[] = [], questions: VoirDireQ
     completedPhases: c.completedPhases,
     mattrmindrCaseId: c.mattrmindrCaseId || null,
     strikesForCause: c.strikesForCause || [],
+    batsonAnalysis: c.batsonAnalysis || null,
   };
 }
 
@@ -461,6 +468,39 @@ export async function analyzeStrikesForCause(
   return result.strikes;
 }
 
+export interface BatsonAnalysisResult {
+  overallRisk: string;
+  summary: string;
+  defensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string }>;
+  offensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; strengthOfChallenge: string; statisticalPattern: string; comparativeEvidence: string; suggestedArgument: string }>;
+}
+
+export async function analyzeBatson(
+  caseInfo: CaseInfo,
+  jurors: Juror[],
+  yourStrikes: number[],
+  theirStrikes: number[]
+): Promise<BatsonAnalysisResult> {
+  const jurorData = jurors.map(j => ({
+    number: j.number,
+    name: j.name,
+    sex: j.sex,
+    race: j.race,
+    birthDate: j.birthDate,
+    occupation: j.occupation,
+    employer: j.employer,
+    lean: j.lean,
+    riskTier: j.riskTier,
+    notes: j.notes || '',
+    aiSummary: j.aiSummary || '',
+  }));
+  const result = await fetchJson<BatsonAnalysisResult>(`${API_BASE}/analyze-batson`, {
+    method: 'POST',
+    body: JSON.stringify({ caseInfo, jurors: jurorData, yourStrikes, theirStrikes }),
+  });
+  return result;
+}
+
 export interface BillingStatus {
   tier: string;
   casesUsed: number;
@@ -585,7 +625,7 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string> {
 
 export async function pushJuryAnalysisToMattrMindr(
   caseId: string,
-  data: { jurors: any[]; strikeStrategy: string; strikesForCause?: Array<{ jurorNumber: number; jurorName: string; category: string; basis: string; argument: string }> }
+  data: { jurors: any[]; strikeStrategy: string; strikesForCause?: Array<{ jurorNumber: number; jurorName: string; category: string; basis: string; argument: string }>; batsonAnalysis?: BatsonAnalysisResult }
 ): Promise<any> {
   return fetchJson(`${API_BASE}/mattrmindr/cases/${caseId}/jury-analysis`, {
     method: 'POST',

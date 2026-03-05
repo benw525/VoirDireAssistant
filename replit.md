@@ -100,6 +100,23 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - Server function: `analyzeStrikesForCause()` in `server/analyzeJuror.ts`
 - Client function: `analyzeStrikesForCause()` in `client/src/lib/api.ts`
 
+## Batson Challenge Check (Phase 6 — End Report)
+- AI-powered analysis of peremptory strike patterns for Batson v. Kentucky (1986) violations
+- Uses `POST /api/analyze-batson` endpoint with GPT-4o (JSON response format)
+- Two-sided analysis:
+  - **Defensive** — Evaluates attorney's own strikes for vulnerability to a Batson challenge
+  - **Offensive** — Evaluates opposing counsel's strikes for challengeable patterns
+- Analysis framework: statistical pattern analysis across race/sex, comparative juror analysis (Miller-El v. Dretke, 2005), evaluation of stated reasons from notes/AI summaries
+- Overall risk assessment: Low / Moderate / High
+- Defensive entries: jurorNumber, jurorName, protectedClass, riskLevel, statisticalFlag, comparativeConcern, currentJustification, recommendedArticulation, warning (optional)
+- Offensive entries: jurorNumber, jurorName, protectedClass, strengthOfChallenge, statisticalPattern, comparativeEvidence, suggestedArgument
+- UI: "Batson Check" button (violet themed) in End Report between Peremptory Strikes and Strikes for Cause sections
+- Results automatically saved to case (`batsonAnalysis` JSONB column) and pushed to MattrMindr
+- DB column: `batson_analysis` on `cases` table (JSONB, nullable)
+- Server function: `analyzeBatson()` in `server/analyzeJuror.ts`
+- Client function: `analyzeBatson()` in `client/src/lib/api.ts`
+- MattrMindr push includes `batsonAnalysis` in jury-analysis payload
+
 ## Billing & Subscription
 - Plans: Free (1 case), Monthly Unlimited ($20/mo), Per Case ($20 each)
 - Free access override list: `FREE_ACCESS_EMAILS` in `server/billing.ts` (currently `benw52592@gmail.com`)
