@@ -700,14 +700,17 @@ export async function registerRoutes(
 
   app.get("/api/mattrmindr/status", async (req, res) => {
     const user = await storage.getUserById(req.user!.id);
-    if (!user?.mattrmindrUrl || !user?.mattrmindrToken) {
+    if (!user?.mattrmindrUrl) {
       return res.json({ connected: false });
+    }
+    if (!user.mattrmindrToken) {
+      return res.json({ connected: false, expired: true, url: user.mattrmindrUrl });
     }
 
     const result = await verifyMattrMindrToken(user.mattrmindrUrl, user.mattrmindrToken);
     if (!result.valid) {
       await storage.updateUser(req.user!.id, { mattrmindrToken: null });
-      return res.json({ connected: false, expired: true });
+      return res.json({ connected: false, expired: true, url: user.mattrmindrUrl });
     }
 
     res.json({ connected: true, url: user.mattrmindrUrl, user: result.user });

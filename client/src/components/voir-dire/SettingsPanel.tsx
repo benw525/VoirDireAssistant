@@ -41,6 +41,7 @@ export function SettingsPanel({
 
   const [mmConnected, setMmConnected] = useState(false);
   const [mmUrl, setMmUrl] = useState('');
+  const [mmExpired, setMmExpired] = useState(false);
   const [mmLoading, setMmLoading] = useState(true);
   const [mmSubmitting, setMmSubmitting] = useState(false);
   const [mmError, setMmError] = useState('');
@@ -112,9 +113,19 @@ export function SettingsPanel({
     try {
       const status = await api.getMattrMindrStatus();
       setMmConnected(status.connected);
-      if (status.connected && status.url) setMmUrl(status.url);
+      if (status.connected && status.url) {
+        setMmUrl(status.url);
+        setMmExpired(false);
+      } else if (!status.connected && status.expired && status.url) {
+        setMmUrl(status.url);
+        setMmExpired(true);
+        setMmFormUrl(status.url);
+      } else {
+        setMmExpired(false);
+      }
     } catch {
       setMmConnected(false);
+      setMmExpired(false);
     } finally {
       setMmLoading(false);
     }
@@ -128,6 +139,7 @@ export function SettingsPanel({
     try {
       await api.connectMattrMindr(mmFormUrl.trim(), mmFormEmail.trim(), mmFormPassword);
       setMmConnected(true);
+      setMmExpired(false);
       setMmUrl(mmFormUrl.trim());
       setMmSuccess('Connected successfully');
       setMmFormUrl('');
@@ -370,7 +382,14 @@ export function SettingsPanel({
                   </div>
                 ) : (
                   <form onSubmit={handleMmConnect} className="space-y-3">
-                    <p className="text-xs text-slate-500">Connect to import cases and push jury analysis.</p>
+                    {mmExpired ? (
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 text-xs text-amber-800" data-testid="text-mattrmindr-expired">
+                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-500" />
+                        <span>Your MattrMindr session has expired. Enter your credentials to reconnect.</span>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500">Connect to import cases and push jury analysis.</p>
+                    )}
 
                     {mmError && (
                       <div className="p-2 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2 text-xs text-rose-700">
