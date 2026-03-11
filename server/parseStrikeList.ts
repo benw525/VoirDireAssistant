@@ -141,7 +141,7 @@ export async function parseStrikeListFromImage(buffer: Buffer, mimetype: string,
   }
 
   const { data, mime } = await convertToSupportedFormat(buffer, resolvedMime);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
 
   const base64Data = data.toString("base64");
 
@@ -169,7 +169,7 @@ export async function parseStrikeListFromImage(buffer: Buffer, mimetype: string,
 }
 
 export async function parseStrikeListWithAI(rawText: string): Promise<ParsedJuror[]> {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
 
   const result = await model.generateContent({
     contents: [{
