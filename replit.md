@@ -8,7 +8,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - **Backend**: Express.js server with REST API
 - **Database**: PostgreSQL with Drizzle ORM
 - **Auth**: JWT-based authentication with bcrypt password hashing, per-user data isolation
-- **AI**: OpenAI (user's own API key) for strike list parsing (gpt-4o), voir dire generation (gpt-5.2), juror analysis (gpt-4o), AI chat assistant (gpt-4o-mini), and voice transcription (whisper-1)
+- **AI**: OpenAI for voir dire generation (gpt-5.2), juror analysis (gpt-4o), AI chat assistant (gpt-4o-mini), voice transcription (whisper-1); Google Gemini (gemini-2.5-flash) for strike list OCR/parsing with image support via sharp conversion
 - **MattrMindr**: Optional integration to import cases from MattrMindr (filtered to Trial Center only) and push jury analysis back
 - **Build**: Vite for frontend, tsx for server
 
@@ -29,7 +29,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `server/mattrmindr.ts` — MattrMindr external API proxy functions
 - `server/replit_integrations/chat/routes.ts` — AI Assistant chat routes (conversations, messages, streaming)
 - `server/replit_integrations/chat/storage.ts` — Chat-specific DB operations for conversations/messages
-- `server/parseStrikeList.ts` — AI-powered strike list document parser (OpenAI + pdf-parse)
+- `server/parseStrikeList.ts` — AI-powered strike list document parser (Gemini vision for images + pdf-parse for PDFs, sharp for image format conversion)
 - `server/generateVoirDire.ts` — AI voir dire strategy agent (full generation + question refinement)
 - `server/analyzeJuror.ts` — AI juror risk assessment agent (individual juror analysis)
 - `client/src/App.tsx` — Root component with routing (public landing, auth, protected app, legal pages)

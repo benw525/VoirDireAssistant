@@ -111,13 +111,14 @@ export function StrikeList({
   const [newJuror, setNewJuror] = useState({ number: '', name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' });
   const [renumberConflict, setRenumberConflict] = useState<{ existingJuror: Juror; newJuror: Juror; newNumber: string } | null>(null);
 
-  const handleAIParse = useCallback(async (fileOrText: File | string) => {
+  const handleAIParse = useCallback(async (filesOrText: File[] | string) => {
     setIsParsing(true);
     setError('');
-    setStatusMessage('Building strike list...');
+    const fileCount = Array.isArray(filesOrText) ? filesOrText.length : 0;
+    setStatusMessage(fileCount > 1 ? `Processing ${fileCount} files...` : 'Building strike list...');
 
     try {
-      const parsedJurors = await parseStrikeList(fileOrText);
+      const parsedJurors = await parseStrikeList(filesOrText);
       onJurorsLoaded(parsedJurors);
       setPasteData('');
       setStatusMessage('');
@@ -130,15 +131,14 @@ export function StrikeList({
   }, [onJurorsLoaded]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
-    if (file) {
-      handleAIParse(file);
+    if (acceptedFiles.length > 0) {
+      handleAIParse(acceptedFiles);
     }
   }, [handleAIParse]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    multiple: false
+    multiple: true
   });
 
   const handleParse = () => {
@@ -310,10 +310,10 @@ export function StrikeList({
                 <>
                   <FileUp className="w-10 h-10 text-slate-400 mx-auto mb-3" />
                   <p className="text-slate-600 font-medium">
-                    {isDragActive ? 'Drop the file here...' : 'Drag & drop a file here, or click to upload'}
+                    {isDragActive ? 'Drop files here...' : 'Drag & drop files here, or click to upload'}
                   </p>
                   <p className="text-slate-500 text-sm mt-1">
-                    Supports PDF, TXT, CSV — any format with juror data
+                    Upload multiple files — images, PDFs, TXT, CSV
                   </p>
                 </>
               )}

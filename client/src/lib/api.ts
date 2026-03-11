@@ -272,12 +272,14 @@ export async function addFollowUp(responseId: string, followUp: {question: strin
   return dbResponseToResponse(result);
 }
 
-export async function parseStrikeList(fileOrText: File | string): Promise<Juror[]> {
+export async function parseStrikeList(fileOrText: File[] | string): Promise<Juror[]> {
   const formData = new FormData();
   if (typeof fileOrText === 'string') {
     formData.append('text', fileOrText);
   } else {
-    formData.append('file', fileOrText);
+    for (const file of fileOrText) {
+      formData.append('files', file);
+    }
   }
 
   const token = getAuthToken();

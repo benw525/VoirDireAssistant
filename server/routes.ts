@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertCaseSchema, insertJurorSchema, insertQuestionSchema, insertResponseSchema } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
-import { extractTextFromPdf, parseStrikeListWithAI, isAllowedFileType } from "./parseStrikeList";
+import { extractTextFromPdf, parseStrikeListWithAI, parseStrikeListFromImage, isAllowedFileType, isImageFile } from "./parseStrikeList";
 import { generateFullVoirDire, refineUserQuestions } from "./generateVoirDire";
 import { analyzeJuror, generateBriefSummary, analyzeStrikesForCause, analyzeBatson } from "./analyzeJuror";
 import { authMiddleware, hashPassword, comparePassword, createToken } from "./auth";
@@ -365,32 +365,60 @@ export async function registerRoutes(
   });
 
   // --- AI Strike List Parsing ---
-  app.post("/api/parse-strike-list", upload.single("file"), async (req, res) => {
+  app.post("/api/parse-strike-list", upload.array("files", 20), async (req, res) => {
     try {
-      let rawText = "";
+      const files = req.files as Express.Multer.File[] | undefined;
+      let allJurors: any[] = [];
 
-      if (req.file) {
-        if (!isAllowedFileType(req.file.mimetype, req.file.originalname)) {
-          return res.status(400).json({ message: "Unsupported file type. Please upload a PDF, TXT, or CSV file." });
+      if (files && files.length > 0) {
+        for (const file of files) {
+          if (!isAllowedFileType(file.mimetype, file.originalname)) {
+            return res.status(400).json({ message: `Unsupported file type: ${file.originalname}. Please upload images, PDFs, TXT, or CSV files.` });
+          }
         }
-        const mime = req.file.mimetype;
-        if (mime === "application/pdf" || req.file.originalname.toLowerCase().endsWith(".pdf")) {
-          rawText = await extractTextFromPdf(req.file.buffer);
-        } else {
-          rawText = req.file.buffer.toString("utf-8");
+
+        for (const file of files) {
+          try {
+            if (isImageFile(file.mimetype, file.originalname)) {
+              const jurors = await parseStrikeListFromImage(file.buffer, file.mimetype, file.originalname);
+              allJurors.push(...jurors);
+            } else {
+              const mime = file.mimetype;
+              let rawText = "";
+              if (mime === "application/pdf" || file.originalname.toLowerCase().endsWith(".pdf")) {
+                rawText = await extractTextFromPdf(file.buffer);
+              } else {
+                rawText = file.buffer.toString("utf-8");
+              }
+              if (rawText.trim()) {
+                const jurors = await parseStrikeListWithAI(rawText);
+                allJurors.push(...jurors);
+              }
+            }
+          } catch (fileErr: any) {
+            console.error(`Error processing file ${file.originalname}:`, fileErr);
+            if (files.length === 1) throw fileErr;
+          }
         }
       } else if (req.body.text) {
-        rawText = req.body.text;
+        const rawText = req.body.text;
+        if (!rawText.trim()) {
+          return res.status(400).json({ message: "The pasted text appears to be empty." });
+        }
+        const jurors = await parseStrikeListWithAI(rawText);
+        allJurors.push(...jurors);
       } else {
-        return res.status(400).json({ message: "No file or text provided" });
+        return res.status(400).json({ message: "No files or text provided" });
       }
 
-      if (!rawText.trim()) {
-        return res.status(400).json({ message: "The uploaded document appears to be empty or could not be read." });
+      if (allJurors.length === 0) {
+        return res.status(400).json({ message: "No jurors could be extracted from the uploaded files. Please check the content and try again." });
       }
 
-      const jurors = await parseStrikeListWithAI(rawText);
-      res.json({ jurors });
+      const renumbered = files && files.length > 1
+        ? allJurors.map((j, i) => ({ ...j, number: i + 1 }))
+        : allJurors;
+      res.json({ jurors: renumbered });
     } catch (err: any) {
       console.error("Strike list parse error:", err);
       res.status(500).json({ message: err.message || "Failed to parse strike list" });

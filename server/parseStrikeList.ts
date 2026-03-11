@@ -1,9 +1,8 @@
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { PDFParse } from "pdf-parse";
+import sharp from "sharp";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export interface ParsedJuror {
   number: number;
@@ -18,19 +17,70 @@ export interface ParsedJuror {
   needsReview: boolean;
 }
 
-const ALLOWED_MIME_TYPES = new Set([
+const GEMINI_NATIVE_MIMES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
+
+const CONVERTIBLE_MIMES = new Set([
+  "image/bmp",
+  "image/tiff",
+  "image/heic",
+  "image/heif",
+  "image/avif",
+  "image/svg+xml",
+]);
+
+const ALL_IMAGE_MIMES = new Set([...GEMINI_NATIVE_MIMES, ...CONVERTIBLE_MIMES]);
+
+const DOCUMENT_MIME_TYPES = new Set([
   "application/pdf",
   "text/plain",
   "text/csv",
   "text/tab-separated-values",
 ]);
 
-const ALLOWED_EXTENSIONS = new Set([".pdf", ".txt", ".csv", ".tsv"]);
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".bmp": "image/bmp",
+  ".tiff": "image/tiff",
+  ".tif": "image/tiff",
+  ".heic": "image/heic",
+  ".heif": "image/heif",
+  ".avif": "image/avif",
+  ".svg": "image/svg+xml",
+};
+
+const DOCUMENT_EXTENSIONS = new Set([".pdf", ".txt", ".csv", ".tsv"]);
+
+function getExtension(filename: string): string {
+  return filename.toLowerCase().slice(filename.lastIndexOf("."));
+}
+
+function resolveImageMime(mimetype: string, filename: string): string | null {
+  if (ALL_IMAGE_MIMES.has(mimetype)) return mimetype;
+  const ext = getExtension(filename);
+  const mapped = IMAGE_EXTENSIONS[ext];
+  if (mapped) return mapped;
+  return null;
+}
 
 export function isAllowedFileType(mimetype: string, filename: string): boolean {
-  if (ALLOWED_MIME_TYPES.has(mimetype)) return true;
-  const ext = filename.toLowerCase().slice(filename.lastIndexOf("."));
-  return ALLOWED_EXTENSIONS.has(ext);
+  if (ALL_IMAGE_MIMES.has(mimetype) || DOCUMENT_MIME_TYPES.has(mimetype)) return true;
+  const ext = getExtension(filename);
+  return !!(IMAGE_EXTENSIONS[ext] || DOCUMENT_EXTENSIONS.has(ext));
+}
+
+export function isImageFile(mimetype: string, filename: string): boolean {
+  if (ALL_IMAGE_MIMES.has(mimetype)) return true;
+  const ext = getExtension(filename);
+  return !!IMAGE_EXTENSIONS[ext];
 }
 
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
@@ -41,8 +91,15 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   return typeof result === "string" ? result : result.text || "";
 }
 
-export async function parseStrikeListWithAI(rawText: string): Promise<ParsedJuror[]> {
-  const systemPrompt = `You are a legal document parsing assistant specializing in jury strike lists from court systems.
+async function convertToSupportedFormat(buffer: Buffer, mime: string): Promise<{ data: Buffer; mime: string }> {
+  if (GEMINI_NATIVE_MIMES.has(mime)) {
+    return { data: buffer, mime };
+  }
+  const converted = await sharp(buffer).png().toBuffer();
+  return { data: converted, mime: "image/png" };
+}
+
+const SYSTEM_PROMPT = `You are a legal document parsing assistant specializing in jury strike lists from court systems.
 Your job is to extract structured juror data from court-provided strike list documents.
 
 The documents may come in many formats — tables, lists, paragraphs, or mixed layouts.
@@ -77,24 +134,76 @@ Other rules:
 - If the document contains header rows, page headers, footnotes, or non-juror text, ignore those.
 - Return ONLY a JSON object in this exact format: { "jurors": [ { ... }, { ... } ] }`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: `Parse the following strike list document and extract all juror data:\n\n${rawText}` },
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.1,
-    store: false,
+export async function parseStrikeListFromImage(buffer: Buffer, mimetype: string, filename: string): Promise<ParsedJuror[]> {
+  const resolvedMime = resolveImageMime(mimetype, filename);
+  if (!resolvedMime) {
+    throw new Error(`Unsupported image format: ${filename}`);
+  }
+
+  const { data, mime } = await convertToSupportedFormat(buffer, resolvedMime);
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+  const base64Data = data.toString("base64");
+
+  const result = await model.generateContent({
+    contents: [{
+      role: "user",
+      parts: [
+        { text: SYSTEM_PROMPT + "\n\nParse the following strike list image and extract all juror data. Return ONLY valid JSON." },
+        {
+          inlineData: {
+            mimeType: mime,
+            data: base64Data,
+          },
+        },
+      ],
+    }],
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: "application/json",
+    },
   });
 
-  const content = response.choices[0]?.message?.content || "{}";
+  const content = result.response.text();
+  return parseJurorJson(content);
+}
+
+export async function parseStrikeListWithAI(rawText: string): Promise<ParsedJuror[]> {
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+  const result = await model.generateContent({
+    contents: [{
+      role: "user",
+      parts: [
+        { text: SYSTEM_PROMPT + `\n\nParse the following strike list document and extract all juror data:\n\n${rawText}` },
+      ],
+    }],
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: "application/json",
+    },
+  });
+
+  const content = result.response.text();
+  return parseJurorJson(content);
+}
+
+function parseJurorJson(content: string): ParsedJuror[] {
   let parsed: any;
 
   try {
     parsed = JSON.parse(content);
   } catch {
-    throw new Error("AI returned invalid JSON. Please try again.");
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        throw new Error("AI returned invalid JSON. Please try again.");
+      }
+    } else {
+      throw new Error("AI returned invalid JSON. Please try again.");
+    }
   }
 
   const jurorArray = parsed.jurors || parsed.data || (Array.isArray(parsed) ? parsed : []);
