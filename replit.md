@@ -29,7 +29,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `server/mattrmindr.ts` — MattrMindr external API proxy functions
 - `server/replit_integrations/chat/routes.ts` — AI Assistant chat routes (conversations, messages, streaming)
 - `server/replit_integrations/chat/storage.ts` — Chat-specific DB operations for conversations/messages
-- `server/parseStrikeList.ts` — AI-powered strike list document parser (Gemini vision for images + pdftoppm for PDF-to-image rendering, sharp for compression, size-aware batching under 45MB, tesseract.js OCR fallback)
+- `server/parseStrikeList.ts` — AI-powered strike list document parser (Gemini vision for images + pdftoppm for PDF-to-image rendering, sharp for compression, size-aware batching under 45MB, tesseract.js OCR fallback). Extracts phone numbers. Preserves original juror numbers from strike list documents; multi-file uploads sorted by juror number (not renumbered).
 - `server/generateVoirDire.ts` — AI voir dire strategy agent (full generation + question refinement)
 - `server/analyzeJuror.ts` — AI juror risk assessment agent (individual juror analysis)
 - `client/src/App.tsx` — Root component with routing (public landing, auth, protected app, legal pages)

@@ -26,7 +26,7 @@ interface StrikeListProps {
   generateSampleJurors: () => Juror[];
 }
 
-type EditableField = 'name' | 'sex' | 'race' | 'birthDate' | 'occupation' | 'employer';
+type EditableField = 'name' | 'phone' | 'sex' | 'race' | 'birthDate' | 'occupation' | 'employer';
 
 interface EditingCell {
   jurorNumber: number;
@@ -157,7 +157,7 @@ export function StrikeList({
     const updated = jurors.map(j => {
       if (j.number !== jurorNumber) return j;
       const updatedJuror = { ...j, [field]: value };
-      const hasIllegible = [updatedJuror.name, updatedJuror.sex, updatedJuror.race, updatedJuror.birthDate, updatedJuror.occupation, updatedJuror.employer]
+      const hasIllegible = [updatedJuror.name, updatedJuror.phone, updatedJuror.sex, updatedJuror.race, updatedJuror.birthDate, updatedJuror.occupation, updatedJuror.employer]
         .some(v => v === 'Illegible' || v.includes('(partial)'));
       return { ...updatedJuror, needsReview: hasIllegible };
     });
@@ -169,6 +169,7 @@ export function StrikeList({
     name: newJuror.name.trim(),
     address: '',
     cityStateZip: '',
+    phone: 'Unknown',
     sex: newJuror.sex.trim() || 'Unknown',
     race: newJuror.race.trim() || 'Unknown',
     birthDate: newJuror.birthDate.trim() || 'Unknown',
@@ -396,6 +397,7 @@ export function StrikeList({
                   <tr>
                     <th className="px-4 py-3 font-semibold w-12">#</th>
                     <th className="px-4 py-3 font-semibold">Name</th>
+                    <th className="px-4 py-3 font-semibold">Phone</th>
                     <th className="px-4 py-3 font-semibold w-14">Sex</th>
                     <th className="px-4 py-3 font-semibold w-14">Race</th>
                     <th className="px-4 py-3 font-semibold w-28">DOB</th>
@@ -422,6 +424,13 @@ export function StrikeList({
                             value={juror.name}
                             onSave={(v) => updateJurorField(juror.number, 'name', v)}
                             isIllegible={isIllegibleValue(juror.name)}
+                          />
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-600">
+                          <EditableCell
+                            value={juror.phone}
+                            onSave={(v) => updateJurorField(juror.number, 'phone', v)}
+                            isIllegible={isIllegibleValue(juror.phone)}
                           />
                         </td>
                         <td className="px-4 py-2.5 text-slate-600">

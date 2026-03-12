@@ -50,6 +50,7 @@ export const jurors = pgTable("jurors", {
   name: text("name").notNull(),
   address: text("address").notNull().default(""),
   cityStateZip: text("city_state_zip").notNull().default(""),
+  phone: text("phone").notNull().default("Unknown"),
   sex: text("sex").notNull().default("U"),
   race: text("race").notNull().default("U"),
   birthDate: text("birth_date").notNull().default(""),

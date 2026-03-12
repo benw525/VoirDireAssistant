@@ -435,10 +435,8 @@ export async function registerRoutes(
         return res.end(JSON.stringify({ message: "No jurors could be extracted from the uploaded files. Please check the content and try again." }));
       }
 
-      const renumbered = files && files.length > 1
-        ? allJurors.map((j, i) => ({ ...j, number: i + 1 }))
-        : allJurors;
-      res.end(JSON.stringify({ jurors: renumbered }));
+      allJurors.sort((a, b) => a.number - b.number);
+      res.end(JSON.stringify({ jurors: allJurors }));
     } catch (err: any) {
       clearInterval(keepAlive);
       console.error("Strike list parse error:", err);

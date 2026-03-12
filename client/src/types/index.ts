@@ -25,6 +25,7 @@ export interface Juror {
   name: string;
   address: string;
   cityStateZip: string;
+  phone: string;
   sex: string;
   race: string;
   birthDate: string;

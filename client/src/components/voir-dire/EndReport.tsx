@@ -595,6 +595,12 @@ export function EndReport({
                             <span className="text-xs font-semibold text-slate-500 uppercase">Employer</span>
                             <div className="text-slate-800">{juror.employer}</div>
                           </div>
+                          {juror.phone && juror.phone !== 'Unknown' && (
+                            <div>
+                              <span className="text-xs font-semibold text-slate-500 uppercase">Phone</span>
+                              <div className="text-slate-800">{juror.phone}</div>
+                            </div>
+                          )}
                           <div>
                             <span className="text-xs font-semibold text-slate-500 uppercase">Location</span>
                             <div className="text-slate-800">{juror.cityStateZip}</div>

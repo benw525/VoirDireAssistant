@@ -80,6 +80,7 @@ const generateSampleJurors = (): Juror[] => {
   return names.map((name, i) => ({
     number: i + 1, name,
     address: `${100 + i} Main St`, cityStateZip: 'Mobile, AL 36602',
+    phone: 'Unknown',
     sex: i % 2 === 0 ? 'M' : 'F', race: ['W', 'B', 'H', 'A', 'O'][i % 5],
     birthDate: `19${60 + i * 3}-0${i % 9 + 1}-15`,
     occupation: occupations[i], employer: 'Various',

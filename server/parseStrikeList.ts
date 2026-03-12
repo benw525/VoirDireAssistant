@@ -51,6 +51,7 @@ export interface ParsedJuror {
   name: string;
   address: string;
   cityStateZip: string;
+  phone: string;
   sex: string;
   race: string;
   birthDate: string;
@@ -347,10 +348,11 @@ These documents are often generated from older court computer systems and may co
 Extract every juror you can find and return a JSON object with a "jurors" key containing an array.
 
 For each juror, extract these fields:
-- number: The juror's seat or panel number (integer). If not explicitly listed, assign sequential numbers starting from 1.
+- number: The juror's seat or panel number (integer) AS PRINTED on the strike list. This is critical — you MUST use the exact number shown on the document for each juror. Do NOT renumber them sequentially. If jurors are numbered 13-24, use those exact numbers. Only assign sequential numbers starting from 1 if no numbers appear anywhere in the document.
 - name: Full name (string). Format as "LASTNAME FIRSTNAME MIDDLE" as shown in court documents.
 - address: Street address (string). Use "Illegible" if corrupted/unreadable.
 - cityStateZip: City, state, and ZIP code (string). Use "Illegible" if corrupted/unreadable.
+- phone: Phone number (string). Extract any phone/telephone number listed for the juror. Use "Unknown" if not provided.
 - sex: Sex/gender, abbreviated as M or F (string). Use "U" if not provided or unreadable.
 - race: Race/ethnicity, abbreviated (W=White, B=Black, H=Hispanic, A=Asian, O=Other) (string). Use "U" if not provided or unreadable.
 - birthDate: Date of birth in MM/DD/YYYY format (string). Use "Illegible" if corrupted/unreadable.
@@ -457,21 +459,26 @@ function parseJurorJson(content: string): ParsedJuror[] {
     const name = j.name ? String(j.name) : "Unknown";
     const address = String(j.address || "Unknown");
     const cityStateZip = String(j.cityStateZip || j.city_state_zip || j.cityState || "Unknown");
+    const phone = String(j.phone || j.telephone || j.tel || j.phoneNumber || j.phone_number || "Unknown");
     const sex = String(j.sex || j.gender || "U").charAt(0).toUpperCase();
     const race = String(j.race || j.ethnicity || "U").charAt(0).toUpperCase();
     const birthDate = String(j.birthDate || j.birth_date || j.dob || j.dateOfBirth || (j.age ? `Age: ${j.age}` : "Unknown"));
     const occupation = String(j.occupation || j.job || "Unknown");
     const employer = String(j.employer || j.company || "Unknown");
 
-    const hasIllegible = [name, address, cityStateZip, sex, race, birthDate, occupation, employer].some(
+    const hasIllegible = [name, address, cityStateZip, phone, sex, race, birthDate, occupation, employer].some(
       v => v === "Illegible" || v.includes("(partial)")
     );
 
+    const rawNum = Number(j.number);
+    const jurorNumber = Number.isFinite(rawNum) && rawNum > 0 ? rawNum : index + 1;
+
     return {
-      number: typeof j.number === "number" ? j.number : index + 1,
+      number: jurorNumber,
       name,
       address,
       cityStateZip,
+      phone,
       sex,
       race,
       birthDate,
