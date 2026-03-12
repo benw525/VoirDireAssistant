@@ -13,6 +13,17 @@ function getBaseUrl(): string {
   return "http://localhost:5000";
 }
 
+function reformatName(name: string): string {
+  const trimmed = name.trim();
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return trimmed;
+  if (parts.length === 2) return `${parts[1]} ${parts[0]}`;
+  const lastName = parts[0];
+  const firstName = parts[1];
+  const rest = parts.slice(2).join(" ");
+  return `${firstName} ${lastName}`;
+}
+
 function jurorToSingleColumnCsv(juror: {
   number: number;
   name: string;
@@ -27,7 +38,7 @@ function jurorToSingleColumnCsv(juror: {
 }): string {
   const rows = [
     `Number,${juror.number}`,
-    `Name,${juror.name}`,
+    `Name,${reformatName(juror.name)}`,
     `Phone,${juror.phone || "Unknown"}`,
     `Sex,${juror.sex}`,
     `Race,${juror.race}`,
