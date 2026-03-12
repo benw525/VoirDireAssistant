@@ -8,28 +8,42 @@ import os from "os";
 import Tesseract from "tesseract.js";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const GEMINI_MODEL = "gemini-3.1-pro-preview";
-const MAX_BATCH_SIZE = 32 * 1024 * 1024; // 32MB raw = ~43MB base64 encoded (under 50MB Gemini limit)
-const MAX_PAGE_SIZE = 20 * 1024 * 1024; // 20MB per page before compression kicks in
-const GEMINI_MAX_RETRIES = 3;
-const GEMINI_RETRY_DELAYS = [3000, 8000, 15000];
+const GEMINI_PRIMARY_MODEL = "gemini-2.5-flash-preview-05-20";
+const GEMINI_FALLBACK_MODEL = "gemini-2.0-flash";
+const MAX_BATCH_SIZE = 32 * 1024 * 1024;
+const MAX_PAGE_SIZE = 20 * 1024 * 1024;
+const GEMINI_MAX_RETRIES = 2;
+const GEMINI_RETRY_DELAYS = [3000, 8000];
 
-async function geminiGenerateWithRetry(model: any, request: any): Promise<any> {
-  for (let attempt = 0; attempt <= GEMINI_MAX_RETRIES; attempt++) {
-    try {
-      return await model.generateContent(request);
-    } catch (err: any) {
-      const status = err?.status || err?.httpStatusCode || (err?.message?.includes('503') ? 503 : err?.message?.includes('429') ? 429 : 0);
-      const isRetryable = status === 503 || status === 429 || err?.message?.includes('high demand') || err?.message?.includes('overloaded') || err?.message?.includes('Service Unavailable');
-      if (isRetryable && attempt < GEMINI_MAX_RETRIES) {
-        const delay = GEMINI_RETRY_DELAYS[attempt] || 15000;
-        console.log(`Gemini ${status || 'transient'} error, retrying in ${delay / 1000}s (attempt ${attempt + 1}/${GEMINI_MAX_RETRIES})...`);
-        await new Promise(r => setTimeout(r, delay));
-        continue;
+async function geminiGenerateWithRetry(request: any): Promise<any> {
+  const models = [GEMINI_PRIMARY_MODEL, GEMINI_FALLBACK_MODEL];
+  let lastErr: any;
+
+  for (const modelName of models) {
+    const model = genAI.getGenerativeModel({ model: modelName });
+    for (let attempt = 0; attempt <= GEMINI_MAX_RETRIES; attempt++) {
+      try {
+        const result = await model.generateContent(request);
+        return result;
+      } catch (err: any) {
+        lastErr = err;
+        const status = err?.status || err?.httpStatusCode || (err?.message?.includes('503') ? 503 : err?.message?.includes('429') ? 429 : 0);
+        const isRetryable = status === 503 || status === 429 || err?.message?.includes('high demand') || err?.message?.includes('overloaded') || err?.message?.includes('Service Unavailable');
+        if (isRetryable && attempt < GEMINI_MAX_RETRIES) {
+          const delay = GEMINI_RETRY_DELAYS[attempt] || 8000;
+          console.log(`Gemini ${modelName} ${status || 'transient'} error, retrying in ${delay / 1000}s (attempt ${attempt + 1}/${GEMINI_MAX_RETRIES})...`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        if (isRetryable) {
+          console.log(`Gemini ${modelName} exhausted retries, trying fallback model...`);
+          break;
+        }
+        throw err;
       }
-      throw err;
     }
   }
+  throw lastErr;
 }
 
 export interface ParsedJuror {
@@ -208,8 +222,6 @@ function batchPagesBySize(pages: Buffer[]): Buffer[][] {
 }
 
 async function parseImageBatchWithGemini(pageImages: Buffer[]): Promise<ParsedJuror[]> {
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-
   const parts: any[] = [
     { text: SYSTEM_PROMPT + "\n\nParse the following strike list page image(s) and extract all juror data. Return ONLY valid JSON." },
   ];
@@ -223,7 +235,7 @@ async function parseImageBatchWithGemini(pageImages: Buffer[]): Promise<ParsedJu
     });
   }
 
-  const result = await geminiGenerateWithRetry(model, {
+  const result = await geminiGenerateWithRetry({
     contents: [{ role: "user", parts }],
     generationConfig: {
       temperature: 0.1,
@@ -375,9 +387,8 @@ export async function parseStrikeListFromImage(buffer: Buffer, mimetype: string,
   }
 
   const finalMime = compressed !== data ? "image/jpeg" : mime;
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
-  const result = await geminiGenerateWithRetry(model, {
+  const result = await geminiGenerateWithRetry({
     contents: [{
       role: "user",
       parts: [
@@ -401,9 +412,7 @@ export async function parseStrikeListFromImage(buffer: Buffer, mimetype: string,
 }
 
 export async function parseStrikeListWithAI(rawText: string): Promise<ParsedJuror[]> {
-  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
-
-  const result = await geminiGenerateWithRetry(model, {
+  const result = await geminiGenerateWithRetry({
     contents: [{
       role: "user",
       parts: [
