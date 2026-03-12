@@ -2,7 +2,8 @@ import { storage } from "./storage";
 import crypto from "crypto";
 
 const FLUX_API_URL = "https://api.fluxprompt.ai/flux/api-v2?flowId=a576a6c5-ad7e-4a92-89e0-628a21735432";
-const FLUX_API_KEY = process.env.FLUX_API_KEY || "";
+const RAW_FLUX_KEY = process.env.FLUX_API_KEY || "";
+const FLUX_API_KEY = RAW_FLUX_KEY.startsWith("FLUX_API.") ? RAW_FLUX_KEY : `FLUX_API.${RAW_FLUX_KEY}`;
 const JUROR_INPUT_ID = "varInputNode_1773346441251_0.9263";
 const CALLBACK_INPUT_ID = "varInputNode_1773346442395_0.6514";
 const WEBHOOK_SECRET = process.env.FLUX_WEBHOOK_SECRET || FLUX_API_KEY;
