@@ -706,6 +706,8 @@ export async function registerRoutes(
       await storage.updateUser(req.user!.id, {
         mattrmindrUrl: baseUrl,
         mattrmindrToken: result.token,
+        mattrmindrEmail: parsed.data.email,
+        mattrmindrPassword: parsed.data.password,
       });
 
       res.json({ connected: true, user: result.user });
@@ -719,39 +721,79 @@ export async function registerRoutes(
     await storage.updateUser(req.user!.id, {
       mattrmindrUrl: null,
       mattrmindrToken: null,
+      mattrmindrEmail: null,
+      mattrmindrPassword: null,
     });
     res.json({ connected: false });
   });
+
+  async function refreshMattrMindrToken(userId: string): Promise<{ success: boolean; token?: string }> {
+    const user = await storage.getUserById(userId);
+    if (!user?.mattrmindrUrl || !user?.mattrmindrEmail || !user?.mattrmindrPassword) {
+      return { success: false };
+    }
+    try {
+      const result = await loginToMattrMindr(user.mattrmindrUrl, user.mattrmindrEmail, user.mattrmindrPassword);
+      await storage.updateUser(userId, { mattrmindrToken: result.token });
+      return { success: true, token: result.token };
+    } catch (err) {
+      console.error("MattrMindr auto-refresh failed:", err);
+      return { success: false };
+    }
+  }
+
+  async function getValidMmToken(userId: string): Promise<{ url: string; token: string } | null> {
+    const user = await storage.getUserById(userId);
+    if (!user?.mattrmindrUrl) return null;
+
+    if (user.mattrmindrToken) {
+      const verify = await verifyMattrMindrToken(user.mattrmindrUrl, user.mattrmindrToken);
+      if (verify.valid) return { url: user.mattrmindrUrl, token: user.mattrmindrToken };
+    }
+
+    const refresh = await refreshMattrMindrToken(userId);
+    if (refresh.success && refresh.token) {
+      return { url: user.mattrmindrUrl, token: refresh.token };
+    }
+    return null;
+  }
 
   app.get("/api/mattrmindr/status", async (req, res) => {
     const user = await storage.getUserById(req.user!.id);
     if (!user?.mattrmindrUrl) {
       return res.json({ connected: false });
     }
-    if (!user.mattrmindrToken) {
-      return res.json({ connected: false, expired: true, url: user.mattrmindrUrl });
+
+    const conn = await getValidMmToken(req.user!.id);
+    if (conn) {
+      return res.json({ connected: true, url: conn.url });
     }
 
-    const result = await verifyMattrMindrToken(user.mattrmindrUrl, user.mattrmindrToken);
-    if (!result.valid) {
-      await storage.updateUser(req.user!.id, { mattrmindrToken: null });
+    if (user.mattrmindrEmail && user.mattrmindrPassword) {
       return res.json({ connected: false, expired: true, url: user.mattrmindrUrl });
     }
-
-    res.json({ connected: true, url: user.mattrmindrUrl, user: result.user });
+    return res.json({ connected: false, expired: true, url: user.mattrmindrUrl });
   });
 
   app.get("/api/mattrmindr/cases", async (req, res) => {
     try {
+      const conn = await getValidMmToken(req.user!.id);
+      if (!conn) return res.status(400).json({ message: "MattrMindr not connected" });
       const user = await storage.getUserById(req.user!.id);
-      if (!user?.mattrmindrUrl || !user?.mattrmindrToken) {
-        return res.status(400).json({ message: "MattrMindr not connected" });
-      }
-      const cases = await fetchMattrMindrCases(user.mattrmindrUrl, user.mattrmindrToken, { name: user.name, email: user.email });
+      const cases = await fetchMattrMindrCases(conn.url, conn.token, { name: user?.name, email: user?.email });
       res.json(cases);
     } catch (err: any) {
       if (err.status === 401) {
-        await storage.updateUser(req.user!.id, { mattrmindrToken: null });
+        const refresh = await refreshMattrMindrToken(req.user!.id);
+        if (refresh.success && refresh.token) {
+          try {
+            const user = await storage.getUserById(req.user!.id);
+            const cases = await fetchMattrMindrCases(user!.mattrmindrUrl!, refresh.token, { name: user?.name, email: user?.email });
+            return res.json(cases);
+          } catch (retryErr: any) {
+            return res.status(500).json({ message: retryErr.message || "Failed to fetch MattrMindr cases" });
+          }
+        }
         return res.status(401).json({ message: "MattrMindr session expired. Please reconnect." });
       }
       res.status(500).json({ message: err.message || "Failed to fetch MattrMindr cases" });
@@ -760,15 +802,22 @@ export async function registerRoutes(
 
   app.get("/api/mattrmindr/cases/:id", async (req, res) => {
     try {
-      const user = await storage.getUserById(req.user!.id);
-      if (!user?.mattrmindrUrl || !user?.mattrmindrToken) {
-        return res.status(400).json({ message: "MattrMindr not connected" });
-      }
-      const caseDetail = await fetchMattrMindrCase(user.mattrmindrUrl, user.mattrmindrToken, req.params.id);
+      const conn = await getValidMmToken(req.user!.id);
+      if (!conn) return res.status(400).json({ message: "MattrMindr not connected" });
+      const caseDetail = await fetchMattrMindrCase(conn.url, conn.token, req.params.id);
       res.json(caseDetail);
     } catch (err: any) {
       if (err.status === 401) {
-        await storage.updateUser(req.user!.id, { mattrmindrToken: null });
+        const refresh = await refreshMattrMindrToken(req.user!.id);
+        if (refresh.success && refresh.token) {
+          try {
+            const user = await storage.getUserById(req.user!.id);
+            const caseDetail = await fetchMattrMindrCase(user!.mattrmindrUrl!, refresh.token, req.params.id);
+            return res.json(caseDetail);
+          } catch (retryErr: any) {
+            return res.status(500).json({ message: retryErr.message || "Failed to fetch case details" });
+          }
+        }
         return res.status(401).json({ message: "MattrMindr session expired. Please reconnect." });
       }
       res.status(500).json({ message: err.message || "Failed to fetch case details" });
@@ -777,15 +826,22 @@ export async function registerRoutes(
 
   app.post("/api/mattrmindr/cases/:id/jury-analysis", async (req, res) => {
     try {
-      const user = await storage.getUserById(req.user!.id);
-      if (!user?.mattrmindrUrl || !user?.mattrmindrToken) {
-        return res.status(400).json({ message: "MattrMindr not connected" });
-      }
-      const result = await pushJuryAnalysis(user.mattrmindrUrl, user.mattrmindrToken, req.params.id, req.body);
+      const conn = await getValidMmToken(req.user!.id);
+      if (!conn) return res.status(400).json({ message: "MattrMindr not connected" });
+      const result = await pushJuryAnalysis(conn.url, conn.token, req.params.id, req.body);
       res.json(result);
     } catch (err: any) {
       if (err.status === 401) {
-        await storage.updateUser(req.user!.id, { mattrmindrToken: null });
+        const refresh = await refreshMattrMindrToken(req.user!.id);
+        if (refresh.success && refresh.token) {
+          try {
+            const user = await storage.getUserById(req.user!.id);
+            const result = await pushJuryAnalysis(user!.mattrmindrUrl!, refresh.token, req.params.id, req.body);
+            return res.json(result);
+          } catch (retryErr: any) {
+            return res.status(500).json({ message: retryErr.message || "Failed to push jury analysis" });
+          }
+        }
         return res.status(401).json({ message: "MattrMindr session expired. Please reconnect." });
       }
       res.status(500).json({ message: err.message || "Failed to push jury analysis" });

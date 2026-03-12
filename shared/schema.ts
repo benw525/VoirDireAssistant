@@ -10,6 +10,8 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   mattrmindrUrl: text("mattrmindr_url"),
   mattrmindrToken: text("mattrmindr_token"),
+  mattrmindrEmail: text("mattrmindr_email"),
+  mattrmindrPassword: text("mattrmindr_password"),
   subscriptionTier: text("subscription_tier").notNull().default("free"),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
