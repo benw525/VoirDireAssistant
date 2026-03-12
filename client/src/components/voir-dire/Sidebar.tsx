@@ -101,7 +101,7 @@ export function Sidebar({
           </div>
         )}
 
-        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
+        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1" data-tour="sidebar-phases">
           {PHASES.map((phase) => {
             const isCurrent = currentPhase === phase.id;
             const isCompleted = completedPhases.has(phase.id as AppPhase);
@@ -154,6 +154,7 @@ export function Sidebar({
             <button
               onClick={onOpenSettings}
               data-testid="button-open-settings"
+              data-tour="sidebar-settings"
               className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"
             >
               <Settings className="w-4 h-4" />
@@ -168,6 +169,7 @@ export function Sidebar({
             <button
               onClick={onOpenHelpCenter}
               data-testid="button-open-help-center"
+              data-tour="sidebar-help"
               className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-slate-800 transition-colors text-slate-400 hover:text-white"
             >
               <HelpCircle className="w-4 h-4" />

@@ -170,6 +170,7 @@ export function AIAssistantButton({ hidden, onClick }: AIAssistantButtonProps) {
         onPointerCancel={handlePointerUp}
         onContextMenu={handleContextMenu}
         data-testid="button-ai-assistant"
+        data-tour="ai-assistant"
       >
         <div className={`w-14 h-14 rounded-full bg-slate-900 shadow-lg shadow-slate-900/30 flex items-center justify-center transition-all duration-200 ${dragMode ? 'ring-2 ring-amber-500 ring-offset-2' : 'hover:shadow-xl hover:scale-105'}`}>
           <BrainCircuit className="w-7 h-7 text-amber-500" />

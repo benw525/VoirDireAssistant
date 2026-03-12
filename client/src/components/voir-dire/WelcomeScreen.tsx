@@ -11,7 +11,8 @@ import {
   Clock,
   Trash2,
   ChevronRight,
-  Briefcase } from
+  Briefcase,
+  Compass } from
 'lucide-react';
 import { SavedCase } from '../../types';
 import type { BillingStatus } from '../../lib/api';
@@ -23,6 +24,7 @@ interface WelcomeScreenProps {
   billingError?: string | null;
   billingStatus?: BillingStatus | null;
   onOpenSettings?: () => void;
+  onStartTour?: () => void;
 }
 const PHASE_LABELS: Record<number, string> = {
   1: 'Case Setup',
@@ -40,6 +42,7 @@ export function WelcomeScreen({
   billingError,
   billingStatus,
   onOpenSettings,
+  onStartTour,
 }: WelcomeScreenProps) {
   const [showPastCases, setShowPastCases] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -128,7 +131,8 @@ export function WelcomeScreen({
             className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full mb-12"
             variants={containerVariants}
             initial="hidden"
-            animate="visible">
+            animate="visible"
+            data-tour="welcome-features">
 
               <motion.div
               variants={itemVariants}
@@ -220,7 +224,8 @@ export function WelcomeScreen({
               <button
               onClick={onNewCase}
               className="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-slate-900 bg-amber-500 rounded-full overflow-hidden transition-all hover:bg-amber-400 hover:scale-105 hover:shadow-lg hover:shadow-amber-500/30 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
-              data-testid="button-start-new-case">
+              data-testid="button-start-new-case"
+              data-tour="start-new-case">
 
                 <ArrowRight className="w-5 h-5 mr-2 group-hover:translate-x-0.5 transition-transform" />
                 <span>START NEW CASE</span>
@@ -259,6 +264,17 @@ export function WelcomeScreen({
                   </span>
               }
               </button>
+
+              {onStartTour && (
+                <button
+                  onClick={onStartTour}
+                  className="group inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors mt-2"
+                  data-testid="button-start-tour"
+                >
+                  <Compass className="w-4 h-4" />
+                  <span>Take a Tour</span>
+                </button>
+              )}
             </motion.div>
           </motion.div> :
 

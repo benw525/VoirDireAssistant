@@ -290,6 +290,7 @@ export function StrikeList({
             <div 
               {...getRootProps()} 
               data-testid="dropzone-strike-list"
+              data-tour="strike-list-upload"
               className={`border-2 border-dashed rounded-xl p-8 mb-4 text-center cursor-pointer transition-colors ${
                 isParsing ? 'border-violet-400 bg-violet-50 pointer-events-none' :
                 isDragActive ? 'border-amber-500 bg-amber-50' : 'border-slate-300 hover:border-slate-400 bg-slate-50'

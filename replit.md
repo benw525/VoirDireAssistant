@@ -44,6 +44,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `client/src/components/voir-dire/` — UI components for each phase
 - `client/src/components/voir-dire/SettingsPanel.tsx` — Settings page (profile, AI toggle, MattrMindr, password, logout)
 - `client/src/components/voir-dire/HelpCenter.tsx` — Help Center modal (4 tabs: Tutorials, FAQ, AI Assistant, Contact)
+- `client/src/components/voir-dire/GuidedTour.tsx` — Guided tour component with spotlight overlay, auto-positioning tooltip, prev/next/skip navigation, progress dots
 - `client/src/components/AIAssistant/AIAssistantButton.tsx` — Floating draggable AI chat button (pointer capture)
 - `client/src/components/AIAssistant/AIAssistantPanel.tsx` — AI Assistant chat panel with streaming and context awareness
 

@@ -19,10 +19,53 @@ import { JurorReview } from '../components/voir-dire/JurorReview';
 import { EndReport } from '../components/voir-dire/EndReport';
 import { SettingsPanel } from '../components/voir-dire/SettingsPanel';
 import { HelpCenter } from '../components/voir-dire/HelpCenter';
+import { GuidedTour, TourStep } from '../components/voir-dire/GuidedTour';
 import { AIAssistantButton } from '../components/AIAssistant/AIAssistantButton';
 import { AIAssistantPanel } from '../components/AIAssistant/AIAssistantPanel';
 import { useAuth } from '../lib/auth';
 import * as api from '../lib/api';
+
+const WELCOME_TOUR_STEPS: TourStep[] = [
+  {
+    target: 'welcome-features',
+    title: 'Welcome to Voir Dire Analyst',
+    content: 'This app guides you through the entire jury selection process in 6 phases — from ingesting your strike list to generating final strike recommendations.',
+    placement: 'bottom',
+  },
+  {
+    target: 'start-new-case',
+    title: 'Start a New Case',
+    content: 'Click here to begin a new case. You\'ll set up your case details, upload your juror strike list, and walk through each phase of voir dire.',
+    placement: 'top',
+  },
+];
+
+const CASE_TOUR_STEPS: TourStep[] = [
+  {
+    target: 'sidebar-phases',
+    title: 'Your Workflow Phases',
+    content: 'These are the 6 phases of your case. You\'ll move through them in order — each phase unlocks after you complete the previous one. You can always click back to review earlier phases.',
+    placement: 'right',
+  },
+  {
+    target: 'sidebar-settings',
+    title: 'Settings & Connections',
+    content: 'Access your account settings here. You can connect to MattrMindr to import cases and push jury analysis, manage your subscription, and toggle the AI assistant.',
+    placement: 'right',
+  },
+  {
+    target: 'sidebar-help',
+    title: 'Help Center',
+    content: 'Need guidance? The Help Center has detailed tutorials for every phase, FAQs, and a way to contact support. You can also chat with the AI Assistant for real-time help.',
+    placement: 'right',
+  },
+  {
+    target: 'ai-assistant',
+    title: 'AI Assistant',
+    content: 'This is your AI-powered assistant. It\'s context-aware — it knows which phase you\'re in and can help with strategy, legal research, and answering questions about your case. Click it anytime.',
+    placement: 'left',
+  },
+];
 
 const generateSampleJurors = (): Juror[] => {
   const names = [
@@ -70,6 +113,8 @@ export default function VoirDireApp() {
   const [aiHidden, setAiHidden] = useState(() => sessionStorage.getItem('voir_dire_ai_hidden') === 'true');
   const [billingStatus, setBillingStatus] = useState<api.BillingStatus | null>(null);
   const [billingError, setBillingError] = useState<string | null>(null);
+  const [tourActive, setTourActive] = useState(false);
+  const [tourSteps, setTourSteps] = useState<TourStep[]>([]);
 
   const refreshBilling = useCallback(async () => {
     try {
@@ -335,6 +380,40 @@ export default function VoirDireApp() {
     sessionStorage.setItem('voir_dire_ai_hidden', String(hidden));
   };
 
+  const startTour = useCallback((steps: TourStep[]) => {
+    setTourSteps(steps);
+    setTourActive(true);
+  }, []);
+
+  const handleTourComplete = useCallback(() => {
+    setTourActive(false);
+    localStorage.setItem('voir_dire_tour_completed', 'true');
+  }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+    const tourCompleted = localStorage.getItem('voir_dire_tour_completed');
+    if (!tourCompleted && currentPhase === 0 && savedCases.length === 0) {
+      const timer = setTimeout(() => startTour(WELCOME_TOUR_STEPS), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, currentPhase, savedCases.length, startTour]);
+
+  useEffect(() => {
+    if (tourActive) return;
+    const caseTourDone = localStorage.getItem('voir_dire_case_tour_completed');
+    if (!caseTourDone && currentPhase === 1 && caseInfo) {
+      const timer = setTimeout(() => {
+        if (window.innerWidth < 1024) {
+          setIsSidebarOpen(true);
+        }
+        startTour(CASE_TOUR_STEPS);
+        localStorage.setItem('voir_dire_case_tour_completed', 'true');
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [currentPhase, caseInfo, tourActive, startTour]);
+
   const PHASE_LABELS: Record<number, string> = {
     0: 'Welcome',
     1: 'Case Setup',
@@ -357,6 +436,7 @@ export default function VoirDireApp() {
             billingError={billingError}
             billingStatus={billingStatus}
             onOpenSettings={() => setShowSettings(true)}
+            onStartTour={() => startTour(WELCOME_TOUR_STEPS)}
           />
         );
       case 1:
@@ -521,6 +601,13 @@ export default function VoirDireApp() {
           />
         )}
       </AnimatePresence>
+
+      <GuidedTour
+        steps={tourSteps}
+        isActive={tourActive}
+        onComplete={handleTourComplete}
+        onSkip={handleTourComplete}
+      />
     </div>
   );
 }
