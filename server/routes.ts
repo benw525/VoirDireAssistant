@@ -366,6 +366,13 @@ export async function registerRoutes(
 
   // --- AI Strike List Parsing ---
   app.post("/api/parse-strike-list", upload.array("files", 20), async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    const keepAlive = setInterval(() => {
+      try { res.write(' '); } catch {}
+    }, 10000);
+
     try {
       const files = req.files as Express.Multer.File[] | undefined;
       let allJurors: any[] = [];
@@ -373,52 +380,70 @@ export async function registerRoutes(
       if (files && files.length > 0) {
         for (const file of files) {
           if (!isAllowedFileType(file.mimetype, file.originalname)) {
-            return res.status(400).json({ message: `Unsupported file type: ${file.originalname}. Please upload images, PDFs, TXT, or CSV files.` });
+            clearInterval(keepAlive);
+            return res.end(JSON.stringify({ message: `Unsupported file type: ${file.originalname}. Please upload images, PDFs, TXT, or CSV files.` }));
           }
         }
 
-        for (const file of files) {
-          try {
-            if (isImageFile(file.mimetype, file.originalname)) {
-              const jurors = await parseStrikeListFromImage(file.buffer, file.mimetype, file.originalname);
-              allJurors.push(...jurors);
-            } else if (isPdfFile(file.mimetype, file.originalname)) {
-              const jurors = await parseStrikeListFromPdf(file.buffer);
-              allJurors.push(...jurors);
-            } else {
-              const rawText = file.buffer.toString("utf-8");
-              if (rawText.trim()) {
-                const jurors = await parseStrikeListWithAI(rawText);
-                allJurors.push(...jurors);
-              }
+        const parseFile = async (file: Express.Multer.File) => {
+          if (isImageFile(file.mimetype, file.originalname)) {
+            return parseStrikeListFromImage(file.buffer, file.mimetype, file.originalname);
+          } else if (isPdfFile(file.mimetype, file.originalname)) {
+            return parseStrikeListFromPdf(file.buffer);
+          } else {
+            const rawText = file.buffer.toString("utf-8");
+            if (rawText.trim()) {
+              return parseStrikeListWithAI(rawText);
             }
-          } catch (fileErr: any) {
-            console.error(`Error processing file ${file.originalname}:`, fileErr);
-            if (files.length === 1) throw fileErr;
+            return [];
+          }
+        };
+
+        const results = await Promise.allSettled(files.map(f => parseFile(f)));
+        for (let i = 0; i < results.length; i++) {
+          const r = results[i];
+          if (r.status === 'fulfilled') {
+            allJurors.push(...r.value);
+          } else {
+            console.error(`Error processing file ${files[i].originalname}:`, r.reason);
+            if (files.length === 1) {
+              clearInterval(keepAlive);
+              res.status(500);
+              return res.end(JSON.stringify({ message: r.reason?.message || "Failed to parse strike list" }));
+            }
           }
         }
       } else if (req.body.text) {
         const rawText = req.body.text;
         if (!rawText.trim()) {
-          return res.status(400).json({ message: "The pasted text appears to be empty." });
+          clearInterval(keepAlive);
+          res.status(400);
+          return res.end(JSON.stringify({ message: "The pasted text appears to be empty." }));
         }
         const jurors = await parseStrikeListWithAI(rawText);
         allJurors.push(...jurors);
       } else {
-        return res.status(400).json({ message: "No files or text provided" });
+        clearInterval(keepAlive);
+        res.status(400);
+        return res.end(JSON.stringify({ message: "No files or text provided" }));
       }
 
+      clearInterval(keepAlive);
+
       if (allJurors.length === 0) {
-        return res.status(400).json({ message: "No jurors could be extracted from the uploaded files. Please check the content and try again." });
+        res.status(400);
+        return res.end(JSON.stringify({ message: "No jurors could be extracted from the uploaded files. Please check the content and try again." }));
       }
 
       const renumbered = files && files.length > 1
         ? allJurors.map((j, i) => ({ ...j, number: i + 1 }))
         : allJurors;
-      res.json({ jurors: renumbered });
+      res.end(JSON.stringify({ jurors: renumbered }));
     } catch (err: any) {
+      clearInterval(keepAlive);
       console.error("Strike list parse error:", err);
-      res.status(500).json({ message: err.message || "Failed to parse strike list" });
+      res.status(500);
+      res.end(JSON.stringify({ message: err.message || "Failed to parse strike list" }));
     }
   });
 

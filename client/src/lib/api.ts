@@ -289,12 +289,19 @@ export async function parseStrikeList(fileOrText: File[] | string): Promise<Juro
     headers: token ? { 'Authorization': `Bearer ${token}` } : {},
   });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || 'Failed to parse strike list');
+  const rawText = await res.text();
+  const jsonText = rawText.trim();
+
+  let data: any;
+  try {
+    data = JSON.parse(jsonText);
+  } catch {
+    throw new Error('Failed to parse server response');
   }
 
-  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || 'Failed to parse strike list');
+  }
   return (data.jurors || []).map((j: any) => ({
     number: j.number,
     name: j.name || 'Unknown',
