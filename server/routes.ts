@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertCaseSchema, insertJurorSchema, insertQuestionSchema, insertResponseSchema } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
-import { extractTextFromPdf, parseStrikeListWithAI, parseStrikeListFromImage, isAllowedFileType, isImageFile } from "./parseStrikeList";
+import { extractTextFromPdf, parseStrikeListWithAI, parseStrikeListFromImage, parseStrikeListFromPdf, isAllowedFileType, isImageFile, isPdfFile } from "./parseStrikeList";
 import { generateFullVoirDire, refineUserQuestions } from "./generateVoirDire";
 import { analyzeJuror, generateBriefSummary, analyzeStrikesForCause, analyzeBatson } from "./analyzeJuror";
 import { authMiddleware, hashPassword, comparePassword, createToken } from "./auth";
@@ -12,7 +12,7 @@ import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMa
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession, handleWebhook } from "./billing";
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
 export async function registerRoutes(
   httpServer: Server,
@@ -382,14 +382,11 @@ export async function registerRoutes(
             if (isImageFile(file.mimetype, file.originalname)) {
               const jurors = await parseStrikeListFromImage(file.buffer, file.mimetype, file.originalname);
               allJurors.push(...jurors);
+            } else if (isPdfFile(file.mimetype, file.originalname)) {
+              const jurors = await parseStrikeListFromPdf(file.buffer);
+              allJurors.push(...jurors);
             } else {
-              const mime = file.mimetype;
-              let rawText = "";
-              if (mime === "application/pdf" || file.originalname.toLowerCase().endsWith(".pdf")) {
-                rawText = await extractTextFromPdf(file.buffer);
-              } else {
-                rawText = file.buffer.toString("utf-8");
-              }
+              const rawText = file.buffer.toString("utf-8");
               if (rawText.trim()) {
                 const jurors = await parseStrikeListWithAI(rawText);
                 allJurors.push(...jurors);

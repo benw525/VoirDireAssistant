@@ -1,8 +1,16 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { PDFParse } from "pdf-parse";
 import sharp from "sharp";
+import { execSync } from "child_process";
+import fs from "fs";
+import path from "path";
+import os from "os";
+import Tesseract from "tesseract.js";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const GEMINI_MODEL = "gemini-3.1-pro-preview";
+const MAX_BATCH_SIZE = 32 * 1024 * 1024; // 32MB raw = ~43MB base64 encoded (under 50MB Gemini limit)
+const MAX_PAGE_SIZE = 20 * 1024 * 1024; // 20MB per page before compression kicks in
 
 export interface ParsedJuror {
   number: number;
@@ -66,9 +74,7 @@ function getExtension(filename: string): string {
 function resolveImageMime(mimetype: string, filename: string): string | null {
   if (ALL_IMAGE_MIMES.has(mimetype)) return mimetype;
   const ext = getExtension(filename);
-  const mapped = IMAGE_EXTENSIONS[ext];
-  if (mapped) return mapped;
-  return null;
+  return IMAGE_EXTENSIONS[ext] || null;
 }
 
 export function isAllowedFileType(mimetype: string, filename: string): boolean {
@@ -83,6 +89,10 @@ export function isImageFile(mimetype: string, filename: string): boolean {
   return !!IMAGE_EXTENSIONS[ext];
 }
 
+export function isPdfFile(mimetype: string, filename: string): boolean {
+  return mimetype === "application/pdf" || filename.toLowerCase().endsWith(".pdf");
+}
+
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   const parser = new PDFParse({ data: new Uint8Array(buffer) });
   await parser.load();
@@ -95,8 +105,205 @@ async function convertToSupportedFormat(buffer: Buffer, mime: string): Promise<{
   if (GEMINI_NATIVE_MIMES.has(mime)) {
     return { data: buffer, mime };
   }
-  const converted = await sharp(buffer).png().toBuffer();
-  return { data: converted, mime: "image/png" };
+  const converted = await sharp(buffer).jpeg({ quality: 85 }).toBuffer();
+  return { data: converted, mime: "image/jpeg" };
+}
+
+function getDpiForPdfSize(sizeBytes: number): number {
+  if (sizeBytes > 100 * 1024 * 1024) return 150;
+  if (sizeBytes > 50 * 1024 * 1024) return 200;
+  return 300;
+}
+
+async function compressPageImage(imageBuffer: Buffer): Promise<Buffer | null> {
+  let buf = imageBuffer;
+
+  if (buf.length <= MAX_PAGE_SIZE) return buf;
+
+  const qualities = [70, 50, 30];
+  for (const q of qualities) {
+    buf = await sharp(imageBuffer).jpeg({ quality: q }).toBuffer();
+    if (buf.length <= MAX_PAGE_SIZE) return buf;
+  }
+
+  const resolutions = [0.75, 0.5, 0.25];
+  for (const scale of resolutions) {
+    const metadata = await sharp(imageBuffer).metadata();
+    const w = Math.round((metadata.width || 1000) * scale);
+    const h = Math.round((metadata.height || 1000) * scale);
+    buf = await sharp(imageBuffer).resize(w, h).jpeg({ quality: 40 }).toBuffer();
+    if (buf.length <= MAX_PAGE_SIZE) return buf;
+  }
+
+  console.warn("Page image too large even after max compression, skipping");
+  return null;
+}
+
+function renderPdfToImages(pdfBuffer: Buffer, dpi: number): Buffer[] {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pdf-render-"));
+  const pdfPath = path.join(tmpDir, "input.pdf");
+  const outputPrefix = path.join(tmpDir, "page");
+
+  try {
+    fs.writeFileSync(pdfPath, pdfBuffer);
+    execSync(`pdftoppm -jpeg -r ${dpi} "${pdfPath}" "${outputPrefix}"`, {
+      timeout: 120000,
+      maxBuffer: 500 * 1024 * 1024,
+    });
+
+    const files = fs.readdirSync(tmpDir)
+      .filter(f => f.startsWith("page-") && f.endsWith(".jpg"))
+      .sort();
+
+    return files.map(f => fs.readFileSync(path.join(tmpDir, f)));
+  } finally {
+    try {
+      const remaining = fs.readdirSync(tmpDir);
+      for (const f of remaining) fs.unlinkSync(path.join(tmpDir, f));
+      fs.rmdirSync(tmpDir);
+    } catch {}
+  }
+}
+
+function batchPagesBySize(pages: Buffer[]): Buffer[][] {
+  const batches: Buffer[][] = [];
+  let currentBatch: Buffer[] = [];
+  let currentSize = 0;
+
+  for (const page of pages) {
+    if (currentSize + page.length > MAX_BATCH_SIZE && currentBatch.length > 0) {
+      batches.push(currentBatch);
+      currentBatch = [];
+      currentSize = 0;
+    }
+    currentBatch.push(page);
+    currentSize += page.length;
+  }
+
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
+  }
+
+  return batches;
+}
+
+async function parseImageBatchWithGemini(pageImages: Buffer[]): Promise<ParsedJuror[]> {
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+
+  const parts: any[] = [
+    { text: SYSTEM_PROMPT + "\n\nParse the following strike list page image(s) and extract all juror data. Return ONLY valid JSON." },
+  ];
+
+  for (const img of pageImages) {
+    parts.push({
+      inlineData: {
+        mimeType: "image/jpeg",
+        data: img.toString("base64"),
+      },
+    });
+  }
+
+  const result = await model.generateContent({
+    contents: [{ role: "user", parts }],
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: "application/json",
+    },
+  });
+
+  const content = result.response.text();
+  return parseJurorJson(content);
+}
+
+async function tesseractOcrFromImages(pages: Buffer[]): Promise<ParsedJuror[]> {
+  console.log(`Running Tesseract OCR on ${pages.length} page image(s)...`);
+  let allText = "";
+  for (let i = 0; i < pages.length; i++) {
+    try {
+      const { data } = await Tesseract.recognize(pages[i], "eng");
+      allText += data.text + "\n\n";
+    } catch (err) {
+      console.warn(`Tesseract failed on page ${i + 1}:`, err);
+    }
+  }
+
+  if (!allText.trim()) {
+    throw new Error("Tesseract could not extract any text from the pages.");
+  }
+
+  return parseStrikeListWithAI(allText);
+}
+
+async function pdfTextFallback(pdfBuffer: Buffer): Promise<ParsedJuror[]> {
+  console.log("Falling back to PDF text extraction...");
+  const rawText = await extractTextFromPdf(pdfBuffer);
+  if (!rawText.trim()) {
+    throw new Error("Could not extract any text from the PDF.");
+  }
+  return parseStrikeListWithAI(rawText);
+}
+
+export async function parseStrikeListFromPdf(pdfBuffer: Buffer): Promise<ParsedJuror[]> {
+  const dpi = getDpiForPdfSize(pdfBuffer.length);
+  console.log(`PDF size: ${(pdfBuffer.length / 1024 / 1024).toFixed(1)}MB, rendering at ${dpi} DPI`);
+
+  let pages: Buffer[];
+  try {
+    pages = renderPdfToImages(pdfBuffer, dpi);
+  } catch (err) {
+    console.error("PDF rendering failed, falling back to text extraction:", err);
+    return pdfTextFallback(pdfBuffer);
+  }
+
+  if (pages.length === 0) {
+    console.log("No pages rendered, falling back to text extraction");
+    return pdfTextFallback(pdfBuffer);
+  }
+
+  console.log(`Rendered ${pages.length} pages from PDF`);
+
+  const compressedPages: Buffer[] = [];
+  for (let i = 0; i < pages.length; i++) {
+    const compressed = await compressPageImage(pages[i]);
+    if (compressed) {
+      compressedPages.push(compressed);
+    } else {
+      console.warn(`Skipping page ${i + 1} — could not compress to under ${MAX_PAGE_SIZE / 1024 / 1024}MB`);
+    }
+  }
+
+  if (compressedPages.length === 0) {
+    console.log("All pages too large after compression, trying tesseract OCR on rendered images");
+    return tesseractOcrFromImages(pages);
+  }
+
+  const batches = batchPagesBySize(compressedPages);
+  console.log(`Processing ${compressedPages.length} pages in ${batches.length} batch(es)`);
+
+  let allJurors: ParsedJuror[] = [];
+
+  for (let i = 0; i < batches.length; i++) {
+    const batchSize = batches[i].reduce((sum, p) => sum + p.length, 0);
+    console.log(`Batch ${i + 1}/${batches.length}: ${batches[i].length} pages, ${(batchSize / 1024 / 1024).toFixed(1)}MB`);
+
+    try {
+      const jurors = await parseImageBatchWithGemini(batches[i]);
+      allJurors.push(...jurors);
+    } catch (err: any) {
+      console.error(`Gemini failed on batch ${i + 1}:`, err.message);
+      if (batches.length === 1) {
+        console.log("Single batch Gemini failure, trying tesseract OCR on rendered images");
+        return tesseractOcrFromImages(pages);
+      }
+    }
+  }
+
+  if (allJurors.length === 0) {
+    console.log("Gemini extracted no jurors, trying tesseract OCR on rendered images");
+    return tesseractOcrFromImages(pages);
+  }
+
+  return allJurors;
 }
 
 const SYSTEM_PROMPT = `You are a legal document parsing assistant specializing in jury strike lists from court systems.
@@ -141,9 +348,14 @@ export async function parseStrikeListFromImage(buffer: Buffer, mimetype: string,
   }
 
   const { data, mime } = await convertToSupportedFormat(buffer, resolvedMime);
-  const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
 
-  const base64Data = data.toString("base64");
+  const compressed = await compressPageImage(data);
+  if (!compressed) {
+    throw new Error(`Image ${filename} is too large to process even after compression.`);
+  }
+
+  const finalMime = compressed !== data ? "image/jpeg" : mime;
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
   const result = await model.generateContent({
     contents: [{
@@ -152,8 +364,8 @@ export async function parseStrikeListFromImage(buffer: Buffer, mimetype: string,
         { text: SYSTEM_PROMPT + "\n\nParse the following strike list image and extract all juror data. Return ONLY valid JSON." },
         {
           inlineData: {
-            mimeType: mime,
-            data: base64Data,
+            mimeType: finalMime,
+            data: compressed.toString("base64"),
           },
         },
       ],
@@ -169,7 +381,7 @@ export async function parseStrikeListFromImage(buffer: Buffer, mimetype: string,
 }
 
 export async function parseStrikeListWithAI(rawText: string): Promise<ParsedJuror[]> {
-  const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
   const result = await model.generateContent({
     contents: [{
