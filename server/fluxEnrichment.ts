@@ -5,6 +5,7 @@ const FLUX_API_URL = "https://api.fluxprompt.ai/flux/api-v2?flowId=a576a6c5-ad7e
 const FLUX_API_KEY = process.env.FLUX_API_KEY || "";
 const JUROR_INPUT_ID = "varInputNode_1773346441251_0.9263";
 const CALLBACK_INPUT_ID = "varInputNode_1773346442395_0.6514";
+const WEBHOOK_SECRET = process.env.FLUX_WEBHOOK_SECRET || FLUX_API_KEY;
 
 function getBaseUrl(): string {
   const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
@@ -12,7 +13,7 @@ function getBaseUrl(): string {
   return "http://localhost:5000";
 }
 
-function jurorToCsv(juror: {
+function jurorToSingleColumnCsv(juror: {
   number: number;
   name: string;
   phone: string;
@@ -21,18 +22,27 @@ function jurorToCsv(juror: {
   birthDate: string;
   occupation: string;
   employer: string;
+  address?: string;
+  cityStateZip?: string;
 }): string {
-  const fields = [
-    juror.number,
-    juror.name,
-    juror.phone || "Unknown",
-    juror.sex,
-    juror.race,
-    juror.birthDate,
-    juror.occupation,
-    juror.employer,
+  const rows = [
+    `Number,${juror.number}`,
+    `Name,${juror.name}`,
+    `Phone,${juror.phone || "Unknown"}`,
+    `Sex,${juror.sex}`,
+    `Race,${juror.race}`,
+    `BirthDate,${juror.birthDate}`,
+    `Occupation,${juror.occupation}`,
+    `Employer,${juror.employer}`,
+    `Address,${juror.address || ""}`,
+    `CityStateZip,${juror.cityStateZip || ""}`,
   ];
-  return fields.map(f => `"${String(f).replace(/"/g, '""')}"`).join(",");
+  return rows.join("\n");
+}
+
+export function verifyWebhookSecret(headerSecret: string | undefined): boolean {
+  if (!WEBHOOK_SECRET) return true;
+  return headerSecret === WEBHOOK_SECRET;
 }
 
 export async function triggerEnrichmentForJurors(
@@ -46,6 +56,8 @@ export async function triggerEnrichmentForJurors(
     birthDate: string;
     occupation: string;
     employer: string;
+    address?: string;
+    cityStateZip?: string;
   }>
 ): Promise<void> {
   if (!FLUX_API_KEY) {
@@ -53,12 +65,24 @@ export async function triggerEnrichmentForJurors(
     return;
   }
 
+  const existingEnrichments = await storage.getJurorEnrichmentsByCase(caseId);
+  const alreadyEnriched = new Set(
+    existingEnrichments
+      .filter(e => e.status === "dispatched" || e.status === "completed")
+      .map(e => e.jurorNumber)
+  );
+
   const baseUrl = getBaseUrl();
 
   for (const juror of jurors) {
+    if (alreadyEnriched.has(juror.number)) {
+      console.log(`[FluxEnrichment] Juror #${juror.number} already has active enrichment, skipping`);
+      continue;
+    }
+
     try {
       const enrichmentId = crypto.randomUUID();
-      const csvData = `Number,Name,Phone,Sex,Race,BirthDate,Occupation,Employer\n${jurorToCsv(juror)}`;
+      const csvData = jurorToSingleColumnCsv(juror);
       const callbackUrl = `${baseUrl}/api/webhooks/juror-enrichment/${enrichmentId}`;
 
       await storage.createJurorEnrichment({
@@ -88,7 +112,7 @@ export async function triggerEnrichmentForJurors(
         const errText = await response.text().catch(() => "Unknown error");
         console.error(`[FluxEnrichment] API error for juror #${juror.number}: ${response.status} ${errText}`);
         await storage.updateJurorEnrichment(enrichmentId, {
-          status: "error",
+          status: "failed",
           rawResponse: { error: errText, statusCode: response.status },
           completedAt: Date.now(),
         });

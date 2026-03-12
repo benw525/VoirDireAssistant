@@ -11,7 +11,7 @@ import { authMiddleware, hashPassword, comparePassword, createToken } from "./au
 import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMattrMindrCase, pushJuryAnalysis } from "./mattrmindr";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession, handleWebhook } from "./billing";
-import { triggerEnrichmentForJurors, handleEnrichmentWebhook, getEnrichedDataForCase } from "./fluxEnrichment";
+import { triggerEnrichmentForJurors, handleEnrichmentWebhook, getEnrichedDataForCase, verifyWebhookSecret } from "./fluxEnrichment";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
@@ -170,6 +170,11 @@ export async function registerRoutes(
   // --- All routes below require authentication ---
   app.post("/api/webhooks/juror-enrichment/:enrichmentId", async (req, res) => {
     try {
+      const webhookSecret = req.headers["x-webhook-secret"] as string | undefined;
+      if (!verifyWebhookSecret(webhookSecret)) {
+        return res.status(401).json({ message: "Invalid webhook secret" });
+      }
+
       const { enrichmentId } = req.params;
       const result = await handleEnrichmentWebhook(enrichmentId, req.body);
       if (!result.success) {
@@ -274,6 +279,8 @@ export async function registerRoutes(
         birthDate: j.birthDate,
         occupation: j.occupation,
         employer: j.employer,
+        address: j.address,
+        cityStateZip: j.cityStateZip,
       }));
       triggerEnrichmentForJurors(caseId, jurorData).catch(err =>
         console.error("[FluxEnrichment] Background enrichment failed:", err.message)
@@ -294,6 +301,8 @@ export async function registerRoutes(
         birthDate: juror.birthDate,
         occupation: juror.occupation,
         employer: juror.employer,
+        address: juror.address,
+        cityStateZip: juror.cityStateZip,
       }]).catch(err =>
         console.error("[FluxEnrichment] Background enrichment failed:", err.message)
       );
