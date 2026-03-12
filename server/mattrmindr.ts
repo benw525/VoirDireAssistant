@@ -74,8 +74,22 @@ export async function verifyMattrMindrToken(baseUrl: string, token: string): Pro
   }
 }
 
+function extractCasesArray(response: any): MattrMindrCase[] {
+  if (Array.isArray(response)) return response;
+  if (response && typeof response === 'object') {
+    for (const key of ['cases', 'data', 'results', 'items']) {
+      if (Array.isArray(response[key])) return response[key];
+    }
+    const firstArrayVal = Object.values(response).find(v => Array.isArray(v));
+    if (firstArrayVal) return firstArrayVal as MattrMindrCase[];
+  }
+  console.error('MattrMindr cases response is not an array. Keys:', response ? Object.keys(response) : 'null');
+  throw new Error('Unexpected response format from MattrMindr cases API');
+}
+
 export async function fetchMattrMindrCases(baseUrl: string, token: string, userInfo?: { name?: string; email?: string }): Promise<MattrMindrCase[]> {
-  const allCases: MattrMindrCase[] = await mmFetch(baseUrl, '/api/external/cases', token);
+  const raw = await mmFetch(baseUrl, '/api/external/cases', token);
+  const allCases = extractCasesArray(raw);
   const trialCenterCases = allCases.filter(c => c.inTrialCenter === true);
 
   trialCenterCases.sort((a, b) => {
