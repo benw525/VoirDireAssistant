@@ -41,8 +41,15 @@ function jurorToSingleColumnCsv(juror: {
 }
 
 export function verifyWebhookSecret(headerSecret: string | undefined): boolean {
-  if (!WEBHOOK_SECRET) return true;
-  return headerSecret === WEBHOOK_SECRET;
+  if (!WEBHOOK_SECRET) {
+    console.warn("[FluxEnrichment] No webhook secret configured — rejecting webhook for safety");
+    return false;
+  }
+  if (!headerSecret) return false;
+  const a = Buffer.from(headerSecret);
+  const b = Buffer.from(WEBHOOK_SECRET);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 
 export async function triggerEnrichmentForJurors(
