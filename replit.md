@@ -118,6 +118,18 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - Client function: `analyzeBatson()` in `client/src/lib/api.ts`
 - MattrMindr push includes `batsonAnalysis` in jury-analysis payload
 
+## FluxPrompt Juror Enrichment (Automatic, Internal)
+- Automatic background enrichment via FluxPrompt API when jurors are saved
+- Each juror is sent individually as a CSV row to FluxPrompt flow `a576a6c5-ad7e-4a92-89e0-628a21735432`
+- FluxPrompt sends enriched data back via webhook callback
+- Enrichment data stored in `juror_enrichments` table with status tracking (pending → dispatched → completed)
+- Enriched data automatically fed into AI juror analysis (analyzeJuror) and batch summaries (generateBriefSummary) when available
+- No user-facing UI — entirely server-side and invisible to users
+- Files: `server/fluxEnrichment.ts` (dispatch + webhook handler), `shared/schema.ts` (juror_enrichments table)
+- Webhook endpoint: `POST /api/webhooks/juror-enrichment/:enrichmentId` (public, no JWT)
+- Environment: `FLUX_API_KEY` env var required
+- Enrichment data cleared when jurors are deleted (save flow = delete + re-create)
+
 ## Billing & Subscription
 - Plans: Free (1 case), Monthly Unlimited ($20/mo), Per Case ($20 each)
 - Free access override list: `FREE_ACCESS_EMAILS` in `server/billing.ts` (currently `benw52592@gmail.com`)
@@ -198,6 +210,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `jurors` — Juror demographic data per case (includes `ai_summary` and `ai_analysis` text columns for persisted AI outputs)
 - `questions` — Voir dire questions per case
 - `responses` — Recorded juror responses per case (includes `follow_ups` JSONB)
+- `juror_enrichments` — FluxPrompt enrichment records per juror (caseId, jurorNumber, enrichmentId, status, rawRequest, rawResponse, enrichedData, timestamps)
 - `conversations` — AI Assistant chat conversations (userId, title, createdAt)
 - `messages` — Chat messages within conversations (conversationId, role, content, createdAt)
 
@@ -207,6 +220,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `OPENAI_API_KEY` — OpenAI API key (user's own key, used directly with OpenAI API)
 - `STRIPE_SECRET_KEY` — Stripe secret API key (sk_test_* or sk_live_*)
 - `STRIPE_WEBHOOK_SECRET` — Stripe webhook signing secret (whsec_*, optional but recommended for production)
+- `FLUX_API_KEY` — FluxPrompt API key for automatic juror enrichment
 
 ## Dependencies
 - `react-dropzone` — File drag-and-drop for strike list upload

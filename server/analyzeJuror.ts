@@ -65,7 +65,8 @@ const BRIEF_SUMMARY_PROMPT = `You are a Juror Risk Assessment Analyst. Given cas
 export async function generateBriefSummary(
   caseContext: CaseContext,
   juror: JurorData,
-  responses: ResponseData[]
+  responses: ResponseData[],
+  enrichedData?: Record<string, any> | null
 ): Promise<string> {
   const responsesText = responses.length > 0
     ? responses.map((r, i) => {
@@ -86,6 +87,10 @@ export async function generateBriefSummary(
       }).join('\n')
     : 'No responses recorded.';
 
+  const enrichmentSection = enrichedData && Object.keys(enrichedData).length > 0
+    ? `\nEnriched background data: ${JSON.stringify(enrichedData)}\n`
+    : '';
+
   const userPrompt = `Case: ${caseContext.name} (${caseContext.areaOfLaw}, representing ${caseContext.side})
 Summary: ${caseContext.summary}
 Favorable traits: ${caseContext.favorableTraits.join(', ') || 'None'}
@@ -94,7 +99,7 @@ Risk traits: ${caseContext.riskTraits.join(', ') || 'None'}
 Juror #${juror.number}: ${juror.name}, ${juror.occupation} (${juror.sex}/${juror.race}, DOB: ${juror.birthDate})
 Lean: ${juror.lean} | Risk: ${juror.riskTier}
 Notes: ${juror.notes || 'None'}
-
+${enrichmentSection}
 Responses:
 ${responsesText}
 
@@ -117,7 +122,8 @@ Write a 1-2 sentence summary explaining this juror's classification.`;
 export async function analyzeJuror(
   caseContext: CaseContext,
   juror: JurorData,
-  responses: ResponseData[]
+  responses: ResponseData[],
+  enrichedData?: Record<string, any> | null
 ): Promise<string> {
   const responsesText = responses.length > 0
     ? responses.map((r, i) => {
@@ -141,6 +147,10 @@ export async function analyzeJuror(
       }).join('\n\n')
     : 'No responses recorded for this juror.';
 
+  const enrichmentSection = enrichedData && Object.keys(enrichedData).length > 0
+    ? `\nENRICHED BACKGROUND DATA (from public records / data services):\n${JSON.stringify(enrichedData, null, 2)}\n`
+    : '';
+
   const userPrompt = `CASE CONTEXT:
 Case: ${caseContext.name}
 Area of Law: ${caseContext.areaOfLaw}
@@ -156,6 +166,7 @@ Occupation: ${juror.occupation} | Employer: ${juror.employer}
 Current Lean: ${juror.lean}
 Current Risk Tier: ${juror.riskTier}
 Attorney Notes: ${juror.notes || 'None'}
+${enrichmentSection}
 
 RECORDED RESPONSES:
 ${responsesText}

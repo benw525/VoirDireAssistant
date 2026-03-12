@@ -238,7 +238,7 @@ export function EndReport({
   const handleGenerateSummaries = async () => {
     setIsGenerating(true);
     try {
-      const summaries = await api.analyzeJurorsBatch(caseInfo, jurors, responses, questions);
+      const summaries = await api.analyzeJurorsBatch(caseInfo, jurors, responses, questions, activeCaseId);
       setAiSummaries(summaries);
       if (activeCaseId && onUpdateJuror) {
         for (const [numStr, summary] of Object.entries(summaries)) {

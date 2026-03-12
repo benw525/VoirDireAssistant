@@ -11,6 +11,7 @@ import { authMiddleware, hashPassword, comparePassword, createToken } from "./au
 import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMattrMindrCase, pushJuryAnalysis } from "./mattrmindr";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession, handleWebhook } from "./billing";
+import { triggerEnrichmentForJurors, handleEnrichmentWebhook, getEnrichedDataForCase } from "./fluxEnrichment";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
@@ -167,6 +168,20 @@ export async function registerRoutes(
   });
 
   // --- All routes below require authentication ---
+  app.post("/api/webhooks/juror-enrichment/:enrichmentId", async (req, res) => {
+    try {
+      const { enrichmentId } = req.params;
+      const result = await handleEnrichmentWebhook(enrichmentId, req.body);
+      if (!result.success) {
+        return res.status(404).json({ message: result.message });
+      }
+      res.json({ success: true, message: result.message });
+    } catch (err: any) {
+      console.error("[Webhook] Enrichment error:", err);
+      res.status(500).json({ message: "Internal error processing enrichment" });
+    }
+  });
+
   app.use("/api/cases", authMiddleware);
   app.use("/api/jurors", authMiddleware);
   app.use("/api/questions", authMiddleware);
@@ -247,14 +262,41 @@ export async function registerRoutes(
 
     if (Array.isArray(body)) {
       const items = body.map((j: any) => ({ ...j, caseId }));
-      const jurors = await storage.createJurors(items);
-      res.status(201).json(jurors);
+      const savedJurors = await storage.createJurors(items);
+      res.status(201).json(savedJurors);
+
+      const jurorData = savedJurors.map(j => ({
+        number: j.number,
+        name: j.name,
+        phone: j.phone,
+        sex: j.sex,
+        race: j.race,
+        birthDate: j.birthDate,
+        occupation: j.occupation,
+        employer: j.employer,
+      }));
+      triggerEnrichmentForJurors(caseId, jurorData).catch(err =>
+        console.error("[FluxEnrichment] Background enrichment failed:", err.message)
+      );
     } else {
       const data = { ...body, caseId };
       const parsed = insertJurorSchema.safeParse(data);
       if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
       const juror = await storage.createJuror(parsed.data);
       res.status(201).json(juror);
+
+      triggerEnrichmentForJurors(caseId, [{
+        number: juror.number,
+        name: juror.name,
+        phone: juror.phone,
+        sex: juror.sex,
+        race: juror.race,
+        birthDate: juror.birthDate,
+        occupation: juror.occupation,
+        employer: juror.employer,
+      }]).catch(err =>
+        console.error("[FluxEnrichment] Background enrichment failed:", err.message)
+      );
     }
   });
 
@@ -269,6 +311,7 @@ export async function registerRoutes(
   app.delete("/api/cases/:caseId/jurors", async (req, res) => {
     if (!(await verifyCaseOwnership(req, res))) return;
     await storage.deleteJurorsByCase(req.params.caseId);
+    try { await storage.deleteJurorEnrichmentsByCase(req.params.caseId); } catch (e) { /* enrichment table may not exist yet */ }
     res.status(204).send();
   });
 
@@ -529,11 +572,25 @@ export async function registerRoutes(
           side: z.string(),
           followUps: z.array(z.object({ question: z.string(), answer: z.string() })).default([]),
         })),
+        caseId: z.string().optional(),
       }).safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
       }
-      const analysis = await analyzeJuror(parsed.data.caseInfo, parsed.data.juror, parsed.data.responses);
+
+      let enrichedData: Record<string, any> | null = null;
+      if (parsed.data.caseId) {
+        try {
+          const caseRecord = await storage.getCase(parsed.data.caseId);
+          if (caseRecord && caseRecord.userId === req.user!.id) {
+            const allEnriched = await getEnrichedDataForCase(parsed.data.caseId);
+            enrichedData = allEnriched[parsed.data.juror.number] || null;
+          }
+        } catch (err) {
+          console.error("[Enrichment] Failed to fetch enrichment data:", err);
+        }
+      }
+      const analysis = await analyzeJuror(parsed.data.caseInfo, parsed.data.juror, parsed.data.responses, enrichedData);
       res.json({ analysis });
     } catch (err: any) {
       console.error("Juror analysis error:", err);
@@ -571,9 +628,22 @@ export async function registerRoutes(
             followUps: z.array(z.object({ question: z.string(), answer: z.string() })).default([]),
           })).default([]),
         })),
+        caseId: z.string().optional(),
       }).safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
+      }
+
+      let enrichedDataMap: Record<number, Record<string, any>> = {};
+      if (parsed.data.caseId) {
+        try {
+          const caseRecord = await storage.getCase(parsed.data.caseId);
+          if (caseRecord && caseRecord.userId === req.user!.id) {
+            enrichedDataMap = await getEnrichedDataForCase(parsed.data.caseId);
+          }
+        } catch (err) {
+          console.error("[Enrichment] Failed to fetch enrichment data for batch:", err);
+        }
       }
 
       const BATCH_SIZE = 5;
@@ -586,7 +656,8 @@ export async function registerRoutes(
           batch.map(j => generateBriefSummary(
             parsed.data.caseInfo,
             { number: j.number, name: j.name, sex: j.sex, race: j.race, birthDate: j.birthDate, occupation: j.occupation, employer: j.employer, lean: j.lean, riskTier: j.riskTier, notes: j.notes },
-            j.responses
+            j.responses,
+            enrichedDataMap[j.number] || null
           ))
         );
         batch.forEach((j, idx) => { summaries[j.number] = results[idx]; });

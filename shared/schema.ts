@@ -100,6 +100,23 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const jurorEnrichments = pgTable("juror_enrichments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+  jurorNumber: integer("juror_number").notNull(),
+  enrichmentId: varchar("enrichment_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  rawRequest: jsonb("raw_request").$type<Record<string, any>>(),
+  rawResponse: jsonb("raw_response").$type<Record<string, any>>(),
+  enrichedData: jsonb("enriched_data").$type<Record<string, any>>(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  completedAt: bigint("completed_at", { mode: "number" }),
+});
+
+export const insertJurorEnrichmentSchema = createInsertSchema(jurorEnrichments).omit({ id: true });
+export type JurorEnrichment = typeof jurorEnrichments.$inferSelect;
+export type InsertJurorEnrichment = z.infer<typeof insertJurorEnrichmentSchema>;
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertCaseSchema = createInsertSchema(cases).omit({ id: true });
 export const insertJurorSchema = createInsertSchema(jurors).omit({ id: true });

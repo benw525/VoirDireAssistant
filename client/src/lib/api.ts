@@ -371,7 +371,8 @@ export async function analyzeJuror(
   caseInfo: CaseInfo,
   juror: Juror,
   responses: JurorResponse[],
-  questions: Array<{ id: number; originalText: string }>
+  questions: Array<{ id: number; originalText: string }>,
+  caseId?: string | null
 ): Promise<string> {
   const mappedResponses = responses.map(r => ({
     questionText: r.questionId ? (questions.find(q => q.id === r.questionId)?.originalText || null) : null,
@@ -397,6 +398,7 @@ export async function analyzeJuror(
         notes: juror.notes,
       },
       responses: mappedResponses,
+      ...(caseId ? { caseId } : {}),
     }),
   });
   return result.analysis;
@@ -406,7 +408,8 @@ export async function analyzeJurorsBatch(
   caseInfo: CaseInfo,
   jurors: Juror[],
   responses: JurorResponse[],
-  questions: Array<{ id: number; originalText: string }>
+  questions: Array<{ id: number; originalText: string }>,
+  caseId?: string | null
 ): Promise<Record<number, string>> {
   const jurorsWithResponses = jurors.map(j => {
     const jurorResponses = responses.filter(r => r.jurorNumber === j.number);
@@ -432,7 +435,7 @@ export async function analyzeJurorsBatch(
   });
   const result = await fetchJson<{ summaries: Record<number, string> }>(`${API_BASE}/analyze-jurors-batch`, {
     method: 'POST',
-    body: JSON.stringify({ caseInfo, jurors: jurorsWithResponses }),
+    body: JSON.stringify({ caseInfo, jurors: jurorsWithResponses, ...(caseId ? { caseId } : {}) }),
   });
   return result.summaries;
 }

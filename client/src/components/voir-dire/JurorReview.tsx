@@ -23,6 +23,7 @@ interface JurorReviewProps {
   caseInfo: CaseInfo;
   onUpdateJuror: (jurorNumber: number, updates: Partial<Juror>) => void;
   onProceed: () => void;
+  activeCaseId?: string | null;
 }
 export function JurorReview({
   jurors,
@@ -30,7 +31,8 @@ export function JurorReview({
   questions,
   caseInfo,
   onUpdateJuror,
-  onProceed
+  onProceed,
+  activeCaseId
 }: JurorReviewProps) {
   const [viewMode, setViewMode] = useState<'board' | 'table'>('board');
   const [filterLean, setFilterLean] = useState<string>('all');
@@ -47,7 +49,7 @@ export function JurorReview({
     setAnalyzingJuror(juror.number);
     try {
       const jurorResponses = responses.filter(r => r.jurorNumber === juror.number);
-      const analysis = await api.analyzeJuror(caseInfo, juror, jurorResponses, questions);
+      const analysis = await api.analyzeJuror(caseInfo, juror, jurorResponses, questions, activeCaseId);
       setAiAnalysis(prev => ({ ...prev, [juror.number]: analysis }));
       onUpdateJuror(juror.number, { aiAnalysis: analysis });
     } catch (err) {

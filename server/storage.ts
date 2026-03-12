@@ -1,12 +1,13 @@
 import { eq, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import {
-  users, cases, jurors, questions, responses,
+  users, cases, jurors, questions, responses, jurorEnrichments,
   type User, type InsertUser,
   type Case, type InsertCase,
   type Juror, type InsertJuror,
   type Question, type InsertQuestion,
   type JurorResponse, type InsertResponse,
+  type JurorEnrichment, type InsertJurorEnrichment,
 } from "@shared/schema";
 
 if (!process.env.DATABASE_URL) {
@@ -44,6 +45,12 @@ export interface IStorage {
   createResponse(data: InsertResponse): Promise<JurorResponse>;
   addFollowUpToResponse(responseId: string, followUp: {question: string, answer: string}): Promise<JurorResponse | undefined>;
   deleteResponsesByCase(caseId: string): Promise<void>;
+
+  createJurorEnrichment(data: InsertJurorEnrichment): Promise<JurorEnrichment>;
+  getJurorEnrichmentById(enrichmentId: string): Promise<JurorEnrichment | undefined>;
+  getJurorEnrichmentsByCase(caseId: string): Promise<JurorEnrichment[]>;
+  updateJurorEnrichment(enrichmentId: string, data: Partial<InsertJurorEnrichment>): Promise<JurorEnrichment | undefined>;
+  deleteJurorEnrichmentsByCase(caseId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -162,6 +169,29 @@ export class DatabaseStorage implements IStorage {
 
   async deleteResponsesByCase(caseId: string): Promise<void> {
     await db.delete(responses).where(eq(responses.caseId, caseId));
+  }
+
+  async createJurorEnrichment(data: InsertJurorEnrichment): Promise<JurorEnrichment> {
+    const [result] = await db.insert(jurorEnrichments).values(data).returning();
+    return result;
+  }
+
+  async getJurorEnrichmentById(enrichmentId: string): Promise<JurorEnrichment | undefined> {
+    const [result] = await db.select().from(jurorEnrichments).where(eq(jurorEnrichments.enrichmentId, enrichmentId));
+    return result;
+  }
+
+  async getJurorEnrichmentsByCase(caseId: string): Promise<JurorEnrichment[]> {
+    return db.select().from(jurorEnrichments).where(eq(jurorEnrichments.caseId, caseId));
+  }
+
+  async updateJurorEnrichment(enrichmentId: string, data: Partial<InsertJurorEnrichment>): Promise<JurorEnrichment | undefined> {
+    const [result] = await db.update(jurorEnrichments).set(data).where(eq(jurorEnrichments.enrichmentId, enrichmentId)).returning();
+    return result;
+  }
+
+  async deleteJurorEnrichmentsByCase(caseId: string): Promise<void> {
+    await db.delete(jurorEnrichments).where(eq(jurorEnrichments.caseId, caseId));
   }
 
   async createCaseWithBilling(data: InsertCase, userId: string): Promise<Case> {
