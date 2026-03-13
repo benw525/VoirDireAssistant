@@ -112,9 +112,15 @@ export async function triggerEnrichmentForJurors(
         createdAt: Date.now(),
       });
 
+      const jurorBase64 = Buffer.from(jurorText, "utf-8").toString("base64");
+
       const requestBody = JSON.stringify({
         variableInputs: [
-          { inputId: JUROR_INPUT_ID, inputText: jurorText },
+          {
+            inputId: JUROR_INPUT_ID,
+            inputText: "",
+            files: [{ name: `juror_${juror.number}.txt`, base64: jurorBase64 }],
+          },
           { inputId: CALLBACK_INPUT_ID, inputText: callbackUrl },
         ],
       });
