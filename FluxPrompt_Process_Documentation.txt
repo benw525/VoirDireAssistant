@@ -1,0 +1,390 @@
+================================================================================
+          FLUXPROMPT JUROR ENRICHMENT PROCESS - COMPLETE DOCUMENTATION
+================================================================================
+
+Project: Voir Dire Analyst
+Purpose: Automatically enrich juror profiles with background data via the
+         FluxPrompt API to provide deeper insights for trial attorneys during
+         jury selection.
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+
+  1. Overview
+  2. Configuration & Environment Variables
+  3. Database Schema
+  4. Trigger Points (When Enrichment Starts)
+  5. Step-by-Step Process Flow
+  6. Webhook Callback Handling
+  7. Data Consumption (How Enriched Data Is Used)
+  8. Error Handling
+  9. Key Files
+  10. API Reference
+
+================================================================================
+1. OVERVIEW
+================================================================================
+
+The FluxPrompt process is an automatic juror enrichment pipeline. When jurors
+are added to a case (via file upload or manual entry), the system sends each
+juror's basic information to the FluxPrompt external API. FluxPrompt processes
+this data asynchronously and returns enriched background information via a
+webhook callback. The enriched data is then stored in the database and used by
+AI analysis agents to provide deeper insights into juror risk assessments.
+
+High-level flow:
+  User adds jurors --> Server formats juror data --> POST to FluxPrompt API
+  --> FluxPrompt processes asynchronously --> FluxPrompt calls back webhook
+  --> Server stores enriched data --> AI analysis uses enriched data
+
+================================================================================
+2. CONFIGURATION & ENVIRONMENT VARIABLES
+================================================================================
+
+Required environment variables:
+
+  FLUX_API_KEY
+    - The API key for authenticating with FluxPrompt.
+    - If the key does not already start with "FLUX_API.", the system
+      automatically prepends "FLUX_API." to it.
+    - If this key is not set, all enrichment is skipped silently.
+
+  FLUX_WEBHOOK_SECRET (optional)
+    - Used to verify incoming webhook callbacks from FluxPrompt.
+    - Defaults to the FLUX_API_KEY value if not set separately.
+
+Internal constants (hardcoded in server/fluxEnrichment.ts):
+
+  FLUX_API_URL:
+    https://api.fluxprompt.ai/flux/api-v2?flowId=a576a6c5-ad7e-4a92-89e0-628a21735432
+
+  JUROR_INPUT_ID:
+    varInputNode_1773346441251_0.9263
+    (The FluxPrompt variable input node ID for the juror data text block)
+
+  CALLBACK_INPUT_ID:
+    varInputNode_1773346442395_0.6514
+    (The FluxPrompt variable input node ID for the webhook callback URL)
+
+================================================================================
+3. DATABASE SCHEMA
+================================================================================
+
+Table: juror_enrichments
+
+  Column          | Type       | Description
+  ----------------|------------|----------------------------------------------
+  id              | varchar    | Primary key (auto-generated UUID)
+  case_id         | varchar    | Foreign key to cases table (cascade delete)
+  juror_number    | integer    | The juror's assigned number in the case
+  enrichment_id   | varchar    | Unique ID for this enrichment request
+  status          | text       | Status: "pending", "dispatched", "completed",
+                  |            | or "failed"
+  raw_request     | jsonb      | The original request sent to FluxPrompt
+                  |            | (juror text + callback URL)
+  raw_response    | jsonb      | The raw API response from FluxPrompt
+  enriched_data   | jsonb      | The final enriched data received via webhook
+  created_at      | bigint     | Unix timestamp when the enrichment was created
+  completed_at    | bigint     | Unix timestamp when enrichment completed/failed
+
+Status lifecycle:
+  pending --> dispatched --> completed
+  pending --> failed (if API call fails)
+
+================================================================================
+4. TRIGGER POINTS (WHEN ENRICHMENT STARTS)
+================================================================================
+
+Enrichment is triggered automatically in two scenarios, both in the
+POST /api/cases/:caseId/jurors route (server/routes.ts):
+
+  A) BULK JUROR UPLOAD (array of jurors):
+     When the request body is an array (parsed from a strike list upload),
+     all jurors are saved to the database first, then
+     triggerEnrichmentForJurors() is called with the full array.
+     This runs as a background (fire-and-forget) operation.
+
+  B) SINGLE JUROR CREATION:
+     When a single juror object is posted, it is saved to the database first,
+     then triggerEnrichmentForJurors() is called with that one juror.
+     This also runs as a background (fire-and-forget) operation.
+
+In both cases, the enrichment call is wrapped in .catch() so failures do not
+block the juror creation response to the user.
+
+================================================================================
+5. STEP-BY-STEP PROCESS FLOW
+================================================================================
+
+STEP 1: CHECK API KEY
+  - If FLUX_API_KEY is not configured, log a message and skip all enrichment.
+
+STEP 2: CHECK FOR EXISTING ENRICHMENTS
+  - Query the database for any existing enrichments for this case.
+  - Build a set of juror numbers that already have "dispatched" or "completed"
+    enrichments.
+  - Skip any jurors that are already in this set to avoid duplicate requests.
+
+STEP 3: DETERMINE BASE URL
+  - Read the REPLIT_DOMAINS environment variable to get the public domain.
+  - Construct the base URL (e.g., https://your-app.replit.app).
+  - Fall back to http://localhost:5000 if no domain is available.
+
+STEP 4: FOR EACH JUROR (loop):
+
+  4a. GENERATE ENRICHMENT ID
+      - Create a unique UUID using crypto.randomUUID().
+
+  4b. FORMAT JUROR DATA AS TEXT
+      - Reformat the juror name (convert from "LastName FirstName" to
+        "FirstName LastName" format).
+      - Build a text block with the following fields:
+          Name: [reformatted name]
+          Phone: [phone or "Unknown"]
+          Sex: [sex]
+          Race: [race]
+          Date of Birth: [birthDate]
+          Occupation: [occupation]
+          Employer: [employer]
+          Address: [address or "Unknown"]
+          City/State/Zip: [cityStateZip or "Unknown"]
+
+  4c. BUILD CALLBACK URL
+      - Format: {baseUrl}/api/webhooks/juror-enrichment/{enrichmentId}
+      - Example: https://your-app.replit.app/api/webhooks/juror-enrichment/abc-123
+
+  4d. CREATE DATABASE RECORD
+      - Insert a new row in juror_enrichments with:
+          caseId: the current case ID
+          jurorNumber: the juror's number
+          enrichmentId: the generated UUID
+          status: "pending"
+          rawRequest: { text: jurorText, callbackUrl: callbackUrl }
+          createdAt: current timestamp
+
+  4e. SEND API REQUEST TO FLUXPROMPT
+      - HTTP Method: POST
+      - URL: https://api.fluxprompt.ai/flux/api-v2?flowId=a576a6c5-ad7e-4a92-89e0-628a21735432
+      - Headers:
+          Content-Type: application/json
+          api-key: [FLUX_API_KEY with "FLUX_API." prefix]
+      - Body (JSON):
+          {
+            "variableInputs": [
+              {
+                "inputId": "varInputNode_1773346441251_0.9263",
+                "inputText": "[formatted juror text block]"
+              },
+              {
+                "inputId": "varInputNode_1773346442395_0.6514",
+                "inputText": "[callback URL]"
+              }
+            ]
+          }
+
+  4f. HANDLE API RESPONSE
+      - If response is NOT OK (non-2xx status):
+          - Log the error.
+          - Update the enrichment record:
+              status: "failed"
+              rawResponse: { error: responseText, statusCode: status }
+              completedAt: current timestamp
+      - If response IS OK:
+          - Parse the response JSON.
+          - Update the enrichment record:
+              status: "dispatched"
+              rawResponse: [parsed response data]
+          - Log success with the enrichment ID.
+
+  4g. ERROR HANDLING
+      - If any exception occurs during the process for a juror, catch it,
+        log the error, and continue to the next juror.
+
+================================================================================
+6. WEBHOOK CALLBACK HANDLING
+================================================================================
+
+After FluxPrompt processes the juror data, it sends the enriched results back
+to the application via webhook. There are multiple endpoints configured:
+
+CORS PREFLIGHT (OPTIONS):
+  - OPTIONS /api/webhooks/juror-enrichment/:enrichmentId
+  - OPTIONS /api/webhooks/juror-enrichment/
+  - Both respond with permissive CORS headers allowing POST from any origin.
+  - Allowed headers: Content-Type, x-webhook-secret, api-key, Authorization
+
+BASE WEBHOOK URL (fallback):
+  POST /api/webhooks/juror-enrichment/
+  - Catches callbacks that arrive without an enrichment ID in the URL.
+  - Logs the incoming request details for debugging.
+  - Returns success but does not process data (no enrichment ID to match).
+
+PRIMARY WEBHOOK ENDPOINT:
+  POST /api/webhooks/juror-enrichment/:enrichmentId
+
+  Step-by-step:
+    1. Log incoming request details (headers, content type, raw body).
+    2. Verify the webhook secret:
+       - Extract x-webhook-secret header.
+       - Use timing-safe comparison against WEBHOOK_SECRET.
+       - If verification fails, return 401 Unauthorized.
+    3. Extract the enrichmentId from the URL path.
+    4. Parse the payload:
+       - Use req.body if available.
+       - If body is empty but rawBody exists, wrap it as { text: rawBody }.
+    5. Call handleEnrichmentWebhook(enrichmentId, payload):
+       a. Look up the enrichment record by enrichmentId.
+       b. If not found, return { success: false, message: "not found" }.
+       c. If already "completed":
+          - Check if existing data has real content.
+          - Check if incoming data has real content.
+          - Only overwrite if existing is empty and incoming has data.
+          - Otherwise return "Already processed".
+       d. Normalize payload:
+          - If payload is an object, use it directly.
+          - Otherwise wrap it as { raw: payload }.
+       e. Update the enrichment record:
+          status: "completed"
+          enrichedData: [normalized payload]
+          completedAt: current timestamp
+       f. Log success.
+       g. Return { success: true, message: "Enrichment data stored" }.
+    6. Return the result to FluxPrompt as JSON response.
+
+================================================================================
+7. DATA CONSUMPTION (HOW ENRICHED DATA IS USED)
+================================================================================
+
+Once enrichment data is stored, it is consumed in two main ways:
+
+A) SINGLE JUROR ANALYSIS (POST /api/analysis):
+   - Before running AI analysis on a juror, the system calls
+     getEnrichedDataForCase() to fetch all completed enrichments for the case.
+   - It looks up the specific juror's enrichment by juror number.
+   - If enriched data exists, it is passed to the analyzeJuror() function.
+
+B) BATCH JUROR ANALYSIS (POST /api/analysis/batch):
+   - Same as above but for multiple jurors at once.
+   - Fetches all enrichments for the case in a single query.
+   - Maps enriched data to each juror by number.
+
+Inside the AI analysis functions (server/analyzeJuror.ts):
+
+  - The analyzeJuror() function accepts an optional enrichedData parameter.
+  - If enriched data is present and non-empty, it is injected into the AI
+    prompt as an "Enriched background data" section (JSON format).
+  - The AI (OpenAI) uses this supplemental information to generate more
+    informed analysis about the juror's potential biases, risk level, and
+    suitability.
+
+  - The generateBriefSummary() function also accepts enriched data.
+  - It includes the data as "ENRICHED BACKGROUND DATA (from public records /
+    data services)" in the prompt for more thorough summaries.
+
+HELPER FUNCTIONS:
+
+  getEnrichedDataForJuror(caseId, jurorNumber):
+    - Returns the enriched data object for a specific juror, or null.
+    - Filters for status === "completed" and non-null enrichedData.
+
+  getEnrichedDataForCase(caseId):
+    - Returns a map of { jurorNumber: enrichedData } for all completed
+      enrichments in a case.
+
+================================================================================
+8. ERROR HANDLING
+================================================================================
+
+The system handles errors at multiple levels:
+
+  - Missing API Key: Enrichment is silently skipped with a log message.
+
+  - Duplicate Prevention: Jurors with existing "dispatched" or "completed"
+    enrichments are skipped to avoid redundant API calls.
+
+  - API Failures: Non-2xx responses from FluxPrompt mark the enrichment as
+    "failed" with the error details stored in rawResponse.
+
+  - Network/Exception Errors: Caught per-juror so one failure does not block
+    enrichment of other jurors in the same batch.
+
+  - Webhook Verification: Invalid webhook secrets return 401.
+
+  - Missing Enrichment Records: Webhook callbacks for unknown enrichment IDs
+    return 404.
+
+  - Idempotent Webhooks: Already-completed enrichments are not overwritten
+    unless the existing data is empty and new data has content.
+
+  - Background Execution: All enrichment calls are fire-and-forget with
+    .catch() handlers, so failures never block the user-facing juror
+    creation response.
+
+  - Cleanup: When all jurors are deleted from a case, associated enrichment
+    records are also deleted (with a try/catch in case the table doesn't
+    exist yet).
+
+================================================================================
+9. KEY FILES
+================================================================================
+
+  server/fluxEnrichment.ts
+    - Core enrichment logic: formatting, API calls, webhook handling,
+      data retrieval functions.
+
+  server/routes.ts
+    - Webhook endpoint definitions (CORS, base URL fallback, primary endpoint).
+    - Trigger points where enrichment is kicked off after juror creation.
+    - Routes that consume enriched data for analysis.
+
+  server/analyzeJuror.ts
+    - AI analysis functions that incorporate enriched data into prompts.
+
+  server/storage.ts
+    - Database interface and implementation for enrichment CRUD operations:
+      createJurorEnrichment, getJurorEnrichmentById,
+      getJurorEnrichmentsByCase, updateJurorEnrichment,
+      deleteJurorEnrichmentsByCase.
+
+  shared/schema.ts
+    - Drizzle ORM schema definition for the juror_enrichments table.
+    - Type exports: JurorEnrichment, InsertJurorEnrichment.
+
+================================================================================
+10. API REFERENCE
+================================================================================
+
+OUTBOUND (to FluxPrompt):
+  POST https://api.fluxprompt.ai/flux/api-v2?flowId=a576a6c5-ad7e-4a92-89e0-628a21735432
+  Headers:
+    Content-Type: application/json
+    api-key: FLUX_API.[your-key]
+  Body:
+    {
+      "variableInputs": [
+        { "inputId": "varInputNode_1773346441251_0.9263", "inputText": "..." },
+        { "inputId": "varInputNode_1773346442395_0.6514", "inputText": "..." }
+      ]
+    }
+
+INBOUND (from FluxPrompt):
+  POST /api/webhooks/juror-enrichment/:enrichmentId
+  Headers (optional):
+    x-webhook-secret: [secret for verification]
+  Body:
+    [FluxPrompt enriched data payload - format varies]
+
+INTERNAL:
+  POST /api/cases/:caseId/jurors
+    - Triggers enrichment as a side effect after juror creation.
+
+  POST /api/analysis
+    - Consumes enriched data when analyzing individual jurors.
+
+  POST /api/analysis/batch
+    - Consumes enriched data when analyzing multiple jurors.
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================

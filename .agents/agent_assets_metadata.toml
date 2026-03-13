@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "BV55VXiM2UqwRt6kfYXIj"
+uri = "file://FluxPrompt_Process_Documentation.txt"
+type = "text"
+title = "FluxPrompt Process Documentation"
