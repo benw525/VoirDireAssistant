@@ -112,30 +112,37 @@ export async function triggerEnrichmentForJurors(
         createdAt: Date.now(),
       });
 
+      const requestBody = JSON.stringify({
+        variableInputs: [
+          { inputId: JUROR_INPUT_ID, inputText: jurorText },
+          { inputId: CALLBACK_INPUT_ID, inputText: callbackUrl },
+        ],
+      });
+      console.log(`[FluxEnrichment] Sending to FluxPrompt for juror #${juror.number}:`);
+      console.log(`[FluxEnrichment] URL: ${FLUX_API_URL}`);
+      console.log(`[FluxEnrichment] Body: ${requestBody.substring(0, 500)}`);
+
       const response = await fetch(FLUX_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "api-key": FLUX_API_KEY,
         },
-        body: JSON.stringify({
-          variableInputs: [
-            { inputId: JUROR_INPUT_ID, inputText: jurorText },
-            { inputId: CALLBACK_INPUT_ID, inputText: callbackUrl },
-          ],
-        }),
+        body: requestBody,
       });
 
+      const responseText = await response.text().catch(() => "");
+      console.log(`[FluxEnrichment] API response for juror #${juror.number}: status=${response.status}, body=${responseText.substring(0, 500)}`);
+
       if (!response.ok) {
-        const errText = await response.text().catch(() => "Unknown error");
-        console.error(`[FluxEnrichment] API error for juror #${juror.number}: ${response.status} ${errText}`);
+        console.error(`[FluxEnrichment] API error for juror #${juror.number}: ${response.status} ${responseText}`);
         await storage.updateJurorEnrichment(enrichmentId, {
           status: "failed",
-          rawResponse: { error: errText, statusCode: response.status },
+          rawResponse: { error: responseText, statusCode: response.status },
           completedAt: Date.now(),
         });
       } else {
-        const responseData = await response.json().catch(() => ({}));
+        const responseData = JSON.parse(responseText || "{}");
         console.log(`[FluxEnrichment] Dispatched enrichment for juror #${juror.number} (enrichmentId: ${enrichmentId})`);
         await storage.updateJurorEnrichment(enrichmentId, {
           status: "dispatched",
