@@ -152,6 +152,9 @@ export async function handleEnrichmentWebhook(
   enrichmentId: string,
   payload: any
 ): Promise<{ success: boolean; message: string }> {
+  console.log(`[FluxEnrichment] Raw webhook payload for ${enrichmentId}:`, JSON.stringify(payload, null, 2));
+  console.log(`[FluxEnrichment] Payload type: ${typeof payload}, keys: ${typeof payload === 'object' ? Object.keys(payload).join(', ') : 'N/A'}`);
+
   const enrichment = await storage.getJurorEnrichmentById(enrichmentId);
   if (!enrichment) {
     return { success: false, message: "Enrichment record not found" };
