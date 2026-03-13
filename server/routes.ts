@@ -167,8 +167,25 @@ export async function registerRoutes(
     }
   });
 
+  app.options("/api/webhooks/juror-enrichment/:enrichmentId", (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, x-webhook-secret, api-key, Authorization");
+    res.set("Access-Control-Max-Age", "86400");
+    res.sendStatus(204);
+  });
+
+  app.options("/api/webhooks/juror-enrichment/", (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, x-webhook-secret, api-key, Authorization");
+    res.set("Access-Control-Max-Age", "86400");
+    res.sendStatus(204);
+  });
+
   app.post("/api/webhooks/juror-enrichment/", async (req, res) => {
     try {
+      res.set("Access-Control-Allow-Origin", "*");
       console.log(`[Webhook] Incoming callback to BASE webhook URL (no enrichmentId)`);
       console.log(`[Webhook] Content-Type: ${req.headers["content-type"]}`);
       const rawBody = req.rawBody ? Buffer.from(req.rawBody as any).toString("utf-8") : "(no rawBody)";
