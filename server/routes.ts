@@ -170,8 +170,10 @@ export async function registerRoutes(
   // --- All routes below require authentication ---
   app.post("/api/webhooks/juror-enrichment/:enrichmentId", async (req, res) => {
     try {
+      console.log(`[Webhook] Incoming enrichment callback for ${req.params.enrichmentId}`);
       const webhookSecret = req.headers["x-webhook-secret"] as string | undefined;
       if (!verifyWebhookSecret(webhookSecret)) {
+        console.log(`[Webhook] Secret validation failed`);
         return res.status(401).json({ message: "Invalid webhook secret" });
       }
 
