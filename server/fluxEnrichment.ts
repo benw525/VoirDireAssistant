@@ -117,7 +117,7 @@ export async function triggerEnrichmentForJurors(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${FLUX_API_KEY}`,
+          "api-key": FLUX_API_KEY,
         },
         body: JSON.stringify({
           variableInputs: {
