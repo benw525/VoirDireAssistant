@@ -173,11 +173,19 @@ export async function handleEnrichmentWebhook(
     return { success: false, message: "Enrichment record not found" };
   }
 
+  const incomingHasData = typeof payload === "object"
+    ? (payload.text && payload.text.length > 0) || (Object.keys(payload).length > 1)
+    : !!payload;
+
+  if (!incomingHasData) {
+    console.log(`[FluxEnrichment] Empty callback for ${enrichmentId} (juror #${enrichment.jurorNumber}) — ignoring, waiting for real data`);
+    return { success: true, message: "Empty callback acknowledged, waiting for enrichment data" };
+  }
+
   if (enrichment.status === "completed") {
     const existingData = enrichment.enrichedData as any;
     const hasRealData = existingData && existingData.text && existingData.text.length > 0;
-    const incomingHasData = typeof payload === "object" && payload.text && payload.text.length > 0;
-    if (hasRealData || !incomingHasData) {
+    if (hasRealData) {
       return { success: true, message: "Already processed" };
     }
     console.log(`[FluxEnrichment] Updating ${enrichmentId} with non-empty data (overwriting previous empty callback)`);
@@ -191,7 +199,7 @@ export async function handleEnrichmentWebhook(
     completedAt: Date.now(),
   });
 
-  console.log(`[FluxEnrichment] Received enrichment data for juror #${enrichment.jurorNumber} (case: ${enrichment.caseId})`);
+  console.log(`[FluxEnrichment] Received REAL enrichment data for juror #${enrichment.jurorNumber} (case: ${enrichment.caseId})`);
 
   return { success: true, message: "Enrichment data stored" };
 }
