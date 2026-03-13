@@ -25,7 +25,7 @@ function reformatName(name: string): string {
   return `${firstName} ${lastName}`;
 }
 
-function jurorToSingleColumnCsv(juror: {
+function formatJurorAsText(juror: {
   number: number;
   name: string;
   phone: string;
@@ -37,19 +37,20 @@ function jurorToSingleColumnCsv(juror: {
   address?: string;
   cityStateZip?: string;
 }): string {
-  const rows = [
-    `Number,${juror.number}`,
-    `Name,${reformatName(juror.name)}`,
-    `Phone,${juror.phone || "Unknown"}`,
-    `Sex,${juror.sex}`,
-    `Race,${juror.race}`,
-    `BirthDate,${juror.birthDate}`,
-    `Occupation,${juror.occupation}`,
-    `Employer,${juror.employer}`,
-    `Address,${juror.address || ""}`,
-    `CityStateZip,${juror.cityStateZip || ""}`,
+  const name = reformatName(juror.name);
+  const lines = [
+    `Juror Number: ${juror.number}`,
+    `Name: ${name}`,
+    `Phone: ${juror.phone || "Unknown"}`,
+    `Sex: ${juror.sex}`,
+    `Race: ${juror.race}`,
+    `Date of Birth: ${juror.birthDate}`,
+    `Occupation: ${juror.occupation}`,
+    `Employer: ${juror.employer}`,
+    `Address: ${juror.address || "Unknown"}`,
+    `City/State/Zip: ${juror.cityStateZip || "Unknown"}`,
   ];
-  return rows.join("\n");
+  return lines.join("\n");
 }
 
 export function verifyWebhookSecret(headerSecret: string | undefined): boolean {
@@ -100,7 +101,7 @@ export async function triggerEnrichmentForJurors(
 
     try {
       const enrichmentId = crypto.randomUUID();
-      const csvData = jurorToSingleColumnCsv(juror);
+      const jurorText = formatJurorAsText(juror);
       const callbackUrl = `${baseUrl}/api/webhooks/juror-enrichment/${enrichmentId}`;
 
       await storage.createJurorEnrichment({
@@ -108,7 +109,7 @@ export async function triggerEnrichmentForJurors(
         jurorNumber: juror.number,
         enrichmentId,
         status: "pending",
-        rawRequest: { csv: csvData, callbackUrl },
+        rawRequest: { text: jurorText, callbackUrl },
         createdAt: Date.now(),
       });
 
@@ -120,7 +121,7 @@ export async function triggerEnrichmentForJurors(
         },
         body: JSON.stringify({
           variableInputs: [
-            { inputId: JUROR_INPUT_ID, inputText: csvData },
+            { inputId: JUROR_INPUT_ID, inputText: jurorText },
             { inputId: CALLBACK_INPUT_ID, inputText: callbackUrl },
           ],
         }),
@@ -161,7 +162,13 @@ export async function handleEnrichmentWebhook(
   }
 
   if (enrichment.status === "completed") {
-    return { success: true, message: "Already processed" };
+    const existingData = enrichment.enrichedData as any;
+    const hasRealData = existingData && existingData.text && existingData.text.length > 0;
+    const incomingHasData = typeof payload === "object" && payload.text && payload.text.length > 0;
+    if (hasRealData || !incomingHasData) {
+      return { success: true, message: "Already processed" };
+    }
+    console.log(`[FluxEnrichment] Updating ${enrichmentId} with non-empty data (overwriting previous empty callback)`);
   }
 
   const enrichedData = typeof payload === "object" ? payload : { raw: payload };
