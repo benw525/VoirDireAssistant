@@ -171,6 +171,13 @@ export async function registerRoutes(
   app.post("/api/webhooks/juror-enrichment/:enrichmentId", async (req, res) => {
     try {
       console.log(`[Webhook] Incoming enrichment callback for ${req.params.enrichmentId}`);
+      console.log(`[Webhook] Content-Type: ${req.headers["content-type"]}`);
+      console.log(`[Webhook] Headers:`, JSON.stringify(req.headers, null, 2));
+
+      const rawBody = req.rawBody ? Buffer.from(req.rawBody as any).toString("utf-8") : "(no rawBody)";
+      console.log(`[Webhook] Raw body (${rawBody.length} chars): ${rawBody.substring(0, 2000)}`);
+      console.log(`[Webhook] req.body type: ${typeof req.body}, value:`, JSON.stringify(req.body));
+
       const webhookSecret = req.headers["x-webhook-secret"] as string | undefined;
       if (!verifyWebhookSecret(webhookSecret)) {
         console.log(`[Webhook] Secret validation failed`);
@@ -178,7 +185,13 @@ export async function registerRoutes(
       }
 
       const { enrichmentId } = req.params;
-      const result = await handleEnrichmentWebhook(enrichmentId, req.body);
+
+      let payload = req.body;
+      if ((!payload || (typeof payload === "object" && Object.keys(payload).length === 0)) && rawBody && rawBody !== "(no rawBody)") {
+        payload = { text: rawBody };
+      }
+
+      const result = await handleEnrichmentWebhook(enrichmentId, payload);
       if (!result.success) {
         return res.status(404).json({ message: result.message });
       }
