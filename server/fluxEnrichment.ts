@@ -1,7 +1,7 @@
 import { storage } from "./storage";
 import crypto from "crypto";
 
-const FLUX_API_URL = "https://api.fluxprompt.ai/flux/api-v2-webhook?flowId=a576a6c5-ad7e-4a92-89e0-628a21735432";
+const FLUX_API_URL = "https://api.fluxprompt.ai/flux/api-v2?flowId=afef519e-acfd-4242-af29-89b6083c7353";
 const RAW_FLUX_KEY = process.env.FLUX_API_KEY || "";
 const FLUX_API_KEY = RAW_FLUX_KEY.startsWith("FLUX_API.") ? RAW_FLUX_KEY : `FLUX_API.${RAW_FLUX_KEY}`;
 const JUROR_INPUT_ID = "varInputNode_1773346441251_0.9263";
@@ -19,10 +19,10 @@ function reformatName(name: string): string {
   const parts = trimmed.split(/\s+/);
   if (parts.length === 1) return trimmed;
   if (parts.length === 2) return `${parts[1]} ${parts[0]}`;
+  // For "LastName FirstName MiddleName..." -> "FirstName MiddleName... LastName"
   const lastName = parts[0];
-  const firstName = parts[1];
-  const rest = parts.slice(2).join(" ");
-  return `${firstName} ${lastName}`;
+  const rest = parts.slice(1).join(" ");
+  return `${rest} ${lastName}`;
 }
 
 function formatJurorAsText(juror: {
@@ -54,9 +54,13 @@ function formatJurorAsText(juror: {
 
 export function verifyWebhookSecret(headerSecret: string | undefined): boolean {
   if (!WEBHOOK_SECRET) {
+    // No secret configured — allow all requests
     return true;
   }
-  if (!headerSecret) return true;
+  if (!headerSecret) {
+    // Secret is configured but header is missing — reject
+    return false;
+  }
   const a = Buffer.from(headerSecret);
   const b = Buffer.from(WEBHOOK_SECRET);
   if (a.length !== b.length) return false;
