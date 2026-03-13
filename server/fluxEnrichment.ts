@@ -119,10 +119,10 @@ export async function triggerEnrichmentForJurors(
           "api-key": FLUX_API_KEY,
         },
         body: JSON.stringify({
-          variableInputs: {
-            [JUROR_INPUT_ID]: csvData,
-            [CALLBACK_INPUT_ID]: callbackUrl,
-          },
+          variableInputs: [
+            { inputId: JUROR_INPUT_ID, inputText: csvData },
+            { inputId: CALLBACK_INPUT_ID, inputText: callbackUrl },
+          ],
         }),
       });
 
