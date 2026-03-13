@@ -114,7 +114,7 @@ export async function triggerEnrichmentForJurors(
 
       const requestBody = JSON.stringify({
         variableInputs: [
-          { inputId: JUROR_INPUT_ID, inputText: jurorText },
+          { inputId: JUROR_INPUT_ID, inputText: jurorText, isExtraction: true },
           { inputId: CALLBACK_INPUT_ID, inputText: callbackUrl },
         ],
       });
