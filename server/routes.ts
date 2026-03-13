@@ -198,6 +198,32 @@ export async function registerRoutes(
     }
   });
 
+  app.options("/api/webhooks/flux-test", (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, x-webhook-secret, api-key, Authorization");
+    res.set("Access-Control-Max-Age", "86400");
+    res.sendStatus(204);
+  });
+
+  app.post("/api/webhooks/flux-test", async (req, res) => {
+    try {
+      res.set("Access-Control-Allow-Origin", "*");
+      const rawBody = req.rawBody ? Buffer.from(req.rawBody as any).toString("utf-8") : "(no rawBody)";
+      console.log(`\n=== FLUX TEST WEBHOOK RECEIVED ===`);
+      console.log(`[FluxTest] Timestamp: ${new Date().toISOString()}`);
+      console.log(`[FluxTest] Content-Type: ${req.headers["content-type"]}`);
+      console.log(`[FluxTest] Raw body (${rawBody.length} chars):`);
+      console.log(rawBody.substring(0, 10000));
+      console.log(`[FluxTest] Parsed body:`, JSON.stringify(req.body, null, 2)?.substring(0, 10000));
+      console.log(`=== END FLUX TEST WEBHOOK ===\n`);
+      res.json({ success: true, message: "Test webhook received successfully" });
+    } catch (err: any) {
+      console.error("[FluxTest] Error:", err);
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   // --- All routes below require authentication ---
   app.post("/api/webhooks/juror-enrichment/:enrichmentId", async (req, res) => {
     try {
