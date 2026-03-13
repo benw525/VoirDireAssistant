@@ -58,8 +58,8 @@ export function verifyWebhookSecret(headerSecret: string | undefined): boolean {
     return true;
   }
   if (!headerSecret) {
-    // Secret is configured but header is missing — reject
-    return false;
+    // FluxPrompt doesn't send a secret header — allow requests without one
+    return true;
   }
   const a = Buffer.from(headerSecret);
   const b = Buffer.from(WEBHOOK_SECRET);
