@@ -39,7 +39,6 @@ function formatJurorAsText(juror: {
 }): string {
   const name = reformatName(juror.name);
   const lines = [
-    `Juror Number: ${juror.number}`,
     `Name: ${name}`,
     `Phone: ${juror.phone || "Unknown"}`,
     `Sex: ${juror.sex}`,
