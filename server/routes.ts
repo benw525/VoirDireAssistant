@@ -167,6 +167,20 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/webhooks/juror-enrichment/", async (req, res) => {
+    try {
+      console.log(`[Webhook] Incoming callback to BASE webhook URL (no enrichmentId)`);
+      console.log(`[Webhook] Content-Type: ${req.headers["content-type"]}`);
+      const rawBody = req.rawBody ? Buffer.from(req.rawBody as any).toString("utf-8") : "(no rawBody)";
+      console.log(`[Webhook] Raw body (${rawBody.length} chars): ${rawBody.substring(0, 5000)}`);
+      console.log(`[Webhook] req.body type: ${typeof req.body}, value:`, JSON.stringify(req.body)?.substring(0, 5000));
+      res.json({ success: true, message: "Received at base URL (no enrichmentId)" });
+    } catch (err: any) {
+      console.error("[Webhook] Base URL error:", err);
+      res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   // --- All routes below require authentication ---
   app.post("/api/webhooks/juror-enrichment/:enrichmentId", async (req, res) => {
     try {
