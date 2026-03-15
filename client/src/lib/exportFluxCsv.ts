@@ -8,7 +8,7 @@ function escapeCSV(value: string): string {
 }
 
 export function exportJurorsForFlux(jurors: Juror[]): void {
-  const ROW_SEPARATOR = '|||END_JUROR|||';
+  const ROW_SEPARATOR = '|||END_INTEREST|||';
 
   const headers = [
     'Juror Number',
