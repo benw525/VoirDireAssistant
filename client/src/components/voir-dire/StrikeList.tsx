@@ -660,10 +660,7 @@ export function StrikeList({
                 )}
               </div>
               <button
-                onClick={async () => {
-                  await exportJurorsForFlux(jurors);
-                  onProceed();
-                }}
+                onClick={() => onProceed()}
                 data-testid="button-confirm-proceed"
                 className="inline-flex items-center px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-xl hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors shadow-sm">
                 Confirm & Proceed
