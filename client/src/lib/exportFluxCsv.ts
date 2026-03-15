@@ -8,6 +8,8 @@ function escapeCSV(value: string): string {
 }
 
 export function exportJurorsForFlux(jurors: Juror[]): void {
+  const ROW_SEPARATOR = '|||END_JUROR|||';
+
   const headers = [
     'Juror Number',
     'Name',
@@ -19,6 +21,7 @@ export function exportJurorsForFlux(jurors: Juror[]): void {
     'Employer',
     'Address',
     'City/State/Zip',
+    'Separator',
   ];
 
   const rows = jurors.map((j) => [
@@ -32,6 +35,7 @@ export function exportJurorsForFlux(jurors: Juror[]): void {
     escapeCSV(j.employer),
     escapeCSV(j.address || ''),
     escapeCSV(j.cityStateZip || ''),
+    ROW_SEPARATOR,
   ]);
 
   const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
