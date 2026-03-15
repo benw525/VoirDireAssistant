@@ -4,7 +4,7 @@ import crypto from "crypto";
 const FLUX_API_BASE = "https://api.fluxprompt.ai/flux/api-v2";
 const FLUX_FLOW_ID = "afef519e-acfd-4242-af29-89b6083c7353";
 const FLUX_API_URL = `${FLUX_API_BASE}?flowId=${FLUX_FLOW_ID}`;
-const FLUX_API_KEY = process.env.FLUX_API_KEY || "";
+const FLUX_API_KEY = process.env.FLUXPROMPT_API_KEY || process.env.FLUX_API_KEY || "";
 const JUROR_INPUT_ID = "varInputNode_1773346441251_0.9263";
 const CALLBACK_INPUT_ID = "varInputNode_1773346442395_0.6514";
 const WEBHOOK_SECRET = process.env.FLUX_WEBHOOK_SECRET || FLUX_API_KEY;
