@@ -106,7 +106,7 @@ ${responsesText}
 Write a 1-2 sentence summary explaining this juror's classification.`;
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5.4-2026-03-05",
     messages: [
       { role: "system", content: BRIEF_SUMMARY_PROMPT },
       { role: "user", content: userPrompt },
@@ -174,7 +174,7 @@ ${responsesText}
 Provide your risk assessment analysis for this juror.`;
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5.4-2026-03-05",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
@@ -308,7 +308,7 @@ ${jurorsText}
 Evaluate every juror for potential strikes for cause and return the JSON result.`;
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5.4-2026-03-05",
     messages: [
       { role: "system", content: STRIKE_FOR_CAUSE_PROMPT },
       { role: "user", content: userPrompt },
@@ -488,7 +488,7 @@ OPPOSING STRIKES (${theirStrikes.length}): Jurors ${theirStrikes.length > 0 ? th
 Perform the full Batson analysis and return the JSON result.`;
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5.4-2026-03-05",
     messages: [
       { role: "system", content: BATSON_PROMPT },
       { role: "user", content: userPrompt },
