@@ -7,7 +7,7 @@ function escapeRtf(text: string): string {
 export function exportJurorsForFlux(jurors: Juror[]): void {
   const paragraphs = jurors.map((j) => {
     const lines = [
-      `Juror Number: ${j.number}`,
+      `Number: ${j.number}`,
       `Name: ${j.name}`,
       `Phone: ${j.phone || 'Unknown'}`,
       `Sex: ${j.sex}`,
@@ -33,7 +33,7 @@ export function exportJurorsForFlux(jurors: Juror[]): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `juror-data-for-fluxprompt-${Date.now()}.rtf`;
+  link.download = `data-for-fluxprompt-${Date.now()}.rtf`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
