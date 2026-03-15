@@ -1,0 +1,482 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2868
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fnil\fcharset0 LucidaGrande;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 # FluxPrompt API Integration Guide\
+\
+This document captures everything learned from integrating three FluxPrompt AI flows into a production React + Express application. Follow it exactly and you will avoid every issue we hit during development.\
+\
+---\
+\
+## Authentication\
+\
+All requests use a single API key passed as a **request header** \'97 not a query param, not a Bearer token.\
+\
+```\
+Header name:  api-key\
+Header value: <your key>\
+```\
+\
+Store the key in an environment variable. In Vite/React projects use `VITE_FLUXPROMPT_API_KEY` (prefix required for Vite's env exposure). In Node/Express use `FLUXPROMPT_API_KEY`.\
+\
+```ts\
+const apiKey = import.meta.env.VITE_FLUXPROMPT_API_KEY; // client\
+const apiKey = process.env.FLUXPROMPT_API_KEY;          // server\
+```\
+\
+---\
+\
+## Base URL\
+\
+```\
+https://api.fluxprompt.ai/flux/api-v2\
+```\
+\
+Append `?flowId=<FLOW_ID>` as a query parameter. For session-aware flows, also append `&sessionId=<SESSION_ID>`.\
+\
+```\
+https://api.fluxprompt.ai/flux/api-v2?flowId=9bacf2bb-9b5c-42a7-ad52-8cedb3eba05d&sessionId=my-session-abc\
+```\
+\
+---\
+\
+## Request Format\
+\
+Every request is a `POST` with `Content-Type: application/json`. The body always has this shape:\
+\
+```json\
+\{\
+  "variableInputs": [\
+    \{ "inputId": "varInputNode_XXXXXXXXXXXXXXX_X.XXXX", "inputText": "..." \},\
+    \{ "inputId": "varInputNode_XXXXXXXXXXXXXXX_X.XXXX", "inputText": "..." \}\
+  ]\
+\}\
+```\
+\
+**Critical rules:**\
+- `variableInputs` is an ordered array \'97 order matters for some flows.\
+- Every `inputId` must match exactly what the flow expects. Wrong IDs produce no error \'97 the input is silently ignored and the flow returns a canned/default response.\
+- All values are strings. Even numeric parameters (temperature, max_tokens) are serialized as a JSON-fragment string (see Model Parameters section).\
+- Missing inputs do not throw an HTTP error. They produce incorrect AI behavior or a guardrail response. Always send all expected inputs.\
+\
+---\
+\
+## The Three Flows\
+\
+### Flow 1 \'97 Chat Model (Session-Aware)\
+\
+**Use for:** Multi-turn conversation, case analysis sessions, anything that needs persistent chat memory.\
+\
+```\
+Flow ID:   9bacf2bb-9b5c-42a7-ad52-8cedb3eba05d\
+Session:   Required \'97 append &sessionId=<unique-slug> to the URL\
+Inputs:    5\
+```\
+\
+| # | inputId | Purpose |\
+|---|---------|---------|\
+| 1 | `varInputNode_1773364131277_0.8862` | User's message text |\
+| 2 | `varInputNode_1773434271666_0.6770` | Document / image context |\
+| 3 | `varInputNode_1773434287086_0.5082` | Model parameters (JSON fragment) |\
+| 4 | `varInputNode_1773434416738_0.6139` | System prompt |\
+| 5 | `varInputNode_1773450743306_0.1255` | Image analysis mode (`"yes"` or `"no"`) |\
+\
+**Full example body:**\
+\
+```json\
+\{\
+  "variableInputs": [\
+    \{\
+      "inputId": "varInputNode_1773364131277_0.8862",\
+      "inputText": "What are the key financial discrepancies in this document?"\
+    \},\
+    \{\
+      "inputId": "varInputNode_1773434271666_0.6770",\
+      "inputText": "Documents in session:\\n1. FinancialRecords_2023.pdf\\n\\nImage references:\\nhttps://yourdomain.com/uploads/exhibit-a.jpg"\
+    \},\
+    \{\
+      "inputId": "varInputNode_1773434287086_0.5082",\
+      "inputText": "  \\"temperature\\": 0.3,\\n  \\"max_tokens\\": 10024,\\n  \\"chat_template_kwargs\\": \{\\n        \\"enable_thinking\\": false\\n      \},\\n  \\"thinking_token_budget\\": 1028"\
+    \},\
+    \{\
+      "inputId": "varInputNode_1773434416738_0.6139",\
+      "inputText": "You are an advanced legal analysis assistant..."\
+    \},\
+    \{\
+      "inputId": "varInputNode_1773450743306_0.1255",\
+      "inputText": "no"\
+    \}\
+  ]\
+\}\
+```\
+\
+**Session ID rules:**\
+- Use any stable slug tied to the user's chat session (e.g. `case-1234-user-56`).\
+- The same `sessionId` across requests gives the model memory of prior turns.\
+- Different `sessionId` values start a completely fresh context.\
+- Do not reuse session IDs across different users.\
+\
+---\
+\
+### Flow 2 \'97 General Model (Stateless)\
+\
+**Use for:** One-off tasks \'97 document classification, summarization, prompt evaluation, admin jobs, anything that does not need conversation memory.\
+\
+```\
+Flow ID:   26c06cfd-7f7e-423c-ae32-4c290aaef45e\
+Session:   Not used \'97 omit sessionId from the URL entirely\
+Inputs:    4\
+```\
+\
+| # | inputId | Purpose |\
+|---|---------|---------|\
+| 1 | `varInputNode_1773364131277_0.8862` | Task / question |\
+| 2 | `varInputNode_1773434271666_0.6770` | Document or data context |\
+| 3 | `varInputNode_1773434287086_0.5082` | Model parameters (JSON fragment, no thinking_token_budget) |\
+| 4 | `varInputNode_1773434416738_0.6139` | System prompt |\
+\
+**Full example body:**\
+\
+```json\
+\{\
+  "variableInputs": [\
+    \{\
+      "inputId": "varInputNode_1773364131277_0.8862",\
+      "inputText": "Classify the sentiment of this customer complaint."\
+    \},\
+    \{\
+      "inputId": "varInputNode_1773434271666_0.6770",\
+      "inputText": "The service was completely unacceptable and I want a refund."\
+    \},\
+    \{\
+      "inputId": "varInputNode_1773434287086_0.5082",\
+      "inputText": "  \\"temperature\\": 0.3,\\n  \\"max_tokens\\": 8024,\\n  \\"chat_template_kwargs\\": \{\\n        \\"enable_thinking\\": false\\n      \}"\
+    \},\
+    \{\
+      "inputId": "varInputNode_1773434416738_0.6139",\
+      "inputText": "You are a smart assistant."\
+    \}\
+  ]\
+\}\
+```\
+\
+Note: the model parameters for this flow do **not** include `thinking_token_budget`. Including it may cause unexpected behavior.\
+\
+---\
+\
+### Flow 3 \'97 OCR Extraction\
+\
+**Use for:** Extracting raw text from documents or images. Pass a publicly accessible file URL. The model returns the full extracted text, preserving structure.\
+\
+```\
+Flow ID:   2b8fd71b-b101-4001-8660-4d3bedfc1f10\
+Session:   Not used \'97 omit sessionId\
+Inputs:    4\
+```\
+\
+| # | inputId | Purpose |\
+|---|---------|---------|\
+| 1 | `varInputNode_1773364131277_0.8862` | Extraction instruction (usually a short prompt) |\
+| 2 | `varInputNode_1773434271666_0.6770` | **Full public URL of the file to extract** |\
+| 3 | `varInputNode_1773434287086_0.5082` | Model parameters |\
+| 4 | `varInputNode_1773434416738_0.6139` | System prompt |\
+\
+**Full example body:**\
+\
+```json\
+\{\
+  "variableInputs": [\
+    \{\
+      "inputId": "varInputNode_1773364131277_0.8862",\
+      "inputText": "Extract all text from this document."\
+    \},\
+    \{\
+      "inputId": "varInputNode_1773434271666_0.6770",\
+      "inputText": "https://yourdomain.com/uploads/court-filing.pdf"\
+    \},\
+    \{\
+      "inputId": "varInputNode_1773434287086_0.5082",\
+      "inputText": "\\"temperature\\": 0.2, \\"max_tokens\\": 20000"\
+    \},\
+    \{\
+      "inputId": "varInputNode_1773434416738_0.6139",\
+      "inputText": "You are a precise document OCR extraction agent. Extract all text from the provided document or image faithfully and completely. Preserve the original structure, headings, paragraphs, lists, and tables as closely as possible. Do not summarize, interpret, or add commentary \'97 return only the extracted text."\
+    \}\
+  ]\
+\}\
+```\
+\
+**Recommended system prompt for OCR:**\
+> You are a precise document OCR extraction agent. Extract all text from the provided document or image faithfully and completely. Preserve the original structure, headings, paragraphs, lists, and tables as closely as possible. Do not summarize, interpret, or add commentary \'97 return only the extracted text.\
+\
+**Recommended temperature:** `0.2` (low, for faithful extraction)  \
+**Recommended max_tokens:** `20000` (documents can be long)\
+\
+---\
+\
+## Model Parameters Format\
+\
+The model parameters input is **not** a JSON object \'97 it is a raw string containing JSON key-value pairs (without the surrounding `\{\}`). The flow injects this directly into a larger parameter structure.\
+\
+**Chat model (Flow 1):**\
+```\
+  "temperature": 0.3,\
+  "max_tokens": 10024,\
+  "chat_template_kwargs": \{\
+        "enable_thinking": false\
+      \},\
+  "thinking_token_budget": 1028\
+```\
+\
+**General model (Flow 2):**\
+```\
+  "temperature": 0.3,\
+  "max_tokens": 8024,\
+  "chat_template_kwargs": \{\
+        "enable_thinking": false\
+      \}\
+```\
+\
+**OCR model (Flow 3):**\
+```\
+"temperature": 0.2, "max_tokens": 20000\
+```\
+\
+To enable chain-of-thought reasoning (Flow 1 only):\
+```\
+"enable_thinking": true\
+"thinking_token_budget": 1028   
+\f1 \uc0\u8592 
+\f0  controls how many tokens the model uses for internal reasoning\
+```\
+\
+**Recommended temperature ranges:**\
+- `0.2\'960.3` for extraction, classification, deterministic tasks\
+- `0.5\'960.7` for analysis, summarization\
+- `0.7\'961.0` for creative or open-ended tasks\
+\
+---\
+\
+## Response Parsing\
+\
+### Actual Response Structure\
+\
+The API returns JSON with this exact structure:\
+\
+```json\
+\{\
+  "status": "success",\
+  "data": \{\
+    "message": [\
+      \{\
+        "timestamp": "3/14/2026, 1:48:21 AM",\
+        "text": "Here is the answer to your question...",\
+        "outputId": "outputObjectNode_1773364137836_0.6070"\
+      \}\
+    ]\
+  \}\
+\}\
+```\
+\
+**Extraction path:** `response.data.data.message[0].text`\
+\
+### Robust Parser\
+\
+Do not hardcode a single path \'97 the structure can vary between flows. Use a defensive parser:\
+\
+```ts\
+function extractResponseText(data: unknown): string | null \{\
+  if (!data || typeof data !== "object") return null;\
+  const d = data as Record<string, unknown>;\
+\
+  // Primary path \'97 actual FluxPrompt structure\
+  if (d.data && typeof d.data === "object") \{\
+    const inner = d.data as Record<string, unknown>;\
+    if (Array.isArray(inner.message) && inner.message.length > 0) \{\
+      const first = inner.message[0] as Record<string, unknown>;\
+      if (typeof first.text === "string" && first.text) return first.text;\
+    \}\
+  \}\
+\
+  // Fallback: flat string fields\
+  for (const key of ["output", "result", "message", "text", "response", "content", "answer"]) \{\
+    if (typeof d[key] === "string" && d[key]) return d[key] as string;\
+  \}\
+\
+  // Fallback: nested arrays\
+  for (const key of ["data", "outputs", "choices", "results"]) \{\
+    const nested = d[key];\
+    if (Array.isArray(nested) && nested.length > 0) \{\
+      const item = nested[0] as Record<string, unknown>;\
+      for (const k of ["text", "content", "output", "result", "message"]) \{\
+        if (typeof item[k] === "string" && item[k]) return item[k] as string;\
+      \}\
+      if (item.message && typeof item.message === "object") \{\
+        const msg = item.message as Record<string, unknown>;\
+        if (typeof msg.content === "string" && msg.content) return msg.content;\
+      \}\
+    \}\
+  \}\
+\
+  return null;\
+\}\
+```\
+\
+If this returns `null`, log the full raw response and throw \'97 never silently return empty.\
+\
+---\
+\
+\
+---\
+\
+## Image URLs \'97 Critical Rule\
+\
+**FluxPrompt's servers fetch image URLs server-side.** This means:\
+\
+- `http://localhost/...` 
+\f1 \uc0\u8594 
+\f0  **will fail** \'97 FluxPrompt cannot reach your local machine\
+- `/uploads/image.png` 
+\f1 \uc0\u8594 
+\f0  **will fail** \'97 relative paths are meaningless to a remote server\
+- `https://your-public-domain.com/uploads/image.png` 
+\f1 \uc0\u8594 
+\f0  **will work**\
+\
+Always convert image URLs to absolute public URLs before including them in any input:\
+\
+```ts\
+const absoluteUrl = url.startsWith('http')\
+  ? url\
+  : `$\{window.location.origin\}$\{url\}`;\
+```\
+\
+On Replit, `window.location.origin` resolves to your public `.replit.dev` domain automatically.\
+\
+**Where to put image URLs:** In the document context input (input #2), not the user message. Use this format:\
+\
+```\
+Image references:\
+https://yourdomain.com/uploads/exhibit-a.jpg\
+https://yourdomain.com/uploads/exhibit-b.png\
+```\
+\
+When no text documents are loaded, the context should be:\
+```\
+No text context in this session yet.\
+\
+Image references:\
+https://...\
+```\
+\
+Avoid the phrase "No documents in session." \'97 some flows treat this as a trigger to return a canned "please upload documents" guardrail response.\
+\
+---\
+\
+## Flow Guardrails\
+\
+Each flow has built-in guardrail behavior. When triggered, the flow returns a canned short response immediately (typically in under 30 seconds, much faster than a normal AI response). \
+\
+**Common canned response:**\
+> "This system is configured for criminal justice analytical work only. Please load your case materials and submit a case-related query."\
+\
+**Triggers observed:**\
+1. Document context contains "No documents in session." with no user query\
+2. Image URLs that return 404 or are not publicly accessible\
+3. Incorrect or missing `inputId` values (inputs silently dropped)\
+\
+**Diagnosis:** If you get a fast canned response, log the full raw request body and verify every `inputId` and every URL is reachable from the public internet.\
+\
+---\
+\
+## Timeouts\
+\
+All three flows can take up to several minutes for complex tasks. Set your fetch timeout to **10 minutes minimum**:\
+\
+```ts\
+const TIMEOUT_MS = 600_000; // 10 minutes\
+\
+const controller = new AbortController();\
+const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);\
+\
+const response = await fetch(url, \{\
+  method: "POST",\
+  headers: \{ "Content-Type": "application/json", "api-key": apiKey \},\
+  body: JSON.stringify(body),\
+  signal: controller.signal,\
+\});\
+\
+clearTimeout(timeoutId);\
+```\
+\
+Catch `AbortError` specifically:\
+\
+```ts\
+\} catch (err) \{\
+  clearTimeout(timeoutId);\
+  if (err instanceof Error && err.name === "AbortError") \{\
+    throw new Error("Request timed out after 10 minutes.");\
+  \}\
+  throw err;\
+\}\
+```\
+\
+Never use a short timeout (30s, 60s). The model may be doing extended reasoning.\
+\
+---\
+\
+## Complete TypeScript Reference\
+\
+```ts\
+const FLUXPROMPT_URL = "https://api.fluxprompt.ai/flux/api-v2";\
+\
+// Flow IDs\
+const CHAT_FLOW_ID    = "9bacf2bb-9b5c-42a7-ad52-8cedb3eba05d"; // session-aware\
+const GENERAL_FLOW_ID = "26c06cfd-7f7e-423c-ae32-4c290aaef45e"; // stateless\
+const OCR_FLOW_ID     = "2b8fd71b-b101-4001-8660-4d3bedfc1f10"; // OCR extraction\
+\
+// Shared input node IDs (same across all three flows)\
+const INPUT_IDS = \{\
+  userMessage:     "varInputNode_1773364131277_0.8862",\
+  documentContext: "varInputNode_1773434271666_0.6770",\
+  modelParameters: "varInputNode_1773434287086_0.5082",\
+  systemPrompt:    "varInputNode_1773434416738_0.6139",\
+  // Chat flow only:\
+  analyzeImages:   "varInputNode_1773450743306_0.1255",\
+\} as const;\
+```\
+\
+---\
+\
+## Quick Reference Table\
+\
+| | Chat Flow | General Flow | OCR Flow |\
+|---|---|---|---|\
+| **Flow ID** | `9bacf2bb-...` | `26c06cfd-...` | `2b8fd71b-...` |\
+| **sessionId in URL** | Yes \'97 required | No | No |\
+| **Inputs** | 5 | 4 | 4 |\
+| **has analyzeImages input** | Yes | No | No |\
+| **has thinking_token_budget** | Yes | No | No |\
+| **Typical temperature** | 0.3\'960.7 | 0.3 | 0.2 |\
+| **Typical max_tokens** | 10024 | 8024 | 20000 |\
+| **Memory across calls** | Yes (by sessionId) | No | No |\
+| **Image URL in input #2** | Supported | Optional | Required |\
+\
+---\
+\
+## Checklist Before First Call\
+\
+- [ ] API key stored in env variable, read at runtime (not hardcoded)\
+- [ ] `api-key` header set (not `Authorization`, not `Bearer`)\
+- [ ] Correct flow ID for the task\
+- [ ] All required inputs present with exact `inputId` strings\
+- [ ] Image URLs are absolute public HTTPS URLs\
+- [ ] Model parameters sent as a raw JSON fragment string (not a JSON object)\
+- [ ] Timeout set to 600,000ms (10 minutes)\
+- [ ] Response parsed via the defensive `extractResponseText` function\
+- [ ] Disclaimer stripped from response text before display\
+- [ ] Document context does not say "No documents in session." when no docs are loaded\
+}
