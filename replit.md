@@ -47,6 +47,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `client/src/components/voir-dire/GuidedTour.tsx` — Guided tour component with spotlight overlay, auto-positioning tooltip, prev/next/skip navigation, progress dots
 - `client/src/components/AIAssistant/AIAssistantButton.tsx` — Floating draggable AI chat button (pointer capture)
 - `client/src/components/AIAssistant/AIAssistantPanel.tsx` — AI Assistant chat panel with streaming and context awareness
+- `client/src/lib/exportVoirDire.ts` — Voir dire strategy export (PDF via jsPDF, Word via docx, plain text via file-saver)
 
 ## Application Phases
 0. Welcome Screen (past cases, new case)
@@ -230,5 +231,8 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `openai` — AI client for document parsing and chat
 - `multer` — File upload middleware
 - `pdf-parse` — PDF text extraction
+- `jspdf` — PDF document generation for voir dire strategy export
+- `docx` — Word document generation for voir dire strategy export
+- `file-saver` — File download utility for exports
 - `bcrypt` — Password hashing
 - `jsonwebtoken` — JWT token management

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   HelpCircle,
@@ -19,9 +19,11 @@ import {
   Mic,
   BookOpen,
   X,
+  Download,
 } from 'lucide-react';
 import { VoirDireQuestion, VoirDireDocument, CaseInfo, Juror } from '../../types';
 import * as api from '../../lib/api';
+import { exportAsPdf, exportAsText, exportAsWord } from '../../lib/exportVoirDire';
 
 interface VoirDireQuestionsProps {
   questions: VoirDireQuestion[];
@@ -51,6 +53,19 @@ export function VoirDireQuestions({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingFollowUp, setEditingFollowUp] = useState<{ qId: number; idx: number } | null>(null);
   const [voirDireDoc, setVoirDireDoc] = useState<VoirDireDocument | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showExportMenu]);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     opening: true,
     questions: true,
@@ -610,13 +625,64 @@ export function VoirDireQuestions({
           <div className="bg-white border border-slate-200 rounded-xl p-4 flex justify-between items-center shadow-sm shrink-0 mt-4">
             {!locked ? (
               <>
-                <button
-                  onClick={handleClearAll}
-                  data-testid="button-clear-all"
-                  className="text-slate-500 hover:text-slate-700 font-medium text-sm"
-                >
-                  Clear All
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleClearAll}
+                    data-testid="button-clear-all"
+                    className="text-slate-500 hover:text-slate-700 font-medium text-sm"
+                  >
+                    Clear All
+                  </button>
+                  {voirDireDoc && (
+                    <div className="relative" ref={exportMenuRef}>
+                      <button
+                        onClick={() => setShowExportMenu(!showExportMenu)}
+                        data-testid="button-export-strategy"
+                        className="inline-flex items-center px-4 py-2 text-slate-600 hover:text-slate-900 font-medium text-sm border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Export
+                        <ChevronDown className="w-3 h-3 ml-1" />
+                      </button>
+                      <AnimatePresence>
+                        {showExportMenu && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 4 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute bottom-full left-0 mb-2 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50 min-w-[160px]"
+                          >
+                            <button
+                              onClick={() => { exportAsPdf(voirDireDoc, questions, caseInfo); setShowExportMenu(false); }}
+                              data-testid="button-export-pdf"
+                              className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                            >
+                              <FileText className="w-4 h-4 text-red-500" />
+                              PDF Document
+                            </button>
+                            <button
+                              onClick={() => { exportAsWord(voirDireDoc, questions, caseInfo); setShowExportMenu(false); }}
+                              data-testid="button-export-word"
+                              className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                            >
+                              <FileText className="w-4 h-4 text-blue-500" />
+                              Word Document
+                            </button>
+                            <button
+                              onClick={() => { exportAsText(voirDireDoc, questions, caseInfo); setShowExportMenu(false); }}
+                              data-testid="button-export-text"
+                              className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                            >
+                              <FileText className="w-4 h-4 text-slate-500" />
+                              Plain Text
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={onLockQuestions}
                   data-testid="button-lock-questions"
@@ -628,17 +694,68 @@ export function VoirDireQuestions({
               </>
             ) : (
               <>
-                <button
-                  onClick={() => {
-                    onUnlockQuestions();
-                    setVoirDireDoc(null);
-                  }}
-                  data-testid="button-unlock-questions"
-                  className="inline-flex items-center px-4 py-2 text-slate-600 hover:text-slate-900 font-medium text-sm border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
-                >
-                  <Unlock className="w-4 h-4 mr-2" />
-                  Unlock & Restart
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      onUnlockQuestions();
+                      setVoirDireDoc(null);
+                    }}
+                    data-testid="button-unlock-questions"
+                    className="inline-flex items-center px-4 py-2 text-slate-600 hover:text-slate-900 font-medium text-sm border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+                  >
+                    <Unlock className="w-4 h-4 mr-2" />
+                    Unlock & Restart
+                  </button>
+                  {voirDireDoc && (
+                    <div className="relative" ref={exportMenuRef}>
+                      <button
+                        onClick={() => setShowExportMenu(!showExportMenu)}
+                        data-testid="button-export-strategy-locked"
+                        className="inline-flex items-center px-4 py-2 text-slate-600 hover:text-slate-900 font-medium text-sm border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Export
+                        <ChevronDown className="w-3 h-3 ml-1" />
+                      </button>
+                      <AnimatePresence>
+                        {showExportMenu && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 4 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute bottom-full left-0 mb-2 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50 min-w-[160px]"
+                          >
+                            <button
+                              onClick={() => { exportAsPdf(voirDireDoc, questions, caseInfo); setShowExportMenu(false); }}
+                              data-testid="button-export-pdf-locked"
+                              className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                            >
+                              <FileText className="w-4 h-4 text-red-500" />
+                              PDF Document
+                            </button>
+                            <button
+                              onClick={() => { exportAsWord(voirDireDoc, questions, caseInfo); setShowExportMenu(false); }}
+                              data-testid="button-export-word-locked"
+                              className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                            >
+                              <FileText className="w-4 h-4 text-blue-500" />
+                              Word Document
+                            </button>
+                            <button
+                              onClick={() => { exportAsText(voirDireDoc, questions, caseInfo); setShowExportMenu(false); }}
+                              data-testid="button-export-text-locked"
+                              className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors"
+                            >
+                              <FileText className="w-4 h-4 text-slate-500" />
+                              Plain Text
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={onProceed}
                   data-testid="button-proceed-recording"
