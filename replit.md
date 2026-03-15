@@ -221,7 +221,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `OPENAI_API_KEY` — OpenAI API key (user's own key, used directly with OpenAI API)
 - `STRIPE_SECRET_KEY` — Stripe secret API key (sk_test_* or sk_live_*)
 - `STRIPE_WEBHOOK_SECRET` — Stripe webhook signing secret (whsec_*, optional but recommended for production)
-- `FLUX_API_KEY` — FluxPrompt API key for automatic juror enrichment
+- `FLUXPROMPT_API_KEY` — FluxPrompt API key for automatic juror enrichment (follows FluxPrompt naming convention; falls back to `FLUX_API_KEY` if not set)
 
 ## Dependencies
 - `react-dropzone` — File drag-and-drop for strike list upload
