@@ -19,26 +19,15 @@ function extractResponseText(data: unknown): string | null {
     const inner = d.data as Record<string, unknown>;
     if (Array.isArray(inner.message) && inner.message.length > 0) {
       const first = inner.message[0] as Record<string, unknown>;
-      if (typeof first.text === "string" && first.text) return first.text;
+      if (typeof first.text === "string" && first.text.trim()) return first.text;
+    }
+    for (const key of ["output", "result", "text"]) {
+      if (typeof inner[key] === "string" && (inner[key] as string).trim()) return inner[key] as string;
     }
   }
 
-  for (const key of ["output", "result", "message", "text", "response", "content", "answer"]) {
-    if (typeof d[key] === "string" && d[key]) return d[key] as string;
-  }
-
-  for (const key of ["data", "outputs", "choices", "results"]) {
-    const nested = d[key];
-    if (Array.isArray(nested) && nested.length > 0) {
-      const item = nested[0] as Record<string, unknown>;
-      for (const k of ["text", "content", "output", "result", "message"]) {
-        if (typeof item[k] === "string" && item[k]) return item[k] as string;
-      }
-      if (item.message && typeof item.message === "object") {
-        const msg = item.message as Record<string, unknown>;
-        if (typeof msg.content === "string" && msg.content) return msg.content;
-      }
-    }
+  for (const key of ["output", "result", "text", "message"]) {
+    if (typeof d[key] === "string" && (d[key] as string).trim()) return d[key] as string;
   }
 
   return null;
@@ -230,41 +219,40 @@ export async function handleEnrichmentWebhook(
   payload: any
 ): Promise<{ success: boolean; message: string }> {
   console.log(`[FluxEnrichment] Raw webhook payload for ${enrichmentId}:`, JSON.stringify(payload, null, 2));
-  console.log(`[FluxEnrichment] Payload type: ${typeof payload}, keys: ${typeof payload === 'object' ? Object.keys(payload).join(', ') : 'N/A'}`);
 
   const enrichment = await storage.getJurorEnrichmentById(enrichmentId);
   if (!enrichment) {
     return { success: false, message: "Enrichment record not found" };
   }
 
-  const incomingHasData = typeof payload === "object"
-    ? (payload.text && payload.text.length > 0) || (Object.keys(payload).length > 1)
-    : !!payload;
-
-  if (!incomingHasData) {
-    console.log(`[FluxEnrichment] Empty callback for ${enrichmentId} (juror #${enrichment.jurorNumber}) — ignoring, waiting for real data`);
-    return { success: true, message: "Empty callback acknowledged, waiting for enrichment data" };
-  }
-
   if (enrichment.status === "completed") {
     const existingData = enrichment.enrichedData as any;
-    const hasRealData = existingData && existingData.text && existingData.text.length > 0;
-    if (hasRealData) {
+    if (existingData?.text && existingData.text.length > 0) {
       return { success: true, message: "Already processed" };
     }
-    console.log(`[FluxEnrichment] Updating ${enrichmentId} with non-empty data (overwriting previous empty callback)`);
   }
 
-  const enrichedData = typeof payload === "object" ? payload : { raw: payload };
+  const extractedText = extractResponseText(payload);
+
+  if (!extractedText) {
+    console.error(`[FluxEnrichment] UNPARSEABLE PAYLOAD for ${enrichmentId} (juror #${enrichment.jurorNumber}). Full body: ${JSON.stringify(payload)}`);
+    await storage.updateJurorEnrichment(enrichmentId, {
+      status: "error",
+      enrichedData: { error: "Unparseable response", rawPayload: payload },
+      completedAt: Date.now(),
+    });
+    return { success: false, message: "Could not extract response text from FluxPrompt payload" };
+  }
+
+  console.log(`[FluxEnrichment] Extracted text for juror #${enrichment.jurorNumber} (${extractedText.length} chars): ${extractedText.substring(0, 300)}`);
 
   await storage.updateJurorEnrichment(enrichmentId, {
     status: "completed",
-    enrichedData,
+    enrichedData: { text: extractedText, source: "fluxprompt_webhook" },
     completedAt: Date.now(),
   });
 
-  console.log(`[FluxEnrichment] Received REAL enrichment data for juror #${enrichment.jurorNumber} (case: ${enrichment.caseId})`);
-
+  console.log(`[FluxEnrichment] Stored enrichment for juror #${enrichment.jurorNumber} (case: ${enrichment.caseId})`);
   return { success: true, message: "Enrichment data stored" };
 }
 

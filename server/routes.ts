@@ -271,37 +271,27 @@ export async function registerRoutes(
 
   // --- All routes below require authentication ---
   app.post("/api/webhooks/juror-enrichment/:enrichmentId", async (req, res) => {
+    res.status(200).json({ success: true, message: "Webhook received" });
+
     try {
       console.log("RAW FLUXPROMPT WEBHOOK PAYLOAD:", JSON.stringify(req.body, null, 2));
       console.log(`[Webhook] Incoming enrichment callback for ${req.params.enrichmentId}`);
       console.log(`[Webhook] Content-Type: ${req.headers["content-type"]}`);
-      console.log(`[Webhook] Headers:`, JSON.stringify(req.headers, null, 2));
-
-      const rawBody = req.rawBody ? Buffer.from(req.rawBody as any).toString("utf-8") : "(no rawBody)";
-      console.log(`[Webhook] Raw body (${rawBody.length} chars): ${rawBody.substring(0, 2000)}`);
-      console.log(`[Webhook] req.body type: ${typeof req.body}, value:`, JSON.stringify(req.body));
-
-      const webhookSecret = req.headers["x-webhook-secret"] as string | undefined;
-      if (!verifyWebhookSecret(webhookSecret)) {
-        console.log(`[Webhook] Secret validation failed`);
-        return res.status(401).json({ message: "Invalid webhook secret" });
-      }
 
       const { enrichmentId } = req.params;
 
       let payload = req.body;
-      if ((!payload || (typeof payload === "object" && Object.keys(payload).length === 0)) && rawBody && rawBody !== "(no rawBody)") {
-        payload = { text: rawBody };
+      if (!payload || (typeof payload === "object" && Object.keys(payload).length === 0)) {
+        const rawBody = req.rawBody ? Buffer.from(req.rawBody as any).toString("utf-8") : "";
+        if (rawBody) {
+          try { payload = JSON.parse(rawBody); } catch { payload = { text: rawBody }; }
+        }
       }
 
       const result = await handleEnrichmentWebhook(enrichmentId, payload);
-      if (!result.success) {
-        return res.status(404).json({ message: result.message });
-      }
-      res.json({ success: true, message: result.message });
+      console.log(`[Webhook] Processing result for ${enrichmentId}: ${result.message}`);
     } catch (err: any) {
       console.error("[Webhook] Enrichment error:", err);
-      res.status(500).json({ message: "Internal error processing enrichment" });
     }
   });
 
