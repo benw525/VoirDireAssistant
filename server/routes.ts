@@ -295,6 +295,43 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/cases/:caseId/enrichment-status", authMiddleware, async (req, res) => {
+    try {
+      const { caseId } = req.params;
+      const caseRecord = await storage.getCaseById(caseId);
+      if (!caseRecord || caseRecord.userId !== req.user!.id) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const enrichments = await storage.getJurorEnrichmentsByCase(caseId);
+      const jurorsList = await storage.getJurorsByCase(caseId);
+      const jurorNames: Record<number, string> = {};
+      for (const j of jurorsList) {
+        jurorNames[j.number] = j.name;
+      }
+      const items = enrichments.map(e => ({
+        jurorNumber: e.jurorNumber,
+        jurorName: jurorNames[e.jurorNumber] || `Juror #${e.jurorNumber}`,
+        status: e.status,
+        enrichmentId: e.enrichmentId,
+        createdAt: e.createdAt,
+        completedAt: e.completedAt,
+        hasData: !!(e.enrichedData && (e.enrichedData as any).text),
+      }));
+      const summary = {
+        total: items.length,
+        pending: items.filter(i => i.status === "pending").length,
+        dispatched: items.filter(i => i.status === "dispatched").length,
+        completed: items.filter(i => i.status === "completed").length,
+        failed: items.filter(i => i.status === "failed").length,
+        error: items.filter(i => i.status === "error").length,
+      };
+      res.json({ items, summary });
+    } catch (err: any) {
+      console.error("[EnrichmentStatus] Error:", err);
+      res.status(500).json({ message: "Failed to fetch enrichment status" });
+    }
+  });
+
   app.use("/api/cases", authMiddleware);
   app.use("/api/jurors", authMiddleware);
   app.use("/api/questions", authMiddleware);
