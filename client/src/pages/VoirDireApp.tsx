@@ -469,6 +469,7 @@ export default function VoirDireApp() {
             onProceed={() => proceedToPhase(4)}
             caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
             jurors={jurors}
+            caseId={activeCaseId}
           />
         );
       case 4:

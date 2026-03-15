@@ -18,6 +18,7 @@ import {
 import { Juror } from '../../types';
 import { useDropzone } from 'react-dropzone';
 import { parseStrikeList } from '../../lib/api';
+import { exportJurorsForFlux } from '../../lib/exportFluxCsv';
 
 interface StrikeListProps {
   jurors: Juror[];
@@ -659,7 +660,10 @@ export function StrikeList({
                 )}
               </div>
               <button
-                onClick={onProceed}
+                onClick={() => {
+                  exportJurorsForFlux(jurors);
+                  onProceed();
+                }}
                 data-testid="button-confirm-proceed"
                 className="inline-flex items-center px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-xl hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors shadow-sm">
                 Confirm & Proceed

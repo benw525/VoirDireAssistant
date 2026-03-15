@@ -15,6 +15,51 @@ import { triggerEnrichmentForJurors, handleEnrichmentWebhook, getEnrichedDataFor
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
+function parseCSVFull(text: string): string[][] {
+  const stripped = text.replace(/^\ufeff/, "");
+  const rows: string[][] = [];
+  let current = "";
+  let inQuotes = false;
+  let row: string[] = [];
+
+  for (let i = 0; i < stripped.length; i++) {
+    const ch = stripped[i];
+    if (inQuotes) {
+      if (ch === '"' && stripped[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        row.push(current);
+        current = "";
+      } else if (ch === '\r' && stripped[i + 1] === '\n') {
+        row.push(current);
+        current = "";
+        rows.push(row);
+        row = [];
+        i++;
+      } else if (ch === '\n') {
+        row.push(current);
+        current = "";
+        rows.push(row);
+        row = [];
+      } else {
+        current += ch;
+      }
+    }
+  }
+  row.push(current);
+  if (row.some(v => v.trim())) rows.push(row);
+  return rows;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -272,6 +317,7 @@ export async function registerRoutes(
   app.use("/api/analyze-strikes-for-cause", authMiddleware);
   app.use("/api/mattrmindr", authMiddleware);
   app.use("/api/conversations", authMiddleware);
+  app.use("/api/import-enrichment", authMiddleware);
 
   // --- Cases ---
   app.get("/api/cases", async (req, res) => {
@@ -394,6 +440,134 @@ export async function registerRoutes(
     await storage.deleteJurorsByCase(req.params.caseId);
     try { await storage.deleteJurorEnrichmentsByCase(req.params.caseId); } catch (e) { /* enrichment table may not exist yet */ }
     res.status(204).send();
+  });
+
+  // --- Import Enrichment CSV ---
+  app.post("/api/import-enrichment/:caseId", upload.single("file"), async (req, res) => {
+    try {
+      const { caseId } = req.params;
+      const c = await storage.getCase(caseId);
+      if (!c || c.userId !== req.user!.id) return res.status(404).json({ message: "Case not found" });
+
+      const jurors = await storage.getJurorsByCase(caseId);
+      if (jurors.length === 0) return res.status(400).json({ message: "No jurors found for this case" });
+
+      let csvText = "";
+      if (req.file) {
+        csvText = req.file.buffer.toString("utf-8");
+      } else if (req.body.csvText) {
+        csvText = req.body.csvText;
+      } else {
+        return res.status(400).json({ message: "No CSV file or text provided" });
+      }
+
+      const allRows = parseCSVFull(csvText);
+      if (allRows.length < 2) return res.status(400).json({ message: "CSV must have a header row and at least one data row" });
+
+      const headers = allRows[0].map((h: string) => h.trim().toLowerCase());
+
+      const nameIdx = headers.findIndex((h: string) => h === "name" || h === "juror name" || h === "juror_name");
+      const numberIdx = headers.findIndex((h: string) => h === "juror number" || h === "juror_number" || h === "number" || h === "#");
+
+      if (nameIdx === -1 && numberIdx === -1) {
+        return res.status(400).json({ message: "CSV must have a 'Name' or 'Juror Number' column to match jurors" });
+      }
+
+      const enrichmentIdx = headers.findIndex((h: string) =>
+        h === "enrichment" || h === "enrichment data" || h === "enrichment_data" ||
+        h === "analysis" || h === "ai_analysis" || h === "ai analysis" ||
+        h === "report" || h === "results" || h === "output" || h === "response"
+      );
+
+      const keyIndices = new Set([nameIdx, numberIdx].filter(i => i !== -1));
+
+      const matched: Array<{ jurorNumber: number; jurorName: string; enrichmentText: string }> = [];
+      const unmatched: string[] = [];
+
+      for (let i = 1; i < allRows.length; i++) {
+        const values = allRows[i];
+        if (values.length === 0 || values.every((v: string) => !v.trim())) continue;
+
+        let matchedJuror: typeof jurors[0] | undefined;
+
+        if (numberIdx !== -1 && values[numberIdx]) {
+          const num = parseInt(values[numberIdx].trim(), 10);
+          if (!isNaN(num)) {
+            matchedJuror = jurors.find(j => j.number === num);
+          }
+        }
+
+        if (!matchedJuror && nameIdx !== -1 && values[nameIdx]) {
+          const csvName = values[nameIdx].trim().toLowerCase();
+          matchedJuror = jurors.find(j => {
+            const jName = j.name.trim().toLowerCase();
+            if (jName === csvName) return true;
+            const jParts = jName.split(/\s+/);
+            const cParts = csvName.split(/\s+/);
+            if (jParts.length >= 2 && cParts.length >= 2) {
+              const jFirst = jParts[0], jLast = jParts[jParts.length - 1];
+              const cFirst = cParts[0], cLast = cParts[cParts.length - 1];
+              if ((jFirst === cFirst && jLast === cLast) || (jFirst === cLast && jLast === cFirst)) return true;
+            }
+            return false;
+          });
+        }
+
+        let enrichmentText = "";
+        if (enrichmentIdx !== -1 && values[enrichmentIdx]) {
+          enrichmentText = values[enrichmentIdx].trim();
+        } else {
+          const parts: string[] = [];
+          for (let col = 0; col < values.length; col++) {
+            if (keyIndices.has(col)) continue;
+            const val = values[col]?.trim();
+            if (!val) continue;
+            const header = headers[col] || `field_${col}`;
+            parts.push(`${header}: ${val}`);
+          }
+          enrichmentText = parts.join("\n") || values.join(", ");
+        }
+
+        if (matchedJuror) {
+          matched.push({
+            jurorNumber: matchedJuror.number,
+            jurorName: matchedJuror.name,
+            enrichmentText,
+          });
+        } else {
+          const labelIdx = nameIdx !== -1 ? nameIdx : numberIdx;
+          const label = values[labelIdx]?.trim() || `Row ${i}`;
+          unmatched.push(label);
+        }
+      }
+
+      const crypto = await import("crypto");
+      for (const m of matched) {
+        const enrichmentId = crypto.randomUUID();
+        await storage.createJurorEnrichment({
+          caseId,
+          jurorNumber: m.jurorNumber,
+          enrichmentId,
+          status: "completed",
+          rawRequest: { source: "manual_csv_import" },
+          rawResponse: { text: m.enrichmentText },
+          enrichedData: { text: m.enrichmentText, source: "manual_import" },
+          createdAt: Date.now(),
+          completedAt: Date.now(),
+        });
+      }
+
+      res.json({
+        success: true,
+        matched: matched.length,
+        unmatched: unmatched.length,
+        unmatchedNames: unmatched,
+        matchedJurors: matched.map(m => ({ number: m.jurorNumber, name: m.jurorName })),
+      });
+    } catch (err: any) {
+      console.error("[ImportEnrichment] Error:", err);
+      res.status(500).json({ message: err.message || "Failed to import enrichment data" });
+    }
   });
 
   // --- Questions ---

@@ -48,12 +48,14 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `client/src/components/AIAssistant/AIAssistantButton.tsx` — Floating draggable AI chat button (pointer capture)
 - `client/src/components/AIAssistant/AIAssistantPanel.tsx` — AI Assistant chat panel with streaming and context awareness
 - `client/src/lib/exportVoirDire.ts` — Voir dire strategy export (PDF via jsPDF, Word via docx, plain text via file-saver)
+- `client/src/lib/exportFluxCsv.ts` — CSV export of juror data for FluxPrompt manual enrichment (auto-downloads on strike list confirmation)
+- `server/fluxEnrichment.ts` — FluxPrompt API integration for automatic juror enrichment (API-based + manual CSV import fallback)
 
 ## Application Phases
 0. Welcome Screen (past cases, new case)
 1. Case Initialization (name, area of law, summary, side) — optional MattrMindr import
-2. Strike List (upload/paste juror data — AI-powered parsing)
-3. Voir Dire Questions (enter/generate questions)
+2. Strike List (upload/paste juror data — AI-powered parsing). On "Confirm & Proceed", auto-downloads a CSV with juror data for manual FluxPrompt enrichment.
+3. Voir Dire Questions (enter/generate questions). Includes "Import Enrichment Data" button to upload FluxPrompt results CSV — matches rows to jurors by name/number and stores enrichment data.
 4. Response Recording (two sub-stages: your side's examination + opposing counsel's examination)
 5. Juror Review (assess leanings and risk tiers)
 6. End Report (final analysis, collapsible jury panel, peremptory strike boxes, recommendations, optional push to MattrMindr)

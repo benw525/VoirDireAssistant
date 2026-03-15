@@ -20,6 +20,8 @@ import {
   BookOpen,
   X,
   Download,
+  Upload,
+  CheckCircle2,
 } from 'lucide-react';
 import { VoirDireQuestion, VoirDireDocument, CaseInfo, Juror } from '../../types';
 import * as api from '../../lib/api';
@@ -34,6 +36,7 @@ interface VoirDireQuestionsProps {
   onProceed: () => void;
   caseInfo: CaseInfo;
   jurors: Juror[];
+  caseId?: string | null;
 }
 
 export function VoirDireQuestions({
@@ -45,6 +48,7 @@ export function VoirDireQuestions({
   onProceed,
   caseInfo,
   jurors,
+  caseId,
 }: VoirDireQuestionsProps) {
   const [inputText, setInputText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -55,6 +59,9 @@ export function VoirDireQuestions({
   const [voirDireDoc, setVoirDireDoc] = useState<VoirDireDocument | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const enrichmentFileRef = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ matched: number; unmatched: number; unmatchedNames: string[] } | null>(null);
 
   useEffect(() => {
     if (!showExportMenu) return;
@@ -143,6 +150,25 @@ export function VoirDireQuestions({
     setVoirDireDoc(null);
   };
 
+  const handleImportEnrichment = async (file: File) => {
+    if (!caseId) {
+      setError('No active case. Please save your case first.');
+      return;
+    }
+    setIsImporting(true);
+    setError(null);
+    setImportResult(null);
+    try {
+      const result = await api.importEnrichmentCsv(caseId, file);
+      setImportResult({ matched: result.matched, unmatched: result.unmatched, unmatchedNames: result.unmatchedNames });
+    } catch (err: any) {
+      setError(err.message || 'Failed to import enrichment data.');
+    } finally {
+      setIsImporting(false);
+      if (enrichmentFileRef.current) enrichmentFileRef.current.value = '';
+    }
+  };
+
   const hasContent = questions.length > 0;
 
   const riskLevelColor = (level: string) => {
@@ -212,12 +238,42 @@ export function VoirDireQuestions({
               : 'Generate a strategic voir dire or refine your own questions.'}
           </p>
         </div>
-        {locked && (
-          <div className="bg-amber-100 text-amber-800 px-4 py-2 rounded-lg border border-amber-200 flex items-center font-medium">
-            <Lock className="w-4 h-4 mr-2" />
-            Questions Locked
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {caseId && (
+            <>
+              <input
+                ref={enrichmentFileRef}
+                type="file"
+                accept=".csv,.txt"
+                data-testid="input-enrichment-file-header"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImportEnrichment(file);
+                }}
+              />
+              <button
+                onClick={() => enrichmentFileRef.current?.click()}
+                disabled={isImporting}
+                data-testid="button-import-enrichment-header"
+                className="inline-flex items-center px-4 py-2 bg-emerald-50 text-emerald-700 font-medium rounded-lg border border-emerald-200 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 transition-colors text-sm"
+              >
+                {isImporting ? (
+                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4 mr-1.5" />
+                )}
+                Import Enrichment Data
+              </button>
+            </>
+          )}
+          {locked && (
+            <div className="bg-amber-100 text-amber-800 px-4 py-2 rounded-lg border border-amber-200 flex items-center font-medium">
+              <Lock className="w-4 h-4 mr-2" />
+              Questions Locked
+            </div>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -231,6 +287,29 @@ export function VoirDireQuestions({
             <p className="text-red-800 text-sm font-medium">{error}</p>
           </div>
           <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 ml-2">
+            <X className="w-4 h-4" />
+          </button>
+        </motion.div>
+      )}
+
+      {importResult && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start"
+        >
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 mr-3 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-emerald-800 text-sm font-medium">
+              Enrichment data imported: {importResult.matched} juror{importResult.matched !== 1 ? 's' : ''} matched
+            </p>
+            {importResult.unmatched > 0 && (
+              <p className="text-amber-700 text-xs mt-1">
+                {importResult.unmatched} row{importResult.unmatched !== 1 ? 's' : ''} could not be matched: {importResult.unmatchedNames.join(', ')}
+              </p>
+            )}
+          </div>
+          <button onClick={() => setImportResult(null)} className="text-emerald-400 hover:text-emerald-600 ml-2">
             <X className="w-4 h-4" />
           </button>
         </motion.div>
@@ -317,6 +396,69 @@ export function VoirDireQuestions({
                   Refine Questions
                 </button>
               </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-dashed border-emerald-300 shadow-sm overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center mb-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center mr-3">
+                  <Upload className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900">Import Enrichment Data</h3>
+                  <p className="text-sm text-slate-500">
+                    Upload the enrichment CSV from FluxPrompt to enhance your strategy
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm text-slate-600 mb-4 ml-[52px]">
+                If you ran the juror data through FluxPrompt separately, upload the resulting CSV here.
+                The data will be matched to your jurors by name or number and used to build a more informed voir dire strategy.
+              </p>
+              <div className="ml-[52px]">
+                <button
+                  onClick={() => enrichmentFileRef.current?.click()}
+                  disabled={isImporting || !caseId}
+                  data-testid="button-import-enrichment"
+                  className="inline-flex items-center px-6 py-3 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 transition-colors"
+                >
+                  {isImporting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-5 h-5 mr-2" />
+                      Import Enrichment CSV
+                    </>
+                  )}
+                </button>
+                {!caseId && (
+                  <p className="text-xs text-slate-400 mt-2">
+                    Save your case first to enable enrichment import.
+                  </p>
+                )}
+              </div>
+              {importResult && (
+                <div className="ml-[52px] mt-4">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                    <div className="flex items-center mb-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 mr-2" />
+                      <span className="font-medium text-emerald-800">
+                        Enrichment data imported: {importResult.matched} juror{importResult.matched !== 1 ? 's' : ''} matched
+                      </span>
+                    </div>
+                    {importResult.unmatched > 0 && (
+                      <p className="text-sm text-amber-700 mt-1">
+                        {importResult.unmatched} row{importResult.unmatched !== 1 ? 's' : ''} could not be matched:{' '}
+                        {importResult.unmatchedNames.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </motion.div>
