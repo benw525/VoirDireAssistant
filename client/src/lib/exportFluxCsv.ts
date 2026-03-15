@@ -1,7 +1,5 @@
 import { Juror } from '../types';
 
-const ROW_SEPARATOR = '|||END_INTEREST|||';
-
 function escapeRtf(text: string): string {
   return text.replace(/\\/g, '\\\\').replace(/\{/g, '\\{').replace(/\}/g, '\\}');
 }
@@ -19,7 +17,6 @@ export function exportJurorsForFlux(jurors: Juror[]): void {
       `Employer: ${j.employer}`,
       `Address: ${j.address || ''}`,
       `City/State/Zip: ${j.cityStateZip || ''}`,
-      ROW_SEPARATOR,
     ];
     return lines.map((l) => escapeRtf(l)).join('\\line ');
   });
