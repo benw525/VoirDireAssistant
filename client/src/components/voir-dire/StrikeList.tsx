@@ -18,7 +18,7 @@ import {
 import { Juror } from '../../types';
 import { useDropzone } from 'react-dropzone';
 import { parseStrikeList } from '../../lib/api';
-import { exportJurorsForFlux } from '../../lib/exportFluxCsv';
+
 
 interface StrikeListProps {
   jurors: Juror[];
