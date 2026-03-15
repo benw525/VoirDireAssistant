@@ -298,7 +298,7 @@ export async function registerRoutes(
   app.get("/api/cases/:caseId/enrichment-status", authMiddleware, async (req, res) => {
     try {
       const { caseId } = req.params;
-      const caseRecord = await storage.getCaseById(caseId);
+      const caseRecord = await storage.getCase(caseId);
       if (!caseRecord || caseRecord.userId !== req.user!.id) {
         return res.status(404).json({ message: "Case not found" });
       }
