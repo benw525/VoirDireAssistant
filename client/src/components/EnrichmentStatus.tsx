@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, X, CheckCircle2, Clock, AlertTriangle, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Zap, X, CheckCircle2, AlertTriangle, Loader2, ChevronDown, ChevronUp, StopCircle } from 'lucide-react';
 import { getAuthToken } from '../lib/auth';
+import { useDraggablePosition } from '../hooks/useDraggablePosition';
 
 interface EnrichmentItem {
   jurorNumber: number;
@@ -38,8 +39,10 @@ function statusIcon(status: string) {
     case 'failed':
     case 'error':
       return <AlertTriangle className="w-4 h-4 text-red-500" />;
+    case 'cancelled':
+      return <StopCircle className="w-4 h-4 text-slate-400" />;
     default:
-      return <Clock className="w-4 h-4 text-slate-400" />;
+      return <Zap className="w-4 h-4 text-slate-400" />;
   }
 }
 
@@ -50,6 +53,7 @@ function statusLabel(status: string) {
     case 'dispatched': return 'Processing';
     case 'failed': return 'Failed';
     case 'error': return 'Error';
+    case 'cancelled': return 'Stopped';
     default: return status;
   }
 }
@@ -60,7 +64,20 @@ export function EnrichmentStatus({ caseId }: EnrichmentStatusProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const {
+    position,
+    isDragging,
+    hasMoved,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
+  } = useDraggablePosition({
+    storageKey: 'voir_dire_enrichment_btn_pos',
+    defaultPosition: { x: 24, y: typeof window !== 'undefined' ? window.innerHeight - 56 - 24 : 700 },
+  });
 
   useEffect(() => {
     setItems([]);
@@ -98,6 +115,21 @@ export function EnrichmentStatus({ caseId }: EnrichmentStatusProps) {
     };
   }, [fetchStatus, caseId]);
 
+  const handleStop = useCallback(async () => {
+    if (!caseId || stopping) return;
+    setStopping(true);
+    try {
+      const token = getAuthToken();
+      await fetch(`/api/cases/${caseId}/stop-enrichment`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await fetchStatus();
+    } catch {} finally {
+      setStopping(false);
+    }
+  }, [caseId, stopping, fetchStatus]);
+
   if (!visible || !summary || summary.total === 0) return null;
 
   const inProgress = summary.pending + summary.dispatched;
@@ -113,9 +145,17 @@ export function EnrichmentStatus({ caseId }: EnrichmentStatusProps) {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-            className="fixed z-50 cursor-pointer"
-            style={{ left: 24, bottom: 24 }}
-            onClick={() => setIsOpen(true)}
+            className={`fixed z-50 select-none ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'}`}
+            style={{ left: position.x, top: position.y, touchAction: 'none' }}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={(e) => {
+              const wasDragging = handlePointerUp(e);
+              if (!wasDragging && !hasMoved.current) {
+                setIsOpen(true);
+              }
+            }}
+            onPointerCancel={(e) => handlePointerUp(e)}
             data-testid="button-enrichment-status"
           >
             <div className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:shadow-xl hover:scale-105 ${
@@ -146,7 +186,7 @@ export function EnrichmentStatus({ caseId }: EnrichmentStatusProps) {
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
             className="fixed z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
-            style={{ left: 24, bottom: 24, width: 360, maxHeight: expanded ? 480 : 280 }}
+            style={{ left: Math.min(position.x, window.innerWidth - 380), bottom: Math.max(20, window.innerHeight - position.y - 56), width: 360, maxHeight: expanded ? 480 : 280 }}
             data-testid="panel-enrichment-status"
           >
             <div className="flex items-center justify-between px-4 py-3 bg-slate-900 text-white">
@@ -155,6 +195,17 @@ export function EnrichmentStatus({ caseId }: EnrichmentStatusProps) {
                 <span className="font-semibold text-sm">Juror Enrichment</span>
               </div>
               <div className="flex items-center gap-1">
+                {inProgress > 0 && (
+                  <button
+                    onClick={handleStop}
+                    disabled={stopping}
+                    className="p-1 hover:bg-red-700 bg-red-600 rounded transition-colors flex items-center gap-1 px-2 text-xs font-medium"
+                    data-testid="button-enrichment-stop"
+                  >
+                    {stopping ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <StopCircle className="w-3.5 h-3.5" />}
+                    Stop
+                  </button>
+                )}
                 <button
                   onClick={() => setExpanded(!expanded)}
                   className="p-1 hover:bg-slate-700 rounded transition-colors"
@@ -219,6 +270,7 @@ export function EnrichmentStatus({ caseId }: EnrichmentStatusProps) {
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${
                     item.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
                     item.status === 'pending' || item.status === 'dispatched' ? 'bg-amber-50 text-amber-700' :
+                    item.status === 'cancelled' ? 'bg-slate-100 text-slate-500' :
                     'bg-red-50 text-red-700'
                   }`}>
                     {statusLabel(item.status)}

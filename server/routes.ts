@@ -332,6 +332,32 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/cases/:caseId/stop-enrichment", authMiddleware, async (req, res) => {
+    try {
+      const { caseId } = req.params;
+      const caseRecord = await storage.getCase(caseId);
+      if (!caseRecord || caseRecord.userId !== req.user!.id) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const enrichments = await storage.getJurorEnrichmentsByCase(caseId);
+      let cancelled = 0;
+      for (const e of enrichments) {
+        if (e.status === "pending" || e.status === "dispatched") {
+          await storage.updateJurorEnrichment(e.enrichmentId, {
+            status: "cancelled",
+            completedAt: Date.now(),
+          });
+          cancelled++;
+        }
+      }
+      console.log(`[Enrichment] Stopped enrichment for case ${caseId}: ${cancelled} items cancelled`);
+      res.json({ success: true, cancelled });
+    } catch (err: any) {
+      console.error("[Enrichment] Stop error:", err);
+      res.status(500).json({ message: "Failed to stop enrichment" });
+    }
+  });
+
   app.use("/api/cases", authMiddleware);
   app.use("/api/jurors", authMiddleware);
   app.use("/api/questions", authMiddleware);
