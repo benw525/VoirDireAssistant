@@ -272,6 +272,7 @@ export async function registerRoutes(
   // --- All routes below require authentication ---
   app.post("/api/webhooks/juror-enrichment/:enrichmentId", async (req, res) => {
     try {
+      console.log("RAW FLUXPROMPT WEBHOOK PAYLOAD:", JSON.stringify(req.body, null, 2));
       console.log(`[Webhook] Incoming enrichment callback for ${req.params.enrichmentId}`);
       console.log(`[Webhook] Content-Type: ${req.headers["content-type"]}`);
       console.log(`[Webhook] Headers:`, JSON.stringify(req.headers, null, 2));
