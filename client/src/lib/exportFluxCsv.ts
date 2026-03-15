@@ -1,11 +1,11 @@
 import { Juror } from '../types';
+import { Document, Packer, Paragraph, TextRun } from 'docx';
+import { saveAs } from 'file-saver';
 
-function escapeRtf(text: string): string {
-  return text.replace(/\\/g, '\\\\').replace(/\{/g, '\\{').replace(/\}/g, '\\}');
-}
+export async function exportJurorsForFlux(jurors: Juror[]): Promise<void> {
+  const paragraphs: Paragraph[] = [];
 
-export function exportJurorsForFlux(jurors: Juror[]): void {
-  const paragraphs = jurors.map((j) => {
+  jurors.forEach((j, idx) => {
     const lines = [
       `Number: ${j.number}`,
       `Name: ${j.name}`,
@@ -18,24 +18,24 @@ export function exportJurorsForFlux(jurors: Juror[]): void {
       `Address: ${j.address || ''}`,
       `City/State/Zip: ${j.cityStateZip || ''}`,
     ];
-    return lines.map((l) => escapeRtf(l)).join('\\line ');
+
+    const runs: TextRun[] = [];
+    lines.forEach((line, i) => {
+      if (i > 0) runs.push(new TextRun({ break: 1, text: '' }));
+      runs.push(new TextRun({ text: line, size: 22 }));
+    });
+
+    paragraphs.push(new Paragraph({ children: runs }));
+
+    if (idx < jurors.length - 1) {
+      paragraphs.push(new Paragraph({ children: [] }));
+    }
   });
 
-  const rtfContent = [
-    '{\\rtf1\\ansi\\deff0',
-    '{\\fonttbl{\\f0 Calibri;}}',
-    '\\f0\\fs22',
-    paragraphs.join('\\par\\par '),
-    '}',
-  ].join('\n');
+  const doc = new Document({
+    sections: [{ children: paragraphs }],
+  });
 
-  const blob = new Blob([rtfContent], { type: 'application/rtf' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `data-for-fluxprompt-${Date.now()}.rtf`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  const blob = await Packer.toBlob(doc);
+  saveAs(blob, `data-for-fluxprompt-${Date.now()}.docx`);
 }
