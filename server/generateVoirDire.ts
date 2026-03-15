@@ -233,7 +233,7 @@ export async function generateFullVoirDire(
   const context = buildCaseContext(caseInfo, jurors);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.2",
+    model: "gpt-5.4-2026-03-05",
     messages: [
       { role: "system", content: STRATEGY_SYSTEM_PROMPT },
       { role: "user", content: `Generate a complete, courtroom-ready voir dire for this case.\n\n${context}` },
@@ -296,7 +296,7 @@ export async function refineUserQuestions(
   const context = buildCaseContext(caseInfo, jurors);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.2",
+    model: "gpt-5.4-2026-03-05",
     messages: [
       { role: "system", content: REFINE_SYSTEM_PROMPT },
       {
