@@ -85,7 +85,7 @@ export function JurySeatingGrid({
 
   useEffect(() => {
     if (noteJuror !== null) {
-      noteInputRef.current?.focus();
+      setTimeout(() => noteInputRef.current?.focus(), 180);
     }
   }, [noteJuror]);
 
@@ -334,7 +334,7 @@ export function JurySeatingGrid({
                       const hasResponded = respondedJurors.has(juror.number);
                       const flashType = flashedCells[juror.number];
                       const isNoteOpen = noteJuror === juror.number;
-                      const lastName = juror.name.split(' ').pop() || juror.name;
+                      const lastName = juror.name.split(' ')[0] || juror.name;
 
                       return (
                         <div
