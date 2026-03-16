@@ -1,0 +1,1 @@
+ALTER TABLE "cases" ADD COLUMN "court_dismissed" jsonb DEFAULT '[]'::jsonb NOT NULL;
