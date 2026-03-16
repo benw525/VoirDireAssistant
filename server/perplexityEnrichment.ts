@@ -17,6 +17,10 @@ function reformatName(name: string): string {
   return `${rest} ${lastName}`;
 }
 
+function normalizeName(name: string): string {
+  return name.trim().toUpperCase().replace(/\s+/g, " ");
+}
+
 function buildSearchPrompt(juror: {
   name: string;
   phone: string;
@@ -80,28 +84,44 @@ export async function triggerEnrichmentForJurors(
   }
 
   const existingEnrichments = await storage.getJurorEnrichmentsByCase(caseId);
-  const alreadyEnrichedByNumber = new Set(
-    existingEnrichments
-      .filter(e => (e.status === "pending" || e.status === "dispatched" || e.status === "completed") && e.jurorId)
-      .map(e => e.jurorId)
-  );
-  const alreadyEnrichedByNumberLegacy = new Set(
-    existingEnrichments
-      .filter(e => (e.status === "pending" || e.status === "dispatched" || e.status === "completed") && !e.jurorId)
-      .map(e => e.jurorNumber)
-  );
+  const jurorsList = await storage.getJurorsByCase(caseId);
 
-  const jurorsToEnrich = jurors.filter(j =>
-    !alreadyEnrichedByNumber.has(j.id) &&
-    !(alreadyEnrichedByNumberLegacy.has(j.number) && !j.id)
-  );
-  if (jurorsToEnrich.length === 0) {
-    console.log("[PerplexityEnrichment] All jurors already have enrichment records, skipping");
+  const alreadyEnrichedNames = new Set<string>();
+  const alreadyEnrichedJurorIds = new Set<string>();
+  for (const e of existingEnrichments) {
+    if (e.status === "pending" || e.status === "dispatched" || e.status === "completed") {
+      if (e.jurorId) alreadyEnrichedJurorIds.add(e.jurorId);
+      for (const j of jurorsList) {
+        if (j.id === e.jurorId || (!e.jurorId && j.number === e.jurorNumber)) {
+          alreadyEnrichedNames.add(normalizeName(j.name));
+        }
+      }
+    }
+  }
+
+  const seenNames = new Set<string>();
+  const dedupedJurors: typeof jurors = [];
+  for (const j of jurors) {
+    const normalized = normalizeName(j.name);
+    if (alreadyEnrichedNames.has(normalized)) continue;
+    if (alreadyEnrichedJurorIds.has(j.id)) continue;
+    if (seenNames.has(normalized)) continue;
+    seenNames.add(normalized);
+    dedupedJurors.push(j);
+  }
+
+  if (dedupedJurors.length === 0) {
+    console.log("[PerplexityEnrichment] All jurors already have enrichment records (after name dedup), skipping");
     return;
   }
 
+  const skipped = jurors.length - dedupedJurors.length;
+  if (skipped > 0) {
+    console.log(`[PerplexityEnrichment] Deduped ${skipped} jurors by name, ${dedupedJurors.length} unique to enrich`);
+  }
+
   const enrichmentIds: string[] = [];
-  for (const juror of jurorsToEnrich) {
+  for (const juror of dedupedJurors) {
     const enrichmentId = crypto.randomUUID();
     enrichmentIds.push(enrichmentId);
     await storage.createJurorEnrichment({
@@ -118,13 +138,13 @@ export async function triggerEnrichmentForJurors(
   activeEnrichments.set(caseId, true);
 
   (async () => {
-    for (let i = 0; i < jurorsToEnrich.length; i++) {
+    for (let i = 0; i < dedupedJurors.length; i++) {
       if (!activeEnrichments.get(caseId)) {
         console.log(`[PerplexityEnrichment] Enrichment cancelled for case ${caseId}, stopping`);
         break;
       }
 
-      const juror = jurorsToEnrich[i];
+      const juror = dedupedJurors[i];
       const enrichmentId = enrichmentIds[i];
 
       const currentEnrichment = await storage.getJurorEnrichmentById(enrichmentId);
@@ -221,7 +241,7 @@ export async function triggerEnrichmentForJurors(
         }
       }
 
-      if (i < jurorsToEnrich.length - 1) {
+      if (i < dedupedJurors.length - 1) {
         await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_CALLS_MS));
       }
     }
@@ -240,17 +260,55 @@ export async function getEnrichedDataForJuror(
   jurorId: string
 ): Promise<Record<string, any> | null> {
   const enrichments = await storage.getJurorEnrichmentsByCase(caseId);
-  const completed = enrichments.find(
+  const directMatch = enrichments.find(
     e => e.jurorId === jurorId && e.status === "completed" && e.enrichedData
   );
-  return completed?.enrichedData || null;
+  if (directMatch?.enrichedData) return directMatch.enrichedData;
+
+  const jurorsList = await storage.getJurorsByCase(caseId);
+  const targetJuror = jurorsList.find(j => j.id === jurorId);
+  if (!targetJuror) return null;
+
+  const targetName = normalizeName(targetJuror.name);
+  const nameMatch = enrichments.find(e => {
+    if (e.status !== "completed" || !e.enrichedData) return false;
+    const enrichJuror = jurorsList.find(j => j.id === e.jurorId);
+    return enrichJuror && normalizeName(enrichJuror.name) === targetName;
+  });
+
+  return nameMatch?.enrichedData || null;
 }
 
 export async function getEnrichedDataForCase(
   caseId: string
 ): Promise<Record<string, Record<string, any>>> {
   const enrichments = await storage.getJurorEnrichmentsByCase(caseId);
+  const jurorsList = await storage.getJurorsByCase(caseId);
+
+  const nameToData: Record<string, Record<string, any>> = {};
+  for (const e of enrichments) {
+    if (e.status === "completed" && e.enrichedData) {
+      const enrichJuror = jurorsList.find(j => j.id === e.jurorId);
+      const name = enrichJuror ? normalizeName(enrichJuror.name) : null;
+      if (name && !nameToData[name]) {
+        nameToData[name] = e.enrichedData;
+      }
+      const key = e.jurorId || String(e.jurorNumber);
+      if (!nameToData[key]) {
+        nameToData[key] = e.enrichedData;
+      }
+    }
+  }
+
   const result: Record<string, Record<string, any>> = {};
+  for (const j of jurorsList) {
+    const name = normalizeName(j.name);
+    const data = nameToData[name] || nameToData[j.id];
+    if (data) {
+      result[j.id] = data;
+    }
+  }
+
   for (const e of enrichments) {
     if (e.status === "completed" && e.enrichedData) {
       const key = e.jurorId || String(e.jurorNumber);
@@ -259,5 +317,6 @@ export async function getEnrichedDataForCase(
       }
     }
   }
+
   return result;
 }

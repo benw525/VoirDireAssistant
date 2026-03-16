@@ -221,19 +221,30 @@ export async function registerRoutes(
       }
       const enrichments = await storage.getJurorEnrichmentsByCase(caseId);
       const jurorsList = await storage.getJurorsByCase(caseId);
-      const jurorNames: Record<number, string> = {};
+      const jurorNamesById: Record<string, string> = {};
+      const jurorNamesByNumber: Record<number, string> = {};
       for (const j of jurorsList) {
-        jurorNames[j.number] = j.name;
+        jurorNamesById[j.id] = j.name;
+        jurorNamesByNumber[j.number] = j.name;
       }
-      const items = enrichments.map(e => ({
+      const allItems = enrichments.map(e => ({
         jurorNumber: e.jurorNumber,
-        jurorName: jurorNames[e.jurorNumber] || `Juror #${e.jurorNumber}`,
+        jurorName: (e.jurorId && jurorNamesById[e.jurorId]) || jurorNamesByNumber[e.jurorNumber] || `Juror #${e.jurorNumber}`,
         status: e.status,
         enrichmentId: e.enrichmentId,
         createdAt: e.createdAt,
         completedAt: e.completedAt,
         hasData: !!(e.enrichedData && (e.enrichedData as any).text),
       }));
+      const statusPriority: Record<string, number> = { completed: 0, dispatched: 1, pending: 2, failed: 3, error: 4, cancelled: 5 };
+      allItems.sort((a, b) => (statusPriority[a.status] ?? 99) - (statusPriority[b.status] ?? 99));
+      const seenNames = new Set<string>();
+      const items = allItems.filter(item => {
+        const key = item.jurorName.trim().toUpperCase();
+        if (seenNames.has(key)) return false;
+        seenNames.add(key);
+        return true;
+      });
       const summary = {
         total: items.length,
         pending: items.filter(i => i.status === "pending").length,
