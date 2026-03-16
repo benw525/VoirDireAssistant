@@ -11,7 +11,7 @@ import { authMiddleware, hashPassword, comparePassword, createToken } from "./au
 import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMattrMindrCase, pushJuryAnalysis } from "./mattrmindr";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession, handleWebhook } from "./billing";
-import { triggerEnrichmentForJurors, handleEnrichmentWebhook, getEnrichedDataForCase, verifyWebhookSecret } from "./fluxEnrichment";
+// import { triggerEnrichmentForJurors, handleEnrichmentWebhook, getEnrichedDataForCase, verifyWebhookSecret } from "./fluxEnrichment";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
@@ -212,151 +212,16 @@ export async function registerRoutes(
     }
   });
 
-  app.options("/api/webhooks/juror-enrichment/:enrichmentId", (req, res) => {
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, x-webhook-secret, api-key, Authorization");
-    res.set("Access-Control-Max-Age", "86400");
-    res.sendStatus(204);
-  });
-
-  app.options("/api/webhooks/juror-enrichment/", (req, res) => {
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, x-webhook-secret, api-key, Authorization");
-    res.set("Access-Control-Max-Age", "86400");
-    res.sendStatus(204);
-  });
-
-  app.post("/api/webhooks/juror-enrichment/", async (req, res) => {
-    try {
-      res.set("Access-Control-Allow-Origin", "*");
-      console.log(`[Webhook] Incoming callback to BASE webhook URL (no enrichmentId)`);
-      console.log(`[Webhook] Content-Type: ${req.headers["content-type"]}`);
-      const rawBody = req.rawBody ? Buffer.from(req.rawBody as any).toString("utf-8") : "(no rawBody)";
-      console.log(`[Webhook] Raw body (${rawBody.length} chars): ${rawBody.substring(0, 5000)}`);
-      console.log(`[Webhook] req.body type: ${typeof req.body}, value:`, JSON.stringify(req.body)?.substring(0, 5000));
-      res.json({ success: true, message: "Received at base URL (no enrichmentId)" });
-    } catch (err: any) {
-      console.error("[Webhook] Base URL error:", err);
-      res.status(500).json({ message: "Internal error" });
-    }
-  });
-
-  app.options("/api/webhooks/flux-test", (req, res) => {
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, x-webhook-secret, api-key, Authorization");
-    res.set("Access-Control-Max-Age", "86400");
-    res.sendStatus(204);
-  });
-
-  app.post("/api/webhooks/flux-test", async (req, res) => {
-    try {
-      res.set("Access-Control-Allow-Origin", "*");
-      const rawBody = req.rawBody ? Buffer.from(req.rawBody as any).toString("utf-8") : "(no rawBody)";
-      console.log(`\n=== FLUX TEST WEBHOOK RECEIVED ===`);
-      console.log(`[FluxTest] Timestamp: ${new Date().toISOString()}`);
-      console.log(`[FluxTest] Content-Type: ${req.headers["content-type"]}`);
-      console.log(`[FluxTest] Raw body (${rawBody.length} chars):`);
-      console.log(rawBody.substring(0, 10000));
-      console.log(`[FluxTest] Parsed body:`, JSON.stringify(req.body, null, 2)?.substring(0, 10000));
-      console.log(`=== END FLUX TEST WEBHOOK ===\n`);
-      res.json({ success: true, message: "Test webhook received successfully" });
-    } catch (err: any) {
-      console.error("[FluxTest] Error:", err);
-      res.status(500).json({ message: "Internal error" });
-    }
-  });
-
-  // --- All routes below require authentication ---
-  app.post("/api/webhooks/juror-enrichment/:enrichmentId", async (req, res) => {
-    res.status(200).json({ success: true, message: "Webhook received" });
-
-    try {
-      console.log("RAW FLUXPROMPT WEBHOOK PAYLOAD:", JSON.stringify(req.body, null, 2));
-      console.log(`[Webhook] Incoming enrichment callback for ${req.params.enrichmentId}`);
-      console.log(`[Webhook] Content-Type: ${req.headers["content-type"]}`);
-
-      const { enrichmentId } = req.params;
-
-      let payload = req.body;
-      if (!payload || (typeof payload === "object" && Object.keys(payload).length === 0)) {
-        const rawBody = req.rawBody ? Buffer.from(req.rawBody as any).toString("utf-8") : "";
-        if (rawBody) {
-          try { payload = JSON.parse(rawBody); } catch { payload = { text: rawBody }; }
-        }
-      }
-
-      const result = await handleEnrichmentWebhook(enrichmentId, payload);
-      console.log(`[Webhook] Processing result for ${enrichmentId}: ${result.message}`);
-    } catch (err: any) {
-      console.error("[Webhook] Enrichment error:", err);
-    }
-  });
-
-  app.get("/api/cases/:caseId/enrichment-status", authMiddleware, async (req, res) => {
-    try {
-      const { caseId } = req.params;
-      const caseRecord = await storage.getCase(caseId);
-      if (!caseRecord || caseRecord.userId !== req.user!.id) {
-        return res.status(404).json({ message: "Case not found" });
-      }
-      const enrichments = await storage.getJurorEnrichmentsByCase(caseId);
-      const jurorsList = await storage.getJurorsByCase(caseId);
-      const jurorNames: Record<number, string> = {};
-      for (const j of jurorsList) {
-        jurorNames[j.number] = j.name;
-      }
-      const items = enrichments.map(e => ({
-        jurorNumber: e.jurorNumber,
-        jurorName: jurorNames[e.jurorNumber] || `Juror #${e.jurorNumber}`,
-        status: e.status,
-        enrichmentId: e.enrichmentId,
-        createdAt: e.createdAt,
-        completedAt: e.completedAt,
-        hasData: !!(e.enrichedData && (e.enrichedData as any).text),
-      }));
-      const summary = {
-        total: items.length,
-        pending: items.filter(i => i.status === "pending").length,
-        dispatched: items.filter(i => i.status === "dispatched").length,
-        completed: items.filter(i => i.status === "completed").length,
-        failed: items.filter(i => i.status === "failed").length,
-        error: items.filter(i => i.status === "error").length,
-      };
-      res.json({ items, summary });
-    } catch (err: any) {
-      console.error("[EnrichmentStatus] Error:", err);
-      res.status(500).json({ message: "Failed to fetch enrichment status" });
-    }
-  });
-
-  app.post("/api/cases/:caseId/stop-enrichment", authMiddleware, async (req, res) => {
-    try {
-      const { caseId } = req.params;
-      const caseRecord = await storage.getCase(caseId);
-      if (!caseRecord || caseRecord.userId !== req.user!.id) {
-        return res.status(404).json({ message: "Case not found" });
-      }
-      const enrichments = await storage.getJurorEnrichmentsByCase(caseId);
-      let cancelled = 0;
-      for (const e of enrichments) {
-        if (e.status === "pending" || e.status === "dispatched") {
-          await storage.updateJurorEnrichment(e.enrichmentId, {
-            status: "cancelled",
-            completedAt: Date.now(),
-          });
-          cancelled++;
-        }
-      }
-      console.log(`[Enrichment] Stopped enrichment for case ${caseId}: ${cancelled} items cancelled`);
-      res.json({ success: true, cancelled });
-    } catch (err: any) {
-      console.error("[Enrichment] Stop error:", err);
-      res.status(500).json({ message: "Failed to stop enrichment" });
-    }
-  });
+  /* --- Flux enrichment webhooks and status routes (commented out) ---
+  app.options("/api/webhooks/juror-enrichment/:enrichmentId", (req, res) => { ... });
+  app.options("/api/webhooks/juror-enrichment/", (req, res) => { ... });
+  app.post("/api/webhooks/juror-enrichment/", async (req, res) => { ... });
+  app.options("/api/webhooks/flux-test", (req, res) => { ... });
+  app.post("/api/webhooks/flux-test", async (req, res) => { ... });
+  app.post("/api/webhooks/juror-enrichment/:enrichmentId", async (req, res) => { ... });
+  app.get("/api/cases/:caseId/enrichment-status", authMiddleware, async (req, res) => { ... });
+  app.post("/api/cases/:caseId/stop-enrichment", authMiddleware, async (req, res) => { ... });
+  --- end commented out Flux routes --- */
 
   app.use("/api/cases", authMiddleware);
   app.use("/api/jurors", authMiddleware);
@@ -371,7 +236,7 @@ export async function registerRoutes(
   app.use("/api/analyze-strikes-for-cause", authMiddleware);
   app.use("/api/mattrmindr", authMiddleware);
   app.use("/api/conversations", authMiddleware);
-  app.use("/api/import-enrichment", authMiddleware);
+  // app.use("/api/import-enrichment", authMiddleware);
 
   // --- Cases ---
   app.get("/api/cases", async (req, res) => {
@@ -454,9 +319,9 @@ export async function registerRoutes(
         address: j.address,
         cityStateZip: j.cityStateZip,
       }));
-      triggerEnrichmentForJurors(caseId, jurorData).catch(err =>
-        console.error("[FluxEnrichment] Background enrichment failed:", err.message)
-      );
+      // triggerEnrichmentForJurors(caseId, jurorData).catch(err =>
+      //   console.error("[FluxEnrichment] Background enrichment failed:", err.message)
+      // );
     } else {
       const data = { ...body, caseId };
       const parsed = insertJurorSchema.safeParse(data);
@@ -464,20 +329,20 @@ export async function registerRoutes(
       const juror = await storage.createJuror(parsed.data);
       res.status(201).json(juror);
 
-      triggerEnrichmentForJurors(caseId, [{
-        number: juror.number,
-        name: juror.name,
-        phone: juror.phone,
-        sex: juror.sex,
-        race: juror.race,
-        birthDate: juror.birthDate,
-        occupation: juror.occupation,
-        employer: juror.employer,
-        address: juror.address,
-        cityStateZip: juror.cityStateZip,
-      }]).catch(err =>
-        console.error("[FluxEnrichment] Background enrichment failed:", err.message)
-      );
+      // triggerEnrichmentForJurors(caseId, [{
+      //   number: juror.number,
+      //   name: juror.name,
+      //   phone: juror.phone,
+      //   sex: juror.sex,
+      //   race: juror.race,
+      //   birthDate: juror.birthDate,
+      //   occupation: juror.occupation,
+      //   employer: juror.employer,
+      //   address: juror.address,
+      //   cityStateZip: juror.cityStateZip,
+      // }]).catch(err =>
+      //   console.error("[FluxEnrichment] Background enrichment failed:", err.message)
+      // );
     }
   });
 
@@ -496,133 +361,7 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
-  // --- Import Enrichment CSV ---
-  app.post("/api/import-enrichment/:caseId", upload.single("file"), async (req, res) => {
-    try {
-      const { caseId } = req.params;
-      const c = await storage.getCase(caseId);
-      if (!c || c.userId !== req.user!.id) return res.status(404).json({ message: "Case not found" });
-
-      const jurors = await storage.getJurorsByCase(caseId);
-      if (jurors.length === 0) return res.status(400).json({ message: "No jurors found for this case" });
-
-      let csvText = "";
-      if (req.file) {
-        csvText = req.file.buffer.toString("utf-8");
-      } else if (req.body.csvText) {
-        csvText = req.body.csvText;
-      } else {
-        return res.status(400).json({ message: "No CSV file or text provided" });
-      }
-
-      const allRows = parseCSVFull(csvText);
-      if (allRows.length < 2) return res.status(400).json({ message: "CSV must have a header row and at least one data row" });
-
-      const headers = allRows[0].map((h: string) => h.trim().toLowerCase());
-
-      const nameIdx = headers.findIndex((h: string) => h === "name" || h === "juror name" || h === "juror_name");
-      const numberIdx = headers.findIndex((h: string) => h === "juror number" || h === "juror_number" || h === "number" || h === "#");
-
-      if (nameIdx === -1 && numberIdx === -1) {
-        return res.status(400).json({ message: "CSV must have a 'Name' or 'Juror Number' column to match jurors" });
-      }
-
-      const enrichmentIdx = headers.findIndex((h: string) =>
-        h === "enrichment" || h === "enrichment data" || h === "enrichment_data" ||
-        h === "analysis" || h === "ai_analysis" || h === "ai analysis" ||
-        h === "report" || h === "results" || h === "output" || h === "response"
-      );
-
-      const keyIndices = new Set([nameIdx, numberIdx].filter(i => i !== -1));
-
-      const matched: Array<{ jurorNumber: number; jurorName: string; enrichmentText: string }> = [];
-      const unmatched: string[] = [];
-
-      for (let i = 1; i < allRows.length; i++) {
-        const values = allRows[i];
-        if (values.length === 0 || values.every((v: string) => !v.trim())) continue;
-
-        let matchedJuror: typeof jurors[0] | undefined;
-
-        if (numberIdx !== -1 && values[numberIdx]) {
-          const num = parseInt(values[numberIdx].trim(), 10);
-          if (!isNaN(num)) {
-            matchedJuror = jurors.find(j => j.number === num);
-          }
-        }
-
-        if (!matchedJuror && nameIdx !== -1 && values[nameIdx]) {
-          const csvName = values[nameIdx].trim().toLowerCase();
-          matchedJuror = jurors.find(j => {
-            const jName = j.name.trim().toLowerCase();
-            if (jName === csvName) return true;
-            const jParts = jName.split(/\s+/);
-            const cParts = csvName.split(/\s+/);
-            if (jParts.length >= 2 && cParts.length >= 2) {
-              const jFirst = jParts[0], jLast = jParts[jParts.length - 1];
-              const cFirst = cParts[0], cLast = cParts[cParts.length - 1];
-              if ((jFirst === cFirst && jLast === cLast) || (jFirst === cLast && jLast === cFirst)) return true;
-            }
-            return false;
-          });
-        }
-
-        let enrichmentText = "";
-        if (enrichmentIdx !== -1 && values[enrichmentIdx]) {
-          enrichmentText = values[enrichmentIdx].trim();
-        } else {
-          const parts: string[] = [];
-          for (let col = 0; col < values.length; col++) {
-            if (keyIndices.has(col)) continue;
-            const val = values[col]?.trim();
-            if (!val) continue;
-            const header = headers[col] || `field_${col}`;
-            parts.push(`${header}: ${val}`);
-          }
-          enrichmentText = parts.join("\n") || values.join(", ");
-        }
-
-        if (matchedJuror) {
-          matched.push({
-            jurorNumber: matchedJuror.number,
-            jurorName: matchedJuror.name,
-            enrichmentText,
-          });
-        } else {
-          const labelIdx = nameIdx !== -1 ? nameIdx : numberIdx;
-          const label = values[labelIdx]?.trim() || `Row ${i}`;
-          unmatched.push(label);
-        }
-      }
-
-      const crypto = await import("crypto");
-      for (const m of matched) {
-        const enrichmentId = crypto.randomUUID();
-        await storage.createJurorEnrichment({
-          caseId,
-          jurorNumber: m.jurorNumber,
-          enrichmentId,
-          status: "completed",
-          rawRequest: { source: "manual_csv_import" },
-          rawResponse: { text: m.enrichmentText },
-          enrichedData: { text: m.enrichmentText, source: "manual_import" },
-          createdAt: Date.now(),
-          completedAt: Date.now(),
-        });
-      }
-
-      res.json({
-        success: true,
-        matched: matched.length,
-        unmatched: unmatched.length,
-        unmatchedNames: unmatched,
-        matchedJurors: matched.map(m => ({ number: m.jurorNumber, name: m.jurorName })),
-      });
-    } catch (err: any) {
-      console.error("[ImportEnrichment] Error:", err);
-      res.status(500).json({ message: err.message || "Failed to import enrichment data" });
-    }
-  });
+  // --- Import Enrichment CSV (removed) ---
 
   // --- Questions ---
   app.get("/api/cases/:caseId/questions", async (req, res) => {

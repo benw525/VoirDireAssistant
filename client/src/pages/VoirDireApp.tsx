@@ -22,7 +22,7 @@ import { HelpCenter } from '../components/voir-dire/HelpCenter';
 import { GuidedTour, TourStep } from '../components/voir-dire/GuidedTour';
 import { AIAssistantButton } from '../components/AIAssistant/AIAssistantButton';
 import { AIAssistantPanel } from '../components/AIAssistant/AIAssistantPanel';
-import { EnrichmentStatus } from '../components/EnrichmentStatus';
+// import { EnrichmentStatus } from '../components/EnrichmentStatus';
 import { useAuth } from '../lib/auth';
 import * as api from '../lib/api';
 
@@ -582,7 +582,7 @@ export default function VoirDireApp() {
         onConnectionChange={(connected) => setIsMattrMindrConnected(connected)}
       />
 
-      <EnrichmentStatus caseId={activeCaseId} />
+      {/* <EnrichmentStatus caseId={activeCaseId} /> */}
 
       <AIAssistantButton
         hidden={aiHidden}
