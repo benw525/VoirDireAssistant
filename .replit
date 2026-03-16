@@ -49,3 +49,7 @@ integrations = ["javascript_openai_ai_integrations:2.0.0"]
 
 [userenv.shared]
 FLUX_API_KEY = "f4932a42-ca17-4d2e-8193-790e68eea9f3"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000
