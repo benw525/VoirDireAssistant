@@ -123,6 +123,8 @@ export async function triggerEnrichmentForJurors(
         continue;
       }
 
+      await storage.updateJurorEnrichment(enrichmentId, { status: "dispatched" });
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -172,19 +174,23 @@ export async function triggerEnrichmentForJurors(
 
           console.log(`[PerplexityEnrichment] Got response for juror #${juror.number} (${content.length} chars)`);
 
-          await storage.updateJurorEnrichment(enrichmentId, {
-            status: "completed",
-            rawResponse: data,
-            enrichedData: {
-              text: content,
-              citations,
-              source: "perplexity_sonar_pro",
-              model: PERPLEXITY_MODEL,
-            },
-            completedAt: Date.now(),
-          });
-
-          console.log(`[PerplexityEnrichment] Stored enrichment for juror #${juror.number}`);
+          const postCheck = await storage.getJurorEnrichmentById(enrichmentId);
+          if (postCheck?.status === "cancelled") {
+            console.log(`[PerplexityEnrichment] Juror #${juror.number} was cancelled during request, discarding result`);
+          } else {
+            await storage.updateJurorEnrichment(enrichmentId, {
+              status: "completed",
+              rawResponse: data,
+              enrichedData: {
+                text: content,
+                citations,
+                source: "perplexity_sonar_pro",
+                model: PERPLEXITY_MODEL,
+              },
+              completedAt: Date.now(),
+            });
+            console.log(`[PerplexityEnrichment] Stored enrichment for juror #${juror.number}`);
+          }
         }
       } catch (err: any) {
         clearTimeout(timeoutId);

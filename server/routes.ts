@@ -289,7 +289,6 @@ export async function registerRoutes(
   app.use("/api/analyze-strikes-for-cause", authMiddleware);
   app.use("/api/mattrmindr", authMiddleware);
   app.use("/api/conversations", authMiddleware);
-  // app.use("/api/import-enrichment", authMiddleware);
 
   // --- Cases ---
   app.get("/api/cases", async (req, res) => {
