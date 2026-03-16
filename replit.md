@@ -43,6 +43,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `client/src/lib/api.ts` — Frontend API client with auth headers and type conversions
 - `client/src/types/index.ts` — Frontend TypeScript types
 - `client/src/components/voir-dire/` — UI components for each phase
+- `client/src/components/voir-dire/JurySeatingGrid.tsx` — Visual courtroom seating chart with configurable rows/direction, quick-reaction buttons (Raised Hand, Head Nod, Head Shake, Note), active question awareness, visual feedback animations
 - `client/src/components/voir-dire/SettingsPanel.tsx` — Settings page (profile, AI toggle, MattrMindr, password, logout)
 - `client/src/components/voir-dire/HelpCenter.tsx` — Help Center modal (4 tabs: Tutorials, FAQ, AI Assistant, Contact)
 - `client/src/components/voir-dire/GuidedTour.tsx` — Guided tour component with spotlight overlay, auto-positioning tooltip, prev/next/skip navigation, progress dots
@@ -57,7 +58,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 1. Case Initialization (name, area of law, summary, side) — optional MattrMindr import
 2. Strike List (upload/paste juror data — AI-powered parsing). On "Confirm & Proceed", triggers automatic Perplexity Sonar Pro background research on all jurors.
 3. Voir Dire Questions (enter/generate questions). Supports document upload (PDF, DOCX, TXT, RTF) via `/api/parse-questions-document` route using mammoth (DOCX) and pdf-parse (PDF). Before generation, checks enrichment status — if research is still running, offers "Wait & Generate" (polls until complete) or "Generate Now" (proceeds with available data). Enrichment data is automatically included in AI prompts.
-4. Response Recording (two sub-stages: your side's examination + opposing counsel's examination). AI-powered follow-up suggestions auto-generated after each your-side response via `/api/suggest-followups` (gpt-4o-mini). Each suggestion has "Ask" (opens inline response box) and "Mark" (saves to collapsible marked follow-ups section with parent context). Marked follow-ups are collapsible, collapsed by default, grouped individually with juror name/number as title.
+4. Response Recording (three sub-stages: your side's examination, opposing counsel's examination, Court examination). Includes a configurable **Jury Seating Grid** at the top with visual courtroom pew layout (2/3/4 rows, configurable direction). Each juror cell shows quick-reaction buttons (Raised Hand, Head Nod, Head Shake, Note) tied to the active question — reactions auto-record responses. Grid config persists with case. AI-powered follow-up suggestions auto-generated after each your-side response via `/api/suggest-followups` (gpt-4o-mini). Each suggestion has "Ask" (opens inline response box) and "Mark" (saves to collapsible marked follow-ups section with parent context). Marked follow-ups are collapsible, collapsed by default, grouped individually with juror name/number as title.
 5. Juror Review (assess leanings and risk tiers)
 6. End Report (final analysis, collapsible jury panel, peremptory strike boxes, recommendations, optional push to MattrMindr)
 

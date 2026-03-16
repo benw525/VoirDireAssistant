@@ -41,6 +41,10 @@ export const cases = pgTable("cases", {
     defensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string }>;
     offensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; strengthOfChallenge: string; statisticalPattern: string; comparativeEvidence: string; suggestedArgument: string }>;
   } | null>().default(null),
+  seatingConfig: jsonb("seating_config").$type<{
+    rows: number;
+    direction: 'bottom-right-first' | 'top-left-first';
+  } | null>().default(null),
   savedAt: bigint("saved_at", { mode: "number" }).notNull(),
 });
 

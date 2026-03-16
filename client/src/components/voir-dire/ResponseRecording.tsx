@@ -20,7 +20,8 @@ import {
   Bookmark,
   MessageSquarePlus,
 } from 'lucide-react';
-import { Juror, VoirDireQuestion, JurorResponse, CaseInfo } from '../../types';
+import { Juror, VoirDireQuestion, JurorResponse, CaseInfo, SeatingConfig } from '../../types';
+import { JurySeatingGrid } from './JurySeatingGrid';
 import * as api from '../../lib/api';
 
 interface MarkedFollowUp {
@@ -39,6 +40,9 @@ interface ResponseRecordingProps {
   onAddFollowUp: (responseId: string, followUp: {question: string, answer: string}) => void;
   onProceed: () => void;
   caseInfo: CaseInfo;
+  seatingConfig: SeatingConfig | null;
+  onSeatingConfigChange: (config: SeatingConfig) => void;
+  courtDismissed: number[];
 }
 
 type Stage = 'yours' | 'opposing' | 'court';
@@ -51,6 +55,9 @@ export function ResponseRecording({
   onAddFollowUp,
   onProceed,
   caseInfo,
+  seatingConfig,
+  onSeatingConfigChange,
+  courtDismissed,
 }: ResponseRecordingProps) {
   const [stage, setStage] = useState<Stage>('yours');
   const [jurorNum, setJurorNum] = useState('');
@@ -295,6 +302,22 @@ export function ResponseRecording({
     ? questions.find((q) => q.id === parseInt(questionNum))
     : null;
 
+  const activeQuestion = (() => {
+    if (stage === 'yours') {
+      if (isNewQuestion && newQuestionText.trim()) {
+        return { id: null, text: newQuestionText.trim(), side: 'yours' as const };
+      }
+      if (selectedQuestion) {
+        return { id: selectedQuestion.id, text: selectedQuestion.originalText, side: 'yours' as const };
+      }
+      return null;
+    }
+    if (questionSummary.trim()) {
+      return { id: null, text: questionSummary.trim(), side: stage };
+    }
+    return null;
+  })();
+
   const getQuestionLabel = (response: JurorResponse) => {
     if (response.questionSummary) return response.questionSummary;
     if (response.questionId) {
@@ -323,6 +346,16 @@ export function ResponseRecording({
           Review Board <ArrowRight className="w-4 h-4 ml-2" />
         </button>
       </div>
+
+      <JurySeatingGrid
+        jurors={jurors}
+        responses={responses}
+        seatingConfig={seatingConfig}
+        onSeatingConfigChange={onSeatingConfigChange}
+        onRecordResponse={onRecordResponse}
+        activeQuestion={activeQuestion}
+        courtDismissed={courtDismissed}
+      />
 
       <AnimatePresence mode="wait">
         {selectedQuestion ? (

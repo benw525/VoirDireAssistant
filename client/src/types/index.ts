@@ -81,6 +81,11 @@ export interface VoirDireDocument {
   }>;
 }
 
+export interface SeatingConfig {
+  rows: number;
+  direction: 'bottom-right-first' | 'top-left-first';
+}
+
 export interface SavedCase {
   id: string;
   savedAt: number;
@@ -94,6 +99,7 @@ export interface SavedCase {
   mattrmindrCaseId?: string | null;
   strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string }>;
   courtDismissed?: number[];
+  seatingConfig?: SeatingConfig | null;
   batsonAnalysis?: {
     overallRisk: string;
     summary: string;

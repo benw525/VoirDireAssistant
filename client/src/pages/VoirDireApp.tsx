@@ -8,6 +8,7 @@ import {
   VoirDireQuestion,
   JurorResponse,
   SavedCase,
+  SeatingConfig,
 } from '../types';
 import { Sidebar } from '../components/voir-dire/Sidebar';
 import { WelcomeScreen } from '../components/voir-dire/WelcomeScreen';
@@ -110,6 +111,7 @@ export default function VoirDireApp() {
   const [savedStrikesForCause, setSavedStrikesForCause] = useState<any[]>([]);
   const [savedBatsonAnalysis, setSavedBatsonAnalysis] = useState<any>(null);
   const [savedCourtDismissed, setSavedCourtDismissed] = useState<number[]>([]);
+  const [seatingConfig, setSeatingConfig] = useState<SeatingConfig | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showHelpCenter, setShowHelpCenter] = useState(false);
@@ -181,6 +183,7 @@ export default function VoirDireApp() {
       setSavedStrikesForCause(fullCase.strikesForCause || []);
       setSavedBatsonAnalysis(fullCase.batsonAnalysis || null);
       setSavedCourtDismissed(fullCase.courtDismissed || []);
+      setSeatingConfig(fullCase.seatingConfig || null);
     } catch (err) {
       console.error('Failed to load case:', err);
     }
@@ -210,6 +213,7 @@ export default function VoirDireApp() {
     setActiveCaseId(null);
     setMattrmindrCaseId(null);
     setSavedCourtDismissed([]);
+    setSeatingConfig(null);
     setCurrentPhase(1);
   };
 
@@ -369,6 +373,17 @@ export default function VoirDireApp() {
     }
   };
 
+  const handleSeatingConfigChange = async (config: SeatingConfig) => {
+    setSeatingConfig(config);
+    if (activeCaseId) {
+      try {
+        await api.updateCase(activeCaseId, { seatingConfig: config });
+      } catch (err) {
+        console.error('Failed to save seating config:', err);
+      }
+    }
+  };
+
   const handleUpdateJuror = async (jurorNumber: number, updates: Partial<Juror>) => {
     setJurors(prev => prev.map(j => (j.number === jurorNumber ? { ...j, ...updates } : j)));
     if (activeCaseId) {
@@ -486,6 +501,9 @@ export default function VoirDireApp() {
             onAddFollowUp={handleAddFollowUp}
             onProceed={() => proceedToPhase(5)}
             caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
+            seatingConfig={seatingConfig}
+            onSeatingConfigChange={handleSeatingConfigChange}
+            courtDismissed={savedCourtDismissed}
           />
         );
       case 5:
