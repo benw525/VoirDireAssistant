@@ -33,9 +33,9 @@ interface JurySeatingGridProps {
 type ReactionType = 'raised-hand' | 'head-nod' | 'head-shake';
 
 const REACTION_LABELS: Record<ReactionType, string> = {
-  'raised-hand': '✋ Raised hand',
-  'head-nod': '👍 Head nod',
-  'head-shake': '👎 Head shake',
+  'raised-hand': '[Hand] Raised hand',
+  'head-nod': '[Nod] Head nod',
+  'head-shake': '[Shake] Head shake',
 };
 
 function arrangeJurorsInGrid(
@@ -145,7 +145,7 @@ export function JurySeatingGrid({
     onRecordResponse({
       jurorNumber,
       questionId: activeQuestion.id,
-      responseText: `📝 ${noteText.trim()}`,
+      responseText: `[Note] ${noteText.trim()}`,
       side: activeQuestion.side,
       questionSummary: activeQuestion.id === null ? activeQuestion.text : undefined,
     });

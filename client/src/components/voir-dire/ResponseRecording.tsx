@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Juror, VoirDireQuestion, JurorResponse, CaseInfo, SeatingConfig } from '../../types';
 import { JurySeatingGrid } from './JurySeatingGrid';
+import { ReactionText } from './ReactionText';
 import * as api from '../../lib/api';
 
 interface MarkedFollowUp {
@@ -775,7 +776,7 @@ export function ResponseRecording({
                                     </div>
                                     <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
                                       <div className="text-xs font-semibold text-slate-500 mb-1">Response</div>
-                                      <p className="text-xs text-slate-700">"{m.parentResponse.responseText}"</p>
+                                      <p className="text-xs text-slate-700">&ldquo;<ReactionText text={m.parentResponse.responseText} />&rdquo;</p>
                                     </div>
                                     <div className="bg-violet-50 rounded-lg p-2.5 border border-violet-200">
                                       <div className="text-xs font-semibold text-violet-600 mb-1 flex items-center">
@@ -900,7 +901,7 @@ export function ResponseRecording({
                             </div>
                           )}
                           <p className="text-sm text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                            "{response.responseText}"
+                            &ldquo;<ReactionText text={response.responseText} />&rdquo;
                           </p>
 
                           {response.followUps && response.followUps.length > 0 && (

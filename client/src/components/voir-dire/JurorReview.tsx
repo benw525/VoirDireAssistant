@@ -16,6 +16,7 @@ import {
 'lucide-react';
 import { Juror, JurorResponse, VoirDireQuestion, CaseInfo } from '../../types';
 import * as api from '../../lib/api';
+import { ReactionText } from './ReactionText';
 interface JurorReviewProps {
   jurors: Juror[];
   responses: JurorResponse[];
@@ -468,7 +469,7 @@ export function JurorReview({
                             </div>
                     }
                           <p className="text-sm text-slate-800 mt-2">
-                            "{response.responseText}"
+                            &ldquo;<ReactionText text={response.responseText} />&rdquo;
                           </p>
                           {response.followUps && response.followUps.length > 0 && (
                             <div className="mt-2 space-y-2">

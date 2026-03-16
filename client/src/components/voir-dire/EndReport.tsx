@@ -25,6 +25,7 @@ import {
 import { CaseInfo, Juror, JurorResponse, VoirDireQuestion } from '../../types';
 import * as api from '../../lib/api';
 import type { StrikeForCauseResult, BatsonAnalysisResult } from '../../lib/api';
+import { ReactionText } from './ReactionText';
 
 function isCriminalCase(areaOfLaw: string): boolean {
   const lc = areaOfLaw.toLowerCase();
@@ -700,7 +701,7 @@ export function EndReport({
                                     )}
                                   </div>
                                   <p className="text-xs text-slate-500 mb-1 font-medium">{getQuestionText(r)}</p>
-                                  <p className="text-sm text-slate-800">{r.responseText}</p>
+                                  <p className="text-sm text-slate-800"><ReactionText text={r.responseText} /></p>
                                   {r.followUps && r.followUps.length > 0 && (
                                     <div className="mt-2 pl-3 border-l-2 border-violet-200 space-y-1">
                                       {r.followUps.map((fu, fi) => (
