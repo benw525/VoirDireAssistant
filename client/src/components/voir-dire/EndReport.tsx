@@ -103,6 +103,10 @@ export function EndReport({
     }
   }, [savedBatsonAnalysis]);
 
+  useEffect(() => {
+    setCourtDismissed(new Set(savedCourtDismissed || []));
+  }, [savedCourtDismissed]);
+
   const plaintiffLabel = getPlaintiffLabel(caseInfo.areaOfLaw);
 
   const toggleStrike = (side: 'plaintiff' | 'defense', jurorNumber: number) => {
@@ -583,8 +587,8 @@ export function EndReport({
                     </div>
                     <div className="text-xs text-slate-500">{juror.sex}/{juror.race}</div>
                     {isDismissed ? (
-                      <span className="text-[10px] font-bold uppercase text-slate-500">
-                        Court Dismissed
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-200 text-slate-600">
+                        Dismissed
                       </span>
                     ) : isStruck ? (
                       <span className="text-[10px] font-bold uppercase text-rose-600">
