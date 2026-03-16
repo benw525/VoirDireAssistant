@@ -126,6 +126,7 @@ function dbCaseToSavedCase(c: DbCase, jurors: Juror[] = [], questions: VoirDireQ
 
 function dbJurorToJuror(j: DbJuror): Juror {
   return {
+    id: j.id,
     number: j.number,
     name: j.name,
     address: j.address,
@@ -327,6 +328,7 @@ export async function parseStrikeList(fileOrText: File[] | string): Promise<Juro
 
 export async function generateVoirDire(caseInfo: CaseInfo, jurors: Juror[], caseId?: string | null): Promise<VoirDireDocument> {
   const jurorSummaries = jurors.map(j => ({
+    id: j.id,
     number: j.number,
     name: j.name,
     sex: j.sex,
@@ -343,6 +345,7 @@ export async function generateVoirDire(caseInfo: CaseInfo, jurors: Juror[], case
 
 export async function refineQuestions(rawText: string, caseInfo: CaseInfo, jurors: Juror[], caseId?: string | null): Promise<VoirDireQuestion[]> {
   const jurorSummaries = jurors.map(j => ({
+    id: j.id,
     number: j.number,
     name: j.name,
     sex: j.sex,
@@ -386,6 +389,7 @@ export async function analyzeJuror(
     body: JSON.stringify({
       caseInfo,
       juror: {
+        id: juror.id,
         number: juror.number,
         name: juror.name,
         sex: juror.sex,
@@ -414,6 +418,7 @@ export async function analyzeJurorsBatch(
   const jurorsWithResponses = jurors.map(j => {
     const jurorResponses = responses.filter(r => r.jurorNumber === j.number);
     return {
+      id: j.id,
       number: j.number,
       name: j.name,
       sex: j.sex,

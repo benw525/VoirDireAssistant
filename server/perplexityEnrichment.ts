@@ -61,6 +61,7 @@ const activeEnrichments = new Map<string, boolean>();
 export async function triggerEnrichmentForJurors(
   caseId: string,
   jurors: Array<{
+    id: string;
     number: number;
     name: string;
     phone: string;
@@ -79,13 +80,21 @@ export async function triggerEnrichmentForJurors(
   }
 
   const existingEnrichments = await storage.getJurorEnrichmentsByCase(caseId);
-  const alreadyEnriched = new Set(
+  const alreadyEnrichedByNumber = new Set(
     existingEnrichments
-      .filter(e => e.status === "pending" || e.status === "dispatched" || e.status === "completed")
+      .filter(e => (e.status === "pending" || e.status === "dispatched" || e.status === "completed") && e.jurorId)
+      .map(e => e.jurorId)
+  );
+  const alreadyEnrichedByNumberLegacy = new Set(
+    existingEnrichments
+      .filter(e => (e.status === "pending" || e.status === "dispatched" || e.status === "completed") && !e.jurorId)
       .map(e => e.jurorNumber)
   );
 
-  const jurorsToEnrich = jurors.filter(j => !alreadyEnriched.has(j.number));
+  const jurorsToEnrich = jurors.filter(j =>
+    !alreadyEnrichedByNumber.has(j.id) &&
+    !(alreadyEnrichedByNumberLegacy.has(j.number) && !j.id)
+  );
   if (jurorsToEnrich.length === 0) {
     console.log("[PerplexityEnrichment] All jurors already have enrichment records, skipping");
     return;
@@ -98,6 +107,7 @@ export async function triggerEnrichmentForJurors(
     await storage.createJurorEnrichment({
       caseId,
       jurorNumber: juror.number,
+      jurorId: juror.id,
       enrichmentId,
       status: "pending",
       rawRequest: { prompt: buildSearchPrompt(juror), source: "perplexity_sonar_pro" },
@@ -227,23 +237,26 @@ export function cancelEnrichmentForCase(caseId: string) {
 
 export async function getEnrichedDataForJuror(
   caseId: string,
-  jurorNumber: number
+  jurorId: string
 ): Promise<Record<string, any> | null> {
   const enrichments = await storage.getJurorEnrichmentsByCase(caseId);
   const completed = enrichments.find(
-    e => e.jurorNumber === jurorNumber && e.status === "completed" && e.enrichedData
+    e => e.jurorId === jurorId && e.status === "completed" && e.enrichedData
   );
   return completed?.enrichedData || null;
 }
 
 export async function getEnrichedDataForCase(
   caseId: string
-): Promise<Record<number, Record<string, any>>> {
+): Promise<Record<string, Record<string, any>>> {
   const enrichments = await storage.getJurorEnrichmentsByCase(caseId);
-  const result: Record<number, Record<string, any>> = {};
+  const result: Record<string, Record<string, any>> = {};
   for (const e of enrichments) {
     if (e.status === "completed" && e.enrichedData) {
-      result[e.jurorNumber] = e.enrichedData;
+      const key = e.jurorId || String(e.jurorNumber);
+      if (!result[key]) {
+        result[key] = e.enrichedData;
+      }
     }
   }
   return result;

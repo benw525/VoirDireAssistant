@@ -360,6 +360,7 @@ export async function registerRoutes(
       res.status(201).json(savedJurors);
 
       const jurorData = savedJurors.map(j => ({
+        id: j.id,
         number: j.number,
         name: j.name,
         phone: j.phone,
@@ -382,6 +383,7 @@ export async function registerRoutes(
       res.status(201).json(juror);
 
       triggerEnrichmentForJurors(caseId, [{
+        id: juror.id,
         number: juror.number,
         name: juror.name,
         phone: juror.phone,
@@ -598,6 +600,7 @@ export async function registerRoutes(
   });
 
   const jurorSummarySchema = z.object({
+    id: z.string().optional(),
     number: z.number(),
     name: z.string(),
     sex: z.string(),
@@ -618,7 +621,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
       }
 
-      let enrichmentMap: Record<number, Record<string, any>> = {};
+      let enrichmentMap: Record<string, Record<string, any>> = {};
       if (parsed.data.caseId) {
         try {
           const caseRecord = await storage.getCase(parsed.data.caseId);
@@ -650,7 +653,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
       }
 
-      let enrichmentMap: Record<number, Record<string, any>> = {};
+      let enrichmentMap: Record<string, Record<string, any>> = {};
       if (parsed.data.caseId) {
         try {
           const caseRecord = await storage.getCase(parsed.data.caseId);
@@ -682,6 +685,7 @@ export async function registerRoutes(
           riskTraits: z.array(z.string()),
         }),
         juror: z.object({
+          id: z.string().optional(),
           number: z.number(),
           name: z.string(),
           sex: z.string(),
@@ -712,7 +716,8 @@ export async function registerRoutes(
           const caseRecord = await storage.getCase(parsed.data.caseId);
           if (caseRecord && caseRecord.userId === req.user!.id) {
             const allEnriched = await getEnrichedDataForCase(parsed.data.caseId);
-            enrichedData = allEnriched[parsed.data.juror.number] || null;
+            const jurorKey = parsed.data.juror.id || String(parsed.data.juror.number);
+            enrichedData = allEnriched[jurorKey] || null;
           }
         } catch (err) {
           console.error("[Enrichment] Failed to fetch enrichment data:", err);
@@ -738,6 +743,7 @@ export async function registerRoutes(
           riskTraits: z.array(z.string()),
         }),
         jurors: z.array(z.object({
+          id: z.string().optional(),
           number: z.number(),
           name: z.string().default('Unknown'),
           sex: z.string().default('U'),
@@ -762,7 +768,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
       }
 
-      let enrichedDataMap: Record<number, Record<string, any>> = {};
+      let enrichedDataMap: Record<string, Record<string, any>> = {};
       if (parsed.data.caseId) {
         try {
           const caseRecord = await storage.getCase(parsed.data.caseId);
@@ -785,7 +791,7 @@ export async function registerRoutes(
             parsed.data.caseInfo,
             { number: j.number, name: j.name, sex: j.sex, race: j.race, birthDate: j.birthDate, occupation: j.occupation, employer: j.employer, lean: j.lean, riskTier: j.riskTier, notes: j.notes },
             j.responses,
-            enrichedDataMap[j.number] || null
+            enrichedDataMap[j.id || String(j.number)] || null
           ))
         );
         batch.forEach((j, idx) => { summaries[j.number] = results[idx]; });

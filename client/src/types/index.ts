@@ -21,6 +21,7 @@ export interface JurorResponse {
 }
 
 export interface Juror {
+  id?: string;
   number: number;
   name: string;
   address: string;

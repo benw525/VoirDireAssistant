@@ -104,6 +104,7 @@ export const jurorEnrichments = pgTable("juror_enrichments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   caseId: varchar("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
   jurorNumber: integer("juror_number").notNull(),
+  jurorId: varchar("juror_id").notNull().default(""),
   enrichmentId: varchar("enrichment_id").notNull(),
   status: text("status").notNull().default("pending"),
   rawRequest: jsonb("raw_request").$type<Record<string, any>>(),

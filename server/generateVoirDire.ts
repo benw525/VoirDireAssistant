@@ -13,6 +13,7 @@ interface CaseContext {
 }
 
 interface JurorSummary {
+  id?: string;
   number: number;
   name: string;
   sex: string;
@@ -210,10 +211,10 @@ Return a JSON object with this structure:
   ]
 }`;
 
-function buildCaseContext(caseInfo: CaseContext, jurors: JurorSummary[], enrichmentMap?: Record<number, Record<string, any>>): string {
+function buildCaseContext(caseInfo: CaseContext, jurors: JurorSummary[], enrichmentMap?: Record<string, Record<string, any>>): string {
   const jurorList = jurors.map(j => {
     let line = `  #${j.number}: ${j.name} | ${j.sex} | ${j.race} | DOB: ${j.birthDate} | ${j.occupation} | ${j.employer}`;
-    const enrichment = enrichmentMap?.[j.number];
+    const enrichment = enrichmentMap?.[j.id || String(j.number)];
     if (enrichment?.text) {
       line += `\n    BACKGROUND RESEARCH:\n    ${String(enrichment.text).replace(/\n/g, "\n    ")}`;
     }
@@ -236,7 +237,7 @@ ${jurorList}`;
 export async function generateFullVoirDire(
   caseInfo: CaseContext,
   jurors: JurorSummary[],
-  enrichmentMap?: Record<number, Record<string, any>>
+  enrichmentMap?: Record<string, Record<string, any>>
 ): Promise<VoirDireDocument> {
   const context = buildCaseContext(caseInfo, jurors, enrichmentMap);
 
@@ -300,7 +301,7 @@ export async function refineUserQuestions(
   rawQuestions: string,
   caseInfo: CaseContext,
   jurors: JurorSummary[],
-  enrichmentMap?: Record<number, Record<string, any>>
+  enrichmentMap?: Record<string, Record<string, any>>
 ): Promise<Array<{ id: number; originalText: string; rephrase: string; followUps: string[] }>> {
   const context = buildCaseContext(caseInfo, jurors, enrichmentMap);
 
