@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, X, CheckCircle2, AlertTriangle, Loader2, ChevronDown, ChevronUp, StopCircle } from 'lucide-react';
 import { getAuthToken } from '../lib/auth';
 import { useDraggablePosition } from '../hooks/useDraggablePosition';
+import { useDraggableWindow } from '../hooks/useDraggableWindow';
 
 interface EnrichmentItem {
   jurorNumber: number;
@@ -130,6 +131,22 @@ export function EnrichmentStatus({ caseId }: EnrichmentStatusProps) {
     }
   }, [caseId, stopping, fetchStatus]);
 
+  const {
+    position: windowPos,
+    isDragging: isWindowDragging,
+    onPointerDown: onWindowPointerDown,
+    onPointerMove: onWindowPointerMove,
+    onPointerUp: onWindowPointerUp,
+  } = useDraggableWindow({
+    storageKey: 'voir_dire_enrichment_window_pos',
+    defaultPosition: () => ({
+      x: Math.min(position.x, window.innerWidth - 380),
+      y: Math.max(20, position.y - 300),
+    }),
+    panelWidth: 360,
+    panelHeight: 480,
+  });
+
   if (!visible || !summary || summary.total === 0) return null;
 
   const inProgress = summary.pending + summary.dispatched;
@@ -186,10 +203,17 @@ export function EnrichmentStatus({ caseId }: EnrichmentStatusProps) {
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
             className="fixed z-50 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
-            style={{ left: Math.min(position.x, window.innerWidth - 380), bottom: Math.max(20, window.innerHeight - position.y - 56), width: 360, maxHeight: expanded ? 480 : 280 }}
+            style={{ left: windowPos.x, top: windowPos.y, width: 360, maxHeight: expanded ? 480 : 280 }}
             data-testid="panel-enrichment-status"
           >
-            <div className="flex items-center justify-between px-4 py-3 bg-slate-900 text-white">
+            <div
+              className={`flex items-center justify-between px-4 py-3 bg-slate-900 text-white select-none ${isWindowDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+              style={{ touchAction: 'none' }}
+              onPointerDown={onWindowPointerDown}
+              onPointerMove={onWindowPointerMove}
+              onPointerUp={onWindowPointerUp}
+              onPointerCancel={onWindowPointerUp}
+            >
               <div className="flex items-center gap-2">
                 <Zap className="w-5 h-5 text-amber-400" />
                 <span className="font-semibold text-sm">Juror Enrichment</span>

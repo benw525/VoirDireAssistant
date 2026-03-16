@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { X, Send, BrainCircuit, Loader2, Trash2 } from 'lucide-react';
 import { getAuthToken } from '../../lib/auth';
+import { useDraggableWindow } from '../../hooks/useDraggableWindow';
 import type { CaseInfo, Juror } from '../../types';
 
 interface Message {
@@ -119,6 +120,22 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, juro
   const lastPhaseRef = useRef<number | undefined>(currentPhase);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    position: windowPos,
+    isDragging: isWindowDragging,
+    onPointerDown: onWindowPointerDown,
+    onPointerMove: onWindowPointerMove,
+    onPointerUp: onWindowPointerUp,
+  } = useDraggableWindow({
+    storageKey: 'voir_dire_ai_window_pos',
+    defaultPosition: () => ({
+      x: window.innerWidth - 370 - 24,
+      y: window.innerHeight - 520 - 96,
+    }),
+    panelWidth: 370,
+    panelHeight: 520,
+  });
 
   useEffect(() => {
     if (isOpen && !conversationId) {
@@ -298,11 +315,19 @@ export function AIAssistantPanel({ isOpen, onClose, contextLabel, caseInfo, juro
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 20, scale: 0.95 }}
       transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-      className="fixed bottom-24 right-6 z-[70] w-[370px] max-h-[520px] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden
-        max-sm:bottom-0 max-sm:right-0 max-sm:left-0 max-sm:top-0 max-sm:w-full max-sm:max-h-full max-sm:rounded-none"
+      className="fixed z-[70] w-[370px] max-h-[520px] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden
+        max-sm:bottom-0 max-sm:right-0 max-sm:left-0 max-sm:top-0 max-sm:w-full max-sm:max-h-full max-sm:rounded-none max-sm:max-w-full"
+      style={{ left: windowPos.x, top: windowPos.y }}
       data-testid="panel-ai-assistant"
     >
-      <div className="px-5 py-4 flex items-center justify-between shrink-0 border-b border-slate-100">
+      <div
+        className={`px-5 py-4 flex items-center justify-between shrink-0 border-b border-slate-100 select-none ${isWindowDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        style={{ touchAction: 'none' }}
+        onPointerDown={onWindowPointerDown}
+        onPointerMove={onWindowPointerMove}
+        onPointerUp={onWindowPointerUp}
+        onPointerCancel={onWindowPointerUp}
+      >
         <div className="flex items-center gap-3">
           <div className="bg-amber-100 p-2 rounded-xl">
             <BrainCircuit className="w-5 h-5 text-amber-600" />
