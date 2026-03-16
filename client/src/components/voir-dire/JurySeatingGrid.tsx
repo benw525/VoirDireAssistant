@@ -164,9 +164,11 @@ export function JurySeatingGrid({
   const dismissedSet = new Set(courtDismissed);
   const hasQuestion = activeQuestion && activeQuestion.text;
 
-  if (!seatingConfig && !showConfig) {
-    setShowConfig(true);
-  }
+  useEffect(() => {
+    if (!seatingConfig && !showConfig) {
+      setShowConfig(true);
+    }
+  }, [seatingConfig, showConfig]);
 
   return (
     <div className="mb-4 shrink-0" data-testid="jury-seating-grid">
@@ -272,7 +274,12 @@ export function JurySeatingGrid({
                     </div>
                   </div>
                 </div>
-                <div className="mt-3 flex justify-end">
+                <div className="mt-3 flex justify-between items-center">
+                  <span className="text-xs text-blue-600 font-medium">
+                    {jurors.length} jurors → {Math.ceil(jurors.length / configRows)} seats per row
+                  </span>
+                </div>
+                <div className="mt-2 flex justify-end">
                   <button
                     onClick={handleApplyConfig}
                     data-testid="button-apply-seating"
