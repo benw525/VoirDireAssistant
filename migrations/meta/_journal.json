@@ -15,6 +15,13 @@
       "when": 1773693156142,
       "tag": "0001_bouncy_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773697387918,
+      "tag": "0002_classy_kang",
+      "breakpoints": true
     }
   ]
 }

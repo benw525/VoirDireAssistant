@@ -1,0 +1,1 @@
+ALTER TABLE "cases" ADD COLUMN "seating_config" jsonb DEFAULT 'null'::jsonb;
