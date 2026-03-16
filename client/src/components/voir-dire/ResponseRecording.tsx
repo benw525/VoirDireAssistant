@@ -67,12 +67,14 @@ export function ResponseRecording({
 
   const [suggestionsMap, setSuggestionsMap] = useState<Record<string, string[]>>({});
   const [loadingSuggestions, setLoadingSuggestions] = useState<Record<string, boolean>>({});
-  const [askingFollowUp, setAskingFollowUp] = useState<{ responseId: string; suggestion: string } | null>(null);
+  const [askingFollowUp, setAskingFollowUp] = useState<{ responseId: string; suggestion: string; sk: string } | null>(null);
   const [askFollowUpAnswer, setAskFollowUpAnswer] = useState('');
   const askFollowUpRef = useRef<HTMLTextAreaElement>(null);
   const [markedFollowUps, setMarkedFollowUps] = useState<MarkedFollowUp[]>([]);
   const [expandedMarked, setExpandedMarked] = useState<Record<string, boolean>>({});
   const [showMarkedSection, setShowMarkedSection] = useState(true);
+
+  const stableKey = (r: JurorResponse) => `${r.jurorNumber}-${r.timestamp}`;
 
   useEffect(() => {
     jurorInputRef.current?.focus();
@@ -85,7 +87,8 @@ export function ResponseRecording({
   const opposingSideLabel = caseInfo.side === 'plaintiff' ? 'Defense' : plaintiffTerm;
 
   const fetchSuggestions = useCallback(async (response: JurorResponse) => {
-    if (suggestionsMap[response.id] || loadingSuggestions[response.id]) return;
+    const key = stableKey(response);
+    if (suggestionsMap[key] || loadingSuggestions[key]) return;
     const juror = jurors.find(j => j.number === response.jurorNumber);
     if (!juror) return;
 
@@ -93,7 +96,7 @@ export function ResponseRecording({
       (response.questionId ? questions.find(q => q.id === response.questionId)?.originalText : '') ||
       'General question';
 
-    setLoadingSuggestions(prev => ({ ...prev, [response.id]: true }));
+    setLoadingSuggestions(prev => ({ ...prev, [key]: true }));
     try {
       const suggestions = await api.suggestFollowups(
         questionText,
@@ -102,11 +105,11 @@ export function ResponseRecording({
         juror.number,
         caseInfo
       );
-      setSuggestionsMap(prev => ({ ...prev, [response.id]: suggestions }));
+      setSuggestionsMap(prev => ({ ...prev, [key]: suggestions }));
     } catch {
-      setSuggestionsMap(prev => ({ ...prev, [response.id]: [] }));
+      setSuggestionsMap(prev => ({ ...prev, [key]: [] }));
     } finally {
-      setLoadingSuggestions(prev => ({ ...prev, [response.id]: false }));
+      setLoadingSuggestions(prev => ({ ...prev, [key]: false }));
     }
   }, [suggestionsMap, loadingSuggestions, jurors, questions, caseInfo]);
 
@@ -223,8 +226,8 @@ export function ResponseRecording({
     }
   };
 
-  const handleAskFollowUp = (responseId: string, suggestion: string) => {
-    setAskingFollowUp({ responseId, suggestion });
+  const handleAskFollowUp = (responseId: string, suggestion: string, responseKey: string) => {
+    setAskingFollowUp({ responseId, suggestion, sk: responseKey });
     setAskFollowUpAnswer('');
     setTimeout(() => askFollowUpRef.current?.focus(), 50);
   };
@@ -237,10 +240,9 @@ export function ResponseRecording({
     });
     setSuggestionsMap(prev => {
       const updated = { ...prev };
-      if (updated[askingFollowUp.responseId]) {
-        updated[askingFollowUp.responseId] = updated[askingFollowUp.responseId].filter(
-          s => s !== askingFollowUp.suggestion
-        );
+      const key = askingFollowUp.sk;
+      if (updated[key]) {
+        updated[key] = updated[key].filter(s => s !== askingFollowUp.suggestion);
       }
       return updated;
     });
@@ -258,10 +260,11 @@ export function ResponseRecording({
       jurorName: juror?.name || `Juror #${response.jurorNumber}`,
     };
     setMarkedFollowUps(prev => [...prev, marked]);
+    const key = stableKey(response);
     setSuggestionsMap(prev => {
       const updated = { ...prev };
-      if (updated[response.id]) {
-        updated[response.id] = updated[response.id].filter(s => s !== suggestion);
+      if (updated[key]) {
+        updated[key] = updated[key].filter(s => s !== suggestion);
       }
       return updated;
     });
@@ -744,8 +747,9 @@ export function ResponseRecording({
                   const juror = jurors.find((j) => j.number === response.jurorNumber);
                   const isOpposing = response.side === 'opposing';
                   const isExpanded = expandedResponseId === response.id;
-                  const suggestions = suggestionsMap[response.id] || [];
-                  const isLoadingSuggestion = loadingSuggestions[response.id] || false;
+                  const sk = stableKey(response);
+                  const suggestions = suggestionsMap[sk] || [];
+                  const isLoadingSuggestion = loadingSuggestions[sk] || false;
                   return (
                     <motion.div
                       key={response.id}
@@ -868,7 +872,7 @@ export function ResponseRecording({
                                   </p>
                                   <div className="flex items-center gap-1 shrink-0">
                                     <button
-                                      onClick={() => handleAskFollowUp(response.id, s)}
+                                      onClick={() => handleAskFollowUp(response.id, s, sk)}
                                       className="text-xs font-medium px-2 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
                                       data-testid={`button-ask-${response.id}-${idx}`}
                                     >

@@ -75,6 +75,7 @@ export function EndReport({
     return initial;
   });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [summaryError, setSummaryError] = useState('');
   const [isSendingToMm, setIsSendingToMm] = useState(false);
   const [mmSendResult, setMmSendResult] = useState<'success' | 'error' | null>(null);
   const [mmSendMessage, setMmSendMessage] = useState('');
@@ -237,6 +238,7 @@ export function EndReport({
 
   const handleGenerateSummaries = async () => {
     setIsGenerating(true);
+    setSummaryError('');
     try {
       const summaries = await api.analyzeJurorsBatch(caseInfo, jurors, responses, questions, activeCaseId);
       setAiSummaries(summaries);
@@ -246,8 +248,9 @@ export function EndReport({
           onUpdateJuror(jurorNumber, { aiSummary: summary });
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to generate summaries:', err);
+      setSummaryError(err?.message || 'Failed to generate summaries. Please try again.');
     } finally {
       setIsGenerating(false);
     }
@@ -494,6 +497,12 @@ export function EndReport({
               </button>
             )}
           </div>
+
+          {summaryError && (
+            <div className="mb-4 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700" data-testid="text-summary-error">
+              {summaryError}
+            </div>
+          )}
 
           <AnimatePresence>
             {!panelCollapsed && (
