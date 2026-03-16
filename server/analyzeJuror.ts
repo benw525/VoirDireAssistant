@@ -112,7 +112,7 @@ Write a 1-2 sentence summary explaining this juror's classification.`;
       { role: "user", content: userPrompt },
     ],
     temperature: 0.3,
-    max_tokens: 150,
+    max_completion_tokens: 150,
     store: false,
   });
 
@@ -180,7 +180,7 @@ Provide your risk assessment analysis for this juror.`;
       { role: "user", content: userPrompt },
     ],
     temperature: 0.4,
-    max_tokens: 800,
+    max_completion_tokens: 800,
     store: false,
   });
 
@@ -314,7 +314,7 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
       { role: "user", content: userPrompt },
     ],
     temperature: 0.3,
-    max_tokens: 8000,
+    max_completion_tokens: 8000,
     response_format: { type: "json_object" },
     store: false,
   });
@@ -494,7 +494,7 @@ Perform the full Batson analysis and return the JSON result.`;
       { role: "user", content: userPrompt },
     ],
     temperature: 0.3,
-    max_tokens: 8000,
+    max_completion_tokens: 8000,
     response_format: { type: "json_object" },
     store: false,
   });
