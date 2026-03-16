@@ -52,6 +52,7 @@ interface EndReportProps {
   onUpdateJuror?: (jurorNumber: number, updates: Partial<Juror>) => void;
   savedStrikesForCause?: StrikeForCauseResult[];
   savedBatsonAnalysis?: BatsonAnalysisResult | null;
+  savedCourtDismissed?: number[];
 }
 
 export function EndReport({
@@ -65,6 +66,7 @@ export function EndReport({
   onUpdateJuror,
   savedStrikesForCause,
   savedBatsonAnalysis,
+  savedCourtDismissed,
 }: EndReportProps) {
   const [sortField, setSortField] = useState<SortField>('number');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -82,6 +84,7 @@ export function EndReport({
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [plaintiffStrikes, setPlaintiffStrikes] = useState<Set<number>>(new Set());
   const [defenseStrikes, setDefenseStrikes] = useState<Set<number>>(new Set());
+  const [courtDismissed, setCourtDismissed] = useState<Set<number>>(() => new Set(savedCourtDismissed || []));
   const [causeStrikes, setCauseStrikes] = useState<StrikeForCauseResult[]>(savedStrikesForCause || []);
   const [isAnalyzingCause, setIsAnalyzingCause] = useState(false);
   const [causeAnalysisError, setCauseAnalysisError] = useState('');
@@ -128,6 +131,23 @@ export function EndReport({
     }
   };
 
+  const toggleCourtDismissed = (jurorNumber: number) => {
+    setCourtDismissed(prev => {
+      const next = new Set(prev);
+      if (next.has(jurorNumber)) {
+        next.delete(jurorNumber);
+      } else {
+        next.add(jurorNumber);
+        setPlaintiffStrikes(p => { const np = new Set(p); np.delete(jurorNumber); return np; });
+        setDefenseStrikes(d => { const nd = new Set(d); nd.delete(jurorNumber); return nd; });
+      }
+      if (activeCaseId) {
+        api.updateCase(activeCaseId, { courtDismissed: Array.from(next) }).catch(console.error);
+      }
+      return next;
+    });
+  };
+
   const jurorsWithResponses = useMemo(() => {
     return jurors.map(juror => {
       const jurorResponses = responses.filter(r => r.jurorNumber === juror.number);
@@ -159,16 +179,18 @@ export function EndReport({
   }, [jurorsWithResponses, sortField, sortDir]);
 
   const strikeOrder = useMemo(() => {
-    const scored = jurorsWithResponses.map(juror => {
-      let score = 0;
-      if (juror.lean === 'unfavorable') score += 50;
-      if (juror.lean === 'neutral') score += 15;
-      if (juror.riskTier === 'high') score += 30;
-      if (juror.riskTier === 'medium') score += 10;
-      return { ...juror, strikeScore: score };
-    });
+    const scored = jurorsWithResponses
+      .filter(j => !courtDismissed.has(j.number))
+      .map(juror => {
+        let score = 0;
+        if (juror.lean === 'unfavorable') score += 50;
+        if (juror.lean === 'neutral') score += 15;
+        if (juror.riskTier === 'high') score += 30;
+        if (juror.riskTier === 'medium') score += 10;
+        return { ...juror, strikeScore: score };
+      });
     return scored.filter(j => j.strikeScore > 0).sort((a, b) => b.strikeScore - a.strikeScore);
-  }, [jurorsWithResponses]);
+  }, [jurorsWithResponses, courtDismissed]);
 
   const favorableCount = jurors.filter(j => j.lean === 'favorable').length;
   const unfavorableCount = jurors.filter(j => j.lean === 'unfavorable').length;
@@ -260,7 +282,8 @@ export function EndReport({
     setIsAnalyzingCause(true);
     setCauseAnalysisError('');
     try {
-      const results = await api.analyzeStrikesForCause(caseInfo, jurors, responses, questions);
+      const activeJurors = jurors.filter(j => !courtDismissed.has(j.number));
+      const results = await api.analyzeStrikesForCause(caseInfo, activeJurors, responses, questions);
       setCauseStrikes(results);
       if (activeCaseId) {
         try {
@@ -281,14 +304,17 @@ export function EndReport({
     setIsAnalyzingBatson(true);
     setBatsonError('');
     try {
-      const yourStrikeNums = caseInfo.side === 'defense'
+      const activeJurors = jurors.filter(j => !courtDismissed.has(j.number));
+      const yourStrikeNums = (caseInfo.side === 'defense'
         ? Array.from(defenseStrikes)
-        : Array.from(plaintiffStrikes);
-      const theirStrikeNums = caseInfo.side === 'defense'
+        : Array.from(plaintiffStrikes)
+      ).filter(n => !courtDismissed.has(n));
+      const theirStrikeNums = (caseInfo.side === 'defense'
         ? Array.from(plaintiffStrikes)
-        : Array.from(defenseStrikes);
+        : Array.from(defenseStrikes)
+      ).filter(n => !courtDismissed.has(n));
 
-      const result = await api.analyzeBatson(caseInfo, jurors, yourStrikeNums, theirStrikeNums);
+      const result = await api.analyzeBatson(caseInfo, activeJurors, yourStrikeNums, theirStrikeNums);
       setBatsonResult(result);
 
       if (activeCaseId) {
@@ -349,12 +375,12 @@ export function EndReport({
       'Possible': [],
       'Unlikely': [],
     };
-    causeStrikes.forEach(s => {
+    causeStrikes.filter(s => !courtDismissed.has(s.jurorNumber)).forEach(s => {
       if (groups[s.category]) groups[s.category].push(s);
       else groups['Unlikely'].push(s);
     });
     return groups;
-  }, [causeStrikes]);
+  }, [causeStrikes, courtDismissed]);
 
   const getQuestionText = (r: JurorResponse): string => {
     if (r.side === 'opposing') {
@@ -445,6 +471,7 @@ export function EndReport({
                 <span className="text-rose-600">{unfavorableCount} Unfavorable</span> &bull;{' '}
                 <span className="text-amber-600">{neutralCount} Neutral</span>
                 {unknownCount > 0 && <> &bull; <span className="text-slate-500">{unknownCount} Unknown</span></>}
+                {courtDismissed.size > 0 && <> &bull; <span className="text-slate-600">{courtDismissed.size} Court Dismissed</span></>}
               </div>
             </div>
           </div>
@@ -529,27 +556,41 @@ export function EndReport({
               const isStruckPlaintiff = plaintiffStrikes.has(juror.number);
               const isStruckDefense = defenseStrikes.has(juror.number);
               const isStruck = isStruckPlaintiff || isStruckDefense;
+              const isDismissed = courtDismissed.has(juror.number);
 
               return (
-              <div key={juror.number} className={`border-b border-slate-100 last:border-b-0 print-juror-row ${isStruck ? 'bg-rose-50/40' : ''}`}>
-                <button
-                  onClick={() => setExpandedJuror(expandedJuror === juror.number ? null : juror.number)}
-                  data-testid={`button-expand-juror-${juror.number}`}
-                  className={`w-full grid grid-cols-[60px_1fr_1fr_100px_100px_60px] md:grid-cols-[60px_1.5fr_1fr_100px_100px_2fr_60px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center text-left ${isStruck ? 'opacity-60' : ''}`}
-                >
+              <div key={juror.number} className={`border-b border-slate-100 last:border-b-0 print-juror-row ${isDismissed ? 'bg-slate-100/60' : isStruck ? 'bg-rose-50/40' : ''}`}>
+                <div className="flex items-center">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleCourtDismissed(juror.number); }}
+                    data-testid={`button-dismiss-juror-${juror.number}`}
+                    title={isDismissed ? 'Restore juror' : 'Court dismissed'}
+                    className={`ml-2 p-1.5 rounded-lg transition-colors shrink-0 ${isDismissed ? 'bg-slate-700 text-white hover:bg-slate-600' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+                  >
+                    <Gavel className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setExpandedJuror(expandedJuror === juror.number ? null : juror.number)}
+                    data-testid={`button-expand-juror-${juror.number}`}
+                    className={`flex-1 grid grid-cols-[60px_1fr_1fr_100px_100px_60px] md:grid-cols-[60px_1.5fr_1fr_100px_100px_2fr_60px] gap-2 px-4 py-3 hover:bg-slate-50 transition-colors items-center text-left ${isDismissed ? 'opacity-40' : isStruck ? 'opacity-60' : ''}`}
+                  >
                   <div className="font-bold text-slate-900" data-testid={`text-juror-number-${juror.number}`}>
                     #{juror.number}
                   </div>
                   <div>
-                    <div className={`font-semibold text-slate-900 text-sm ${isStruck ? 'line-through' : ''}`} data-testid={`text-juror-name-${juror.number}`}>
+                    <div className={`font-semibold text-slate-900 text-sm ${isDismissed ? 'line-through' : isStruck ? 'line-through' : ''}`} data-testid={`text-juror-name-${juror.number}`}>
                       {juror.name}
                     </div>
                     <div className="text-xs text-slate-500">{juror.sex}/{juror.race}</div>
-                    {isStruck && (
+                    {isDismissed ? (
+                      <span className="text-[10px] font-bold uppercase text-slate-500">
+                        Court Dismissed
+                      </span>
+                    ) : isStruck ? (
                       <span className="text-[10px] font-bold uppercase text-rose-600">
                         Struck by {isStruckPlaintiff ? plaintiffLabel : 'Defense'}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                   <div className="text-sm text-slate-700 truncate" data-testid={`text-juror-occupation-${juror.number}`}>
                     {juror.occupation}
@@ -584,6 +625,7 @@ export function EndReport({
                     )}
                   </div>
                 </button>
+                </div>
 
                 <AnimatePresence>
                   {expandedJuror === juror.number && (
@@ -718,7 +760,7 @@ export function EndReport({
                 </span>
               </div>
               <div className="p-3 space-y-1 max-h-60 overflow-y-auto">
-                {sortedJurors.map(juror => {
+                {sortedJurors.filter(j => !courtDismissed.has(j.number)).map(juror => {
                   const isStruckHere = plaintiffStrikes.has(juror.number);
                   const isStruckOther = defenseStrikes.has(juror.number);
                   return (
@@ -762,7 +804,7 @@ export function EndReport({
                 </span>
               </div>
               <div className="p-3 space-y-1 max-h-60 overflow-y-auto">
-                {sortedJurors.map(juror => {
+                {sortedJurors.filter(j => !courtDismissed.has(j.number)).map(juror => {
                   const isStruckHere = defenseStrikes.has(juror.number);
                   const isStruckOther = plaintiffStrikes.has(juror.number);
                   return (

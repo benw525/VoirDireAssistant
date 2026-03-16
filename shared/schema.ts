@@ -34,6 +34,7 @@ export const cases = pgTable("cases", {
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   mattrmindrCaseId: text("mattrmindr_case_id"),
   strikesForCause: jsonb("strikes_for_cause").$type<Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string }>>().notNull().default([]),
+  courtDismissed: jsonb("court_dismissed").$type<number[]>().notNull().default([]),
   batsonAnalysis: jsonb("batson_analysis").$type<{
     overallRisk: string;
     summary: string;

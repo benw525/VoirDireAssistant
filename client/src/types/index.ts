@@ -93,6 +93,7 @@ export interface SavedCase {
   completedPhases: number[];
   mattrmindrCaseId?: string | null;
   strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string }>;
+  courtDismissed?: number[];
   batsonAnalysis?: {
     overallRisk: string;
     summary: string;

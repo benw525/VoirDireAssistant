@@ -109,6 +109,7 @@ export default function VoirDireApp() {
   const [isMattrMindrConnected, setIsMattrMindrConnected] = useState(false);
   const [savedStrikesForCause, setSavedStrikesForCause] = useState<any[]>([]);
   const [savedBatsonAnalysis, setSavedBatsonAnalysis] = useState<any>(null);
+  const [savedCourtDismissed, setSavedCourtDismissed] = useState<number[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showHelpCenter, setShowHelpCenter] = useState(false);
@@ -179,6 +180,7 @@ export default function VoirDireApp() {
       setMattrmindrCaseId(saved.mattrmindrCaseId || null);
       setSavedStrikesForCause(fullCase.strikesForCause || []);
       setSavedBatsonAnalysis(fullCase.batsonAnalysis || null);
+      setSavedCourtDismissed(fullCase.courtDismissed || []);
     } catch (err) {
       console.error('Failed to load case:', err);
     }
@@ -207,6 +209,7 @@ export default function VoirDireApp() {
     setCompletedPhases(new Set<AppPhase>([0]));
     setActiveCaseId(null);
     setMattrmindrCaseId(null);
+    setSavedCourtDismissed([]);
     setCurrentPhase(1);
   };
 
@@ -510,6 +513,7 @@ export default function VoirDireApp() {
             onUpdateJuror={handleUpdateJuror}
             savedStrikesForCause={savedStrikesForCause}
             savedBatsonAnalysis={savedBatsonAnalysis}
+            savedCourtDismissed={savedCourtDismissed}
           />
         );
       default:

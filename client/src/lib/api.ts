@@ -45,6 +45,7 @@ interface DbCase {
   savedAt: number;
   mattrmindrCaseId?: string | null;
   strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string }>;
+  courtDismissed?: number[];
   batsonAnalysis?: {
     overallRisk: string;
     summary: string;
@@ -120,6 +121,7 @@ function dbCaseToSavedCase(c: DbCase, jurors: Juror[] = [], questions: VoirDireQ
     completedPhases: c.completedPhases,
     mattrmindrCaseId: c.mattrmindrCaseId || null,
     strikesForCause: c.strikesForCause || [],
+    courtDismissed: c.courtDismissed || [],
     batsonAnalysis: c.batsonAnalysis || null,
   };
 }
