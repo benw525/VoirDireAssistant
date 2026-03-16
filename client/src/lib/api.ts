@@ -164,7 +164,7 @@ function dbResponseToResponse(r: DbResponse): JurorResponse {
     jurorNumber: r.jurorNumber,
     questionId: r.questionId,
     responseText: r.responseText,
-    side: (r.side === 'opposing' ? 'opposing' : 'yours') as JurorResponse['side'],
+    side: (r.side === 'opposing' ? 'opposing' : r.side === 'court' ? 'court' : 'yours') as JurorResponse['side'],
     questionSummary: r.questionSummary || undefined,
     followUps: r.followUps && r.followUps.length > 0 ? r.followUps : undefined,
     timestamp: r.timestamp,

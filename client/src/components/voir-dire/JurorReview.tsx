@@ -446,7 +446,11 @@ export function JurorReview({
                     key={response.id}
                     className="bg-slate-50 p-4 rounded-xl border border-slate-200">
 
-                          {response.side === 'opposing' ?
+                          {response.side === 'court' ?
+                    <div className="text-xs font-bold text-amber-700 mb-1">
+                              Court: {response.questionSummary}
+                            </div> :
+                          response.side === 'opposing' ?
                     <div className="text-xs font-bold text-rose-600 mb-1">
                               Opposing: {response.questionSummary}
                             </div> :

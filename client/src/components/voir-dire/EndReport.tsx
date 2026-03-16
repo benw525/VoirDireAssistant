@@ -387,6 +387,9 @@ export function EndReport({
   }, [causeStrikes, courtDismissed]);
 
   const getQuestionText = (r: JurorResponse): string => {
+    if (r.side === 'court') {
+      return r.questionSummary || 'Court question';
+    }
     if (r.side === 'opposing') {
       return r.questionSummary || 'Opposing counsel question';
     }
@@ -689,8 +692,8 @@ export function EndReport({
                               {juror.jurorResponses.map((r, idx) => (
                                 <div key={r.id || idx} className="bg-white rounded-lg border border-slate-200 p-3">
                                   <div className="flex items-start gap-2 mb-1">
-                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${r.side === 'yours' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                                      {r.side === 'yours' ? 'Your Side' : 'Opposing'}
+                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${r.side === 'yours' ? 'bg-blue-100 text-blue-700' : r.side === 'court' ? 'bg-amber-100 text-amber-700' : 'bg-orange-100 text-orange-700'}`}>
+                                      {r.side === 'yours' ? 'Your Side' : r.side === 'court' ? 'Court' : 'Opposing'}
                                     </span>
                                     {r.questionId === null && r.side === 'yours' && r.questionSummary && (
                                       <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-700">New</span>

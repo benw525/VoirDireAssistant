@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Scale,
   Shield,
+  Gavel,
   ChevronDown,
   ChevronUp,
   CornerDownRight,
@@ -40,7 +41,7 @@ interface ResponseRecordingProps {
   caseInfo: CaseInfo;
 }
 
-type Stage = 'yours' | 'opposing';
+type Stage = 'yours' | 'opposing' | 'court';
 
 export function ResponseRecording({
   jurors,
@@ -168,7 +169,7 @@ export function ResponseRecording({
           side: 'yours',
         });
       }
-    } else {
+    } else if (stage === 'opposing') {
       if (!questionSummary.trim()) {
         setError('Please summarize what opposing counsel asked.');
         return;
@@ -182,6 +183,22 @@ export function ResponseRecording({
         questionId: null,
         responseText: responseText.trim(),
         side: 'opposing',
+        questionSummary: questionSummary.trim(),
+      });
+    } else {
+      if (!questionSummary.trim()) {
+        setError('Please summarize what the Court asked.');
+        return;
+      }
+      if (!responseText.trim()) {
+        setError('Response text is required.');
+        return;
+      }
+      onRecordResponse({
+        jurorNumber: jNum,
+        questionId: null,
+        responseText: responseText.trim(),
+        side: 'court',
         questionSummary: questionSummary.trim(),
       });
     }
@@ -272,6 +289,7 @@ export function ResponseRecording({
 
   const yourResponses = responses.filter((r) => r.side === 'yours');
   const opposingResponses = responses.filter((r) => r.side === 'opposing');
+  const courtResponses = responses.filter((r) => r.side === 'court');
 
   const selectedQuestion = stage === 'yours' && !isNewQuestion && questionNum
     ? questions.find((q) => q.id === parseInt(questionNum))
@@ -369,6 +387,8 @@ export function ResponseRecording({
             <p className="text-sm text-slate-400 text-center">
               {stage === 'yours'
                 ? 'Enter a question number to see its full text here.'
+                : stage === 'court'
+                ? 'Recording Court examination responses.'
                 : `Recording ${opposingSideLabel.toLowerCase()} examination responses.`}
             </p>
           </motion.div>
@@ -403,13 +423,25 @@ export function ResponseRecording({
                 <Shield className="w-4 h-4" />
                 {opposingSideLabel}
               </button>
+              <button
+                onClick={() => setStage('court')}
+                data-testid="button-stage-court"
+                className={`flex-1 px-4 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${
+                  stage === 'court'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-slate-50 text-slate-500 hover:text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <Gavel className="w-4 h-4" />
+                Court
+              </button>
             </div>
 
             <div className="p-5">
               <div className="flex items-center mb-4">
-                <Mic className={`w-5 h-5 mr-2 ${stage === 'yours' ? 'text-amber-500' : 'text-rose-500'}`} />
+                <Mic className={`w-5 h-5 mr-2 ${stage === 'yours' ? 'text-amber-500' : stage === 'court' ? 'text-amber-600' : 'text-rose-500'}`} />
                 <h3 className="font-bold text-slate-900">
-                  {stage === 'yours' ? `${yourSideLabel} Examination` : `${opposingSideLabel} Examination`}
+                  {stage === 'yours' ? `${yourSideLabel} Examination` : stage === 'court' ? 'Court Examination' : `${opposingSideLabel} Examination`}
                 </h3>
               </div>
 
@@ -512,23 +544,23 @@ export function ResponseRecording({
                         type="number"
                         value={jurorNum}
                         onChange={(e) => setJurorNum(e.target.value)}
-                        data-testid="input-juror-number-opposing"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-rose-500 bg-slate-50 text-lg font-bold"
+                        data-testid={stage === 'court' ? 'input-juror-number-court' : 'input-juror-number-opposing'}
+                        className={`w-full px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-lg font-bold ${stage === 'court' ? 'focus:ring-2 focus:ring-amber-500' : 'focus:ring-2 focus:ring-rose-500'}`}
                         placeholder="e.g. 14"
                         required
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
-                        What did {opposingSideLabel.toLowerCase()} ask?
+                        {stage === 'court' ? 'What did the Court ask?' : `What did ${opposingSideLabel.toLowerCase()} ask?`}
                       </label>
                       <input
                         type="text"
                         value={questionSummary}
                         onChange={(e) => setQuestionSummary(e.target.value)}
-                        data-testid="input-question-summary"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-rose-500 bg-slate-50 text-sm"
-                        placeholder="Summarize opposing counsel's question..."
+                        data-testid={stage === 'court' ? 'input-question-summary-court' : 'input-question-summary'}
+                        className={`w-full px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-sm ${stage === 'court' ? 'focus:ring-2 focus:ring-amber-500' : 'focus:ring-2 focus:ring-rose-500'}`}
+                        placeholder={stage === 'court' ? "Summarize the Court's question..." : "Summarize opposing counsel's question..."}
                         required
                       />
                     </div>
@@ -544,7 +576,7 @@ export function ResponseRecording({
                     onChange={(e) => setResponseText(e.target.value)}
                     data-testid="input-response-text"
                     className={`w-full px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-sm resize-none ${
-                      stage === 'yours' ? 'focus:ring-2 focus:ring-amber-500' : 'focus:ring-2 focus:ring-rose-500'
+                      stage === 'yours' ? 'focus:ring-2 focus:ring-amber-500' : stage === 'court' ? 'focus:ring-2 focus:ring-amber-500' : 'focus:ring-2 focus:ring-rose-500'
                     }`}
                     rows={3}
                     placeholder="Juror's answer..."
@@ -571,6 +603,8 @@ export function ResponseRecording({
                   className={`w-full py-3 font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors shadow-sm flex justify-center items-center ${
                     stage === 'yours'
                       ? 'bg-amber-500 text-slate-900 hover:bg-amber-400 focus:ring-amber-500'
+                      : stage === 'court'
+                      ? 'bg-amber-600 text-white hover:bg-amber-500 focus:ring-amber-500'
                       : 'bg-rose-500 text-white hover:bg-rose-400 focus:ring-rose-500'
                   }`}
                 >
@@ -579,6 +613,8 @@ export function ResponseRecording({
                     className={`ml-2 text-xs font-normal px-2 py-0.5 rounded border ${
                       stage === 'yours'
                         ? 'text-slate-800 bg-amber-400/50 border-amber-600/20'
+                        : stage === 'court'
+                        ? 'text-amber-100 bg-amber-500/50 border-amber-400/30'
                         : 'text-rose-100 bg-rose-400/50 border-rose-300/30'
                     }`}
                   >
@@ -593,7 +629,7 @@ export function ResponseRecording({
             <h3 className="font-bold text-slate-100 mb-4 text-sm uppercase tracking-wider">
               Session Stats
             </h3>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               <div className="bg-slate-800 p-3 rounded-xl">
                 <div className="text-2xl font-bold text-amber-500" data-testid="text-total-responses">
                   {responses.length}
@@ -611,6 +647,12 @@ export function ResponseRecording({
                   {opposingResponses.length}
                 </div>
                 <div className="text-xs text-slate-400 mt-1">Opposing</div>
+              </div>
+              <div className="bg-slate-800 p-3 rounded-xl">
+                <div className="text-2xl font-bold text-amber-400" data-testid="text-court-responses">
+                  {courtResponses.length}
+                </div>
+                <div className="text-xs text-slate-400 mt-1">Court</div>
               </div>
             </div>
             <div className="mt-3 bg-slate-800 p-3 rounded-xl">
@@ -746,6 +788,7 @@ export function ResponseRecording({
                 [...responses].reverse().map((response) => {
                   const juror = jurors.find((j) => j.number === response.jurorNumber);
                   const isOpposing = response.side === 'opposing';
+                  const isCourt = response.side === 'court';
                   const isExpanded = expandedResponseId === response.id;
                   const sk = stableKey(response);
                   const suggestions = suggestionsMap[sk] || [];
@@ -757,7 +800,7 @@ export function ResponseRecording({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       data-testid={`card-response-${response.id}`}
                       className={`rounded-xl border shadow-sm transition-all ${
-                        isOpposing ? 'bg-rose-50/30 border-rose-100' : 'bg-white border-slate-200'
+                        isCourt ? 'bg-amber-50/30 border-amber-200' : isOpposing ? 'bg-rose-50/30 border-rose-100' : 'bg-white border-slate-200'
                       } ${isExpanded ? 'ring-2 ring-amber-300' : ''}`}
                     >
                       <div
@@ -769,7 +812,7 @@ export function ResponseRecording({
                           <div className="flex items-center space-x-2">
                             <span
                               className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-white font-bold text-sm ${
-                                isOpposing ? 'bg-rose-600' : 'bg-slate-900'
+                                isCourt ? 'bg-amber-600' : isOpposing ? 'bg-rose-600' : 'bg-slate-900'
                               }`}
                             >
                               #{response.jurorNumber}
@@ -779,12 +822,14 @@ export function ResponseRecording({
                             </span>
                             <span
                               className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                isOpposing
+                                isCourt
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : isOpposing
                                   ? 'bg-rose-100 text-rose-700'
                                   : 'bg-amber-100 text-amber-700'
                               }`}
                             >
-                              {isOpposing ? opposingSideLabel : yourSideLabel}
+                              {isCourt ? 'Court' : isOpposing ? opposingSideLabel : yourSideLabel}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -800,7 +845,12 @@ export function ResponseRecording({
                         </div>
 
                         <div className="pl-10">
-                          {isOpposing ? (
+                          {isCourt ? (
+                            <div className="text-xs font-semibold text-amber-700 mb-1 flex items-center">
+                              <Gavel className="w-3 h-3 mr-1" />
+                              {response.questionSummary}
+                            </div>
+                          ) : isOpposing ? (
                             <div className="text-xs font-semibold text-rose-600 mb-1 flex items-center">
                               <Shield className="w-3 h-3 mr-1" />
                               {response.questionSummary}
@@ -845,7 +895,7 @@ export function ResponseRecording({
                         </div>
                       </div>
 
-                      {!isOpposing && (isLoadingSuggestion || suggestions.length > 0 || (askingFollowUp && askingFollowUp.responseId === response.id)) && (
+                      {!isOpposing && !isCourt && (isLoadingSuggestion || suggestions.length > 0 || (askingFollowUp && askingFollowUp.responseId === response.id)) && (
                         <div className="px-4 pb-3 pl-14" onClick={(e) => e.stopPropagation()}>
                           <div className="border-t border-slate-100 pt-3">
                             <div className="flex items-center gap-1.5 mb-2">

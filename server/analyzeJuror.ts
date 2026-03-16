@@ -70,7 +70,9 @@ export async function generateBriefSummary(
 ): Promise<string> {
   const responsesText = responses.length > 0
     ? responses.map((r, i) => {
-        const questionLabel = r.side === 'opposing'
+        const questionLabel = r.side === 'court'
+          ? `Court asked: "${r.questionSummary || 'Unknown'}"`
+          : r.side === 'opposing'
           ? `Opposing: "${r.questionSummary || 'Unknown'}"`
           : r.questionText
             ? `Your Q: "${r.questionText}"`
@@ -127,7 +129,9 @@ export async function analyzeJuror(
 ): Promise<string> {
   const responsesText = responses.length > 0
     ? responses.map((r, i) => {
-        const questionLabel = r.side === 'opposing'
+        const questionLabel = r.side === 'court'
+          ? `Court asked: "${r.questionSummary || 'Unknown question'}"`
+          : r.side === 'opposing'
           ? `Opposing counsel asked: "${r.questionSummary || 'Unknown question'}"`
           : r.questionText
             ? `Your question: "${r.questionText}"`
@@ -267,7 +271,9 @@ export async function analyzeStrikesForCause(
   const jurorsText = jurors.map(j => {
     const responsesText = j.responses.length > 0
       ? j.responses.map((r, i) => {
-          const questionLabel = r.side === 'opposing'
+          const questionLabel = r.side === 'court'
+            ? `Court asked: "${r.questionSummary || 'Unknown'}"`
+            : r.side === 'opposing'
             ? `Opposing: "${r.questionSummary || 'Unknown'}"`
             : r.questionText
               ? `Your Q: "${r.questionText}"`
