@@ -708,7 +708,8 @@ export async function registerRoutes(
 
       const { questionText, responseText, jurorName, jurorNumber, caseInfo } = parsed.data;
 
-      const openai = (await import('./replit_integrations/openai')).default;
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI();
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
