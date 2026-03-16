@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mic,
@@ -14,8 +14,21 @@ import {
   ChevronUp,
   CornerDownRight,
   Send,
+  Sparkles,
+  Loader2,
+  Bookmark,
+  MessageSquarePlus,
 } from 'lucide-react';
 import { Juror, VoirDireQuestion, JurorResponse, CaseInfo } from '../../types';
+import * as api from '../../lib/api';
+
+interface MarkedFollowUp {
+  id: string;
+  suggestionText: string;
+  parentResponse: JurorResponse;
+  jurorNumber: number;
+  jurorName: string;
+}
 
 interface ResponseRecordingProps {
   jurors: Juror[];
@@ -52,6 +65,15 @@ export function ResponseRecording({
   const jurorInputRef = useRef<HTMLInputElement>(null);
   const followUpAnswerRef = useRef<HTMLTextAreaElement>(null);
 
+  const [suggestionsMap, setSuggestionsMap] = useState<Record<string, string[]>>({});
+  const [loadingSuggestions, setLoadingSuggestions] = useState<Record<string, boolean>>({});
+  const [askingFollowUp, setAskingFollowUp] = useState<{ responseId: string; suggestion: string } | null>(null);
+  const [askFollowUpAnswer, setAskFollowUpAnswer] = useState('');
+  const askFollowUpRef = useRef<HTMLTextAreaElement>(null);
+  const [markedFollowUps, setMarkedFollowUps] = useState<MarkedFollowUp[]>([]);
+  const [expandedMarked, setExpandedMarked] = useState<Record<string, boolean>>({});
+  const [showMarkedSection, setShowMarkedSection] = useState(true);
+
   useEffect(() => {
     jurorInputRef.current?.focus();
   }, [stage]);
@@ -61,6 +83,43 @@ export function ResponseRecording({
   const plaintiffTerm = isCriminal ? 'Prosecution' : 'Plaintiff';
   const yourSideLabel = caseInfo.side === 'plaintiff' ? plaintiffTerm : 'Defense';
   const opposingSideLabel = caseInfo.side === 'plaintiff' ? 'Defense' : plaintiffTerm;
+
+  const fetchSuggestions = useCallback(async (response: JurorResponse) => {
+    if (suggestionsMap[response.id] || loadingSuggestions[response.id]) return;
+    const juror = jurors.find(j => j.number === response.jurorNumber);
+    if (!juror) return;
+
+    const questionText = response.questionSummary ||
+      (response.questionId ? questions.find(q => q.id === response.questionId)?.originalText : '') ||
+      'General question';
+
+    setLoadingSuggestions(prev => ({ ...prev, [response.id]: true }));
+    try {
+      const suggestions = await api.suggestFollowups(
+        questionText,
+        response.responseText,
+        juror.name,
+        juror.number,
+        caseInfo
+      );
+      setSuggestionsMap(prev => ({ ...prev, [response.id]: suggestions }));
+    } catch {
+      setSuggestionsMap(prev => ({ ...prev, [response.id]: [] }));
+    } finally {
+      setLoadingSuggestions(prev => ({ ...prev, [response.id]: false }));
+    }
+  }, [suggestionsMap, loadingSuggestions, jurors, questions, caseInfo]);
+
+  const prevResponseCount = useRef(responses.length);
+  useEffect(() => {
+    if (responses.length > prevResponseCount.current) {
+      const newest = responses[responses.length - 1];
+      if (newest && newest.side === 'yours') {
+        fetchSuggestions(newest);
+      }
+    }
+    prevResponseCount.current = responses.length;
+  }, [responses.length]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,12 +223,65 @@ export function ResponseRecording({
     }
   };
 
+  const handleAskFollowUp = (responseId: string, suggestion: string) => {
+    setAskingFollowUp({ responseId, suggestion });
+    setAskFollowUpAnswer('');
+    setTimeout(() => askFollowUpRef.current?.focus(), 50);
+  };
+
+  const handleSubmitAskedFollowUp = () => {
+    if (!askingFollowUp || !askFollowUpAnswer.trim()) return;
+    onAddFollowUp(askingFollowUp.responseId, {
+      question: askingFollowUp.suggestion,
+      answer: askFollowUpAnswer.trim(),
+    });
+    setSuggestionsMap(prev => {
+      const updated = { ...prev };
+      if (updated[askingFollowUp.responseId]) {
+        updated[askingFollowUp.responseId] = updated[askingFollowUp.responseId].filter(
+          s => s !== askingFollowUp.suggestion
+        );
+      }
+      return updated;
+    });
+    setAskingFollowUp(null);
+    setAskFollowUpAnswer('');
+  };
+
+  const handleMarkFollowUp = (response: JurorResponse, suggestion: string) => {
+    const juror = jurors.find(j => j.number === response.jurorNumber);
+    const marked: MarkedFollowUp = {
+      id: `${response.id}-${Date.now()}`,
+      suggestionText: suggestion,
+      parentResponse: response,
+      jurorNumber: response.jurorNumber,
+      jurorName: juror?.name || `Juror #${response.jurorNumber}`,
+    };
+    setMarkedFollowUps(prev => [...prev, marked]);
+    setSuggestionsMap(prev => {
+      const updated = { ...prev };
+      if (updated[response.id]) {
+        updated[response.id] = updated[response.id].filter(s => s !== suggestion);
+      }
+      return updated;
+    });
+  };
+
   const yourResponses = responses.filter((r) => r.side === 'yours');
   const opposingResponses = responses.filter((r) => r.side === 'opposing');
 
   const selectedQuestion = stage === 'yours' && !isNewQuestion && questionNum
     ? questions.find((q) => q.id === parseInt(questionNum))
     : null;
+
+  const getQuestionLabel = (response: JurorResponse) => {
+    if (response.questionSummary) return response.questionSummary;
+    if (response.questionId) {
+      const q = questions.find(q => q.id === response.questionId);
+      return q ? q.originalText : `Q${response.questionId}`;
+    }
+    return 'General question';
+  };
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 h-full flex flex-col">
@@ -474,7 +586,7 @@ export function ResponseRecording({
             </div>
           </div>
 
-          <div className="bg-slate-900 rounded-2xl p-5 text-white shadow-sm flex-1">
+          <div className="bg-slate-900 rounded-2xl p-5 text-white shadow-sm">
             <h3 className="font-bold text-slate-100 mb-4 text-sm uppercase tracking-wider">
               Session Stats
             </h3>
@@ -505,6 +617,108 @@ export function ResponseRecording({
               <div className="text-xs text-slate-400 mt-1">Jurors Spoke</div>
             </div>
           </div>
+
+          {markedFollowUps.length > 0 && (
+            <div className="bg-white rounded-2xl border border-violet-200 shadow-sm overflow-hidden">
+              <button
+                onClick={() => setShowMarkedSection(!showMarkedSection)}
+                className="w-full bg-violet-50 border-b border-violet-200 p-4 flex justify-between items-center"
+                data-testid="button-toggle-marked-section"
+              >
+                <h3 className="font-bold text-violet-900 flex items-center text-sm">
+                  <Bookmark className="w-4 h-4 mr-2 text-violet-500" />
+                  Marked Follow-ups ({markedFollowUps.length})
+                </h3>
+                {showMarkedSection ? (
+                  <ChevronUp className="w-4 h-4 text-violet-400" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-violet-400" />
+                )}
+              </button>
+              <AnimatePresence>
+                {showMarkedSection && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="p-3 space-y-2 max-h-[300px] overflow-y-auto">
+                      {markedFollowUps.map((m) => {
+                        const isOpen = expandedMarked[m.id] || false;
+                        return (
+                          <div
+                            key={m.id}
+                            className="border border-violet-100 rounded-xl overflow-hidden"
+                            data-testid={`card-marked-${m.id}`}
+                          >
+                            <button
+                              onClick={() => setExpandedMarked(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
+                              className="w-full flex items-center justify-between px-3 py-2.5 bg-violet-50/50 hover:bg-violet-50 transition-colors text-left"
+                              data-testid={`button-toggle-marked-${m.id}`}
+                            >
+                              <span className="flex items-center gap-2 text-sm font-medium text-violet-900">
+                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-violet-600 text-white font-bold text-xs shrink-0">
+                                  #{m.jurorNumber}
+                                </span>
+                                {m.jurorName}
+                              </span>
+                              {isOpen ? (
+                                <ChevronUp className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                              ) : (
+                                <ChevronDown className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                              )}
+                            </button>
+                            <AnimatePresence>
+                              {isOpen && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.15 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="px-3 pb-3 pt-1 space-y-2">
+                                    <div className="flex items-center gap-2 text-xs text-violet-600 font-medium">
+                                      <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-violet-600 text-white font-bold text-[10px]">
+                                        #{m.jurorNumber}
+                                      </span>
+                                      {m.jurorName}
+                                    </div>
+                                    <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
+                                      <div className="text-xs font-semibold text-slate-500 mb-1 flex items-center">
+                                        <HelpCircle className="w-3 h-3 mr-1" />
+                                        Original Question
+                                      </div>
+                                      <p className="text-xs text-slate-600">
+                                        {getQuestionLabel(m.parentResponse)}
+                                      </p>
+                                    </div>
+                                    <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
+                                      <div className="text-xs font-semibold text-slate-500 mb-1">Response</div>
+                                      <p className="text-xs text-slate-700">"{m.parentResponse.responseText}"</p>
+                                    </div>
+                                    <div className="bg-violet-50 rounded-lg p-2.5 border border-violet-200">
+                                      <div className="text-xs font-semibold text-violet-600 mb-1 flex items-center">
+                                        <Sparkles className="w-3 h-3 mr-1" />
+                                        Suggested Follow-up
+                                      </div>
+                                      <p className="text-xs text-violet-800 font-medium">{m.suggestionText}</p>
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
 
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
@@ -530,6 +744,8 @@ export function ResponseRecording({
                   const juror = jurors.find((j) => j.number === response.jurorNumber);
                   const isOpposing = response.side === 'opposing';
                   const isExpanded = expandedResponseId === response.id;
+                  const suggestions = suggestionsMap[response.id] || [];
+                  const isLoadingSuggestion = loadingSuggestions[response.id] || false;
                   return (
                     <motion.div
                       key={response.id}
@@ -624,6 +840,102 @@ export function ResponseRecording({
                           )}
                         </div>
                       </div>
+
+                      {!isOpposing && (isLoadingSuggestion || suggestions.length > 0 || (askingFollowUp && askingFollowUp.responseId === response.id)) && (
+                        <div className="px-4 pb-3 pl-14" onClick={(e) => e.stopPropagation()}>
+                          <div className="border-t border-slate-100 pt-3">
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                Suggested Follow-ups
+                              </span>
+                            </div>
+                            {isLoadingSuggestion && (
+                              <div className="flex items-center gap-2 text-xs text-slate-400 py-1">
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Generating suggestions...
+                              </div>
+                            )}
+                            <div className="space-y-1.5">
+                              {suggestions.map((s, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-start gap-2 group"
+                                  data-testid={`suggestion-${response.id}-${idx}`}
+                                >
+                                  <p className="flex-1 text-xs text-slate-600 leading-relaxed pt-0.5">
+                                    {s}
+                                  </p>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      onClick={() => handleAskFollowUp(response.id, s)}
+                                      className="text-xs font-medium px-2 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+                                      data-testid={`button-ask-${response.id}-${idx}`}
+                                    >
+                                      Ask
+                                    </button>
+                                    <button
+                                      onClick={() => handleMarkFollowUp(response, s)}
+                                      className="text-xs font-medium px-2 py-1 rounded-md bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition-colors"
+                                      data-testid={`button-mark-${response.id}-${idx}`}
+                                    >
+                                      Mark
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            {askingFollowUp && askingFollowUp.responseId === response.id && (
+                              <div className="mt-2 bg-amber-50 rounded-lg p-3 border border-amber-200">
+                                <div className="text-xs font-semibold text-amber-700 mb-1.5 flex items-center">
+                                  <CornerDownRight className="w-3 h-3 mr-1" />
+                                  {askingFollowUp.suggestion}
+                                </div>
+                                <textarea
+                                  ref={askFollowUpRef}
+                                  value={askFollowUpAnswer}
+                                  onChange={(e) => setAskFollowUpAnswer(e.target.value)}
+                                  placeholder="Record juror's response..."
+                                  className="w-full px-3 py-2 rounded-lg border border-amber-300 focus:ring-2 focus:ring-amber-500 bg-white text-sm resize-none"
+                                  rows={2}
+                                  data-testid={`input-ask-followup-answer-${response.id}`}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      handleSubmitAskedFollowUp();
+                                    }
+                                    if (e.key === 'Escape') {
+                                      setAskingFollowUp(null);
+                                      setAskFollowUpAnswer('');
+                                    }
+                                  }}
+                                />
+                                <div className="flex items-center gap-2 mt-2">
+                                  <button
+                                    onClick={handleSubmitAskedFollowUp}
+                                    disabled={!askFollowUpAnswer.trim()}
+                                    className="inline-flex items-center px-3 py-1.5 bg-amber-500 text-slate-900 font-semibold text-xs rounded-lg hover:bg-amber-400 disabled:opacity-50 transition-colors"
+                                    data-testid={`button-submit-ask-followup-${response.id}`}
+                                  >
+                                    <Send className="w-3 h-3 mr-1" />
+                                    Record
+                                    <span className="ml-1.5 text-[10px] font-normal text-slate-700 bg-amber-400/50 px-1 py-0.5 rounded border border-amber-600/20">
+                                      ↵
+                                    </span>
+                                  </button>
+                                  <button
+                                    onClick={() => { setAskingFollowUp(null); setAskFollowUpAnswer(''); }}
+                                    className="text-xs text-slate-500 hover:text-slate-700"
+                                    data-testid={`button-cancel-ask-followup-${response.id}`}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       <AnimatePresence>
                         {isExpanded && (

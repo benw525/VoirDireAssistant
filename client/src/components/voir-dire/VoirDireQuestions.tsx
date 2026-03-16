@@ -53,6 +53,9 @@ export function VoirDireQuestions({
   caseId,
 }: VoirDireQuestionsProps) {
   const [inputText, setInputText] = useState('');
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingLabel, setProcessingLabel] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -229,6 +232,23 @@ export function VoirDireQuestions({
   const handleClearAll = () => {
     onQuestionsProcessed([]);
     setVoirDireDoc(null);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    setError(null);
+    try {
+      const result = await api.parseQuestionsDocument(file);
+      setInputText(result.text);
+      setUploadedFileName(result.filename);
+    } catch (err: any) {
+      setError(err.message || 'Failed to parse document.');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   // const handleImportEnrichment = async (file: File) => {
@@ -470,18 +490,58 @@ export function VoirDireQuestions({
                 <div>
                   <h3 className="font-bold text-slate-900">Refine My Questions</h3>
                   <p className="text-sm text-slate-500">
-                    Paste your own questions and let AI enhance them strategically
+                    Paste your own questions or upload a document and let AI enhance them strategically
                   </p>
                 </div>
               </div>
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                data-testid="input-raw-questions"
-                placeholder={"Have you or a family member ever been involved in a lawsuit?\nDo you have any strong feelings about awarding damages for emotional distress?\nHave you ever had a negative experience with a large corporation?"}
-                className="flex-1 w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-slate-50 resize-none transition-colors mb-4 min-h-[200px]"
-              />
-              <div className="flex justify-end">
+              <div className="relative flex-1 flex flex-col mb-4">
+                <textarea
+                  value={inputText}
+                  onChange={(e) => { setInputText(e.target.value); setUploadedFileName(null); }}
+                  data-testid="input-raw-questions"
+                  placeholder={"Have you or a family member ever been involved in a lawsuit?\nDo you have any strong feelings about awarding damages for emotional distress?\nHave you ever had a negative experience with a large corporation?"}
+                  className="flex-1 w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-slate-50 resize-none transition-colors min-h-[200px]"
+                />
+                {uploadedFileName && (
+                  <div className="mt-2 flex items-center gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                    <FileText className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{uploadedFileName}</span>
+                    <button
+                      onClick={() => { setUploadedFileName(null); setInputText(''); }}
+                      className="ml-auto text-blue-400 hover:text-blue-600"
+                      data-testid="button-clear-upload"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.doc,.txt,.text,.rtf"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    data-testid="input-file-upload"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    data-testid="button-upload-document"
+                    className="inline-flex items-center px-4 py-3 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 border border-slate-200 transition-colors disabled:opacity-50"
+                  >
+                    {isUploading ? (
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="w-5 h-5 mr-2" />
+                    )}
+                    {isUploading ? 'Parsing...' : 'Upload Document'}
+                  </button>
+                  <span className="text-xs text-slate-400">PDF, DOCX, TXT, RTF</span>
+                </div>
                 <button
                   onClick={handleRefineQuestions}
                   disabled={!inputText.trim()}

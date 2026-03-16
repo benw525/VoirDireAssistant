@@ -370,6 +370,36 @@ export async function refineQuestions(rawText: string, caseInfo: CaseInfo, juror
   }));
 }
 
+export async function parseQuestionsDocument(file: File): Promise<{ text: string; filename: string }> {
+  const token = getAuthToken();
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/parse-questions-document`, {
+    method: 'POST',
+    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new ApiError(err.message || 'Failed to parse document', res.status);
+  }
+  return res.json();
+}
+
+export async function suggestFollowups(
+  questionText: string,
+  responseText: string,
+  jurorName: string,
+  jurorNumber: number,
+  caseInfo: CaseInfo
+): Promise<string[]> {
+  const result = await fetchJson<{ suggestions: string[] }>(`${API_BASE}/suggest-followups`, {
+    method: 'POST',
+    body: JSON.stringify({ questionText, responseText, jurorName, jurorNumber, caseInfo }),
+  });
+  return result.suggestions;
+}
+
 export async function analyzeJuror(
   caseInfo: CaseInfo,
   juror: Juror,

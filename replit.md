@@ -56,8 +56,8 @@ A full-stack jury selection assistant application with user authentication, AI-p
 0. Welcome Screen (past cases, new case)
 1. Case Initialization (name, area of law, summary, side) — optional MattrMindr import
 2. Strike List (upload/paste juror data — AI-powered parsing). On "Confirm & Proceed", triggers automatic Perplexity Sonar Pro background research on all jurors.
-3. Voir Dire Questions (enter/generate questions). Before generation, checks enrichment status — if research is still running, offers "Wait & Generate" (polls until complete) or "Generate Now" (proceeds with available data). Enrichment data is automatically included in AI prompts.
-4. Response Recording (two sub-stages: your side's examination + opposing counsel's examination)
+3. Voir Dire Questions (enter/generate questions). Supports document upload (PDF, DOCX, TXT, RTF) via `/api/parse-questions-document` route using mammoth (DOCX) and pdf-parse (PDF). Before generation, checks enrichment status — if research is still running, offers "Wait & Generate" (polls until complete) or "Generate Now" (proceeds with available data). Enrichment data is automatically included in AI prompts.
+4. Response Recording (two sub-stages: your side's examination + opposing counsel's examination). AI-powered follow-up suggestions auto-generated after each your-side response via `/api/suggest-followups` (gpt-4o-mini). Each suggestion has "Ask" (opens inline response box) and "Mark" (saves to collapsible marked follow-ups section with parent context). Marked follow-ups are collapsible, collapsed by default, grouped individually with juror name/number as title.
 5. Juror Review (assess leanings and risk tiers)
 6. End Report (final analysis, collapsible jury panel, peremptory strike boxes, recommendations, optional push to MattrMindr)
 

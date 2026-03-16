@@ -294,7 +294,9 @@ export async function registerRoutes(
   app.use("/api/parse-strike-list", authMiddleware);
   app.use("/api/transcribe", authMiddleware);
   app.use("/api/generate-voir-dire", authMiddleware);
+  app.use("/api/parse-questions-document", authMiddleware);
   app.use("/api/refine-questions", authMiddleware);
+  app.use("/api/suggest-followups", authMiddleware);
   app.use("/api/analyze-juror", authMiddleware);
   app.use("/api/analyze-jurors-batch", authMiddleware);
   app.use("/api/analyze-strikes-for-cause", authMiddleware);
@@ -649,6 +651,95 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Voir dire generation error:", err);
       res.status(500).json({ message: err.message || "Failed to generate voir dire" });
+    }
+  });
+
+  app.post("/api/parse-questions-document", upload.single("file"), async (req, res) => {
+    try {
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ message: "No file uploaded." });
+      }
+
+      const ext = file.originalname.toLowerCase().split('.').pop() || '';
+      let text = '';
+
+      if (ext === 'txt' || ext === 'text') {
+        text = file.buffer.toString('utf-8');
+      } else if (ext === 'pdf') {
+        const pdfParse = (await import('pdf-parse')).default;
+        const parsed = await pdfParse(file.buffer);
+        text = parsed.text;
+      } else if (ext === 'docx' || ext === 'doc') {
+        const mammoth = await import('mammoth');
+        const result = await mammoth.extractRawText({ buffer: file.buffer });
+        text = result.value;
+      } else if (ext === 'rtf') {
+        text = file.buffer.toString('utf-8').replace(/\{\\[^{}]*\}/g, '').replace(/\\[a-z]+\d*\s?/g, ' ').replace(/[{}]/g, '').trim();
+      } else {
+        return res.status(400).json({ message: `Unsupported file type: .${ext}. Please upload PDF, DOCX, TXT, or RTF files.` });
+      }
+
+      text = text.trim();
+      if (!text) {
+        return res.status(400).json({ message: "Could not extract any text from the uploaded file." });
+      }
+
+      res.json({ text, filename: file.originalname });
+    } catch (err: any) {
+      console.error("Document parse error:", err);
+      res.status(500).json({ message: err.message || "Failed to parse document" });
+    }
+  });
+
+  app.post("/api/suggest-followups", async (req, res) => {
+    try {
+      const parsed = z.object({
+        questionText: z.string(),
+        responseText: z.string(),
+        jurorName: z.string(),
+        jurorNumber: z.number(),
+        caseInfo: caseInfoSchema,
+      }).safeParse(req.body);
+
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
+      }
+
+      const { questionText, responseText, jurorName, jurorNumber, caseInfo } = parsed.data;
+
+      const openai = (await import('./replit_integrations/openai')).default;
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are a trial attorney assistant. Based on a juror's response during voir dire, suggest 2-3 brief follow-up questions that would help assess this juror further. The case is a ${caseInfo.areaOfLaw} case where you represent the ${caseInfo.side}. Keep each question to one sentence. Return ONLY a JSON array of strings, no other text.`
+          },
+          {
+            role: "user",
+            content: `Juror #${jurorNumber} (${jurorName}) was asked: "${questionText}"\n\nTheir response: "${responseText}"\n\nSuggest 2-3 targeted follow-up questions.`
+          }
+        ],
+        temperature: 0.6,
+        max_completion_tokens: 300,
+        response_format: { type: "json_object" },
+        store: false,
+      });
+
+      const raw = completion.choices[0]?.message?.content || '{"questions":[]}';
+      let suggestions: string[] = [];
+      try {
+        const obj = JSON.parse(raw);
+        suggestions = Array.isArray(obj) ? obj : (obj.questions || obj.followUps || obj.suggestions || []);
+      } catch {
+        suggestions = [];
+      }
+
+      res.json({ suggestions });
+    } catch (err: any) {
+      console.error("Follow-up suggestion error:", err);
+      res.status(500).json({ message: err.message || "Failed to generate follow-up suggestions" });
     }
   });
 
