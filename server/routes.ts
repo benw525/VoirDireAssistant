@@ -11,7 +11,7 @@ import { authMiddleware, hashPassword, comparePassword, createToken } from "./au
 import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMattrMindrCase, pushJuryAnalysis } from "./mattrmindr";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession, handleWebhook } from "./billing";
-// import { triggerEnrichmentForJurors, handleEnrichmentWebhook, getEnrichedDataForCase, verifyWebhookSecret } from "./fluxEnrichment";
+import { triggerEnrichmentForJurors, getEnrichedDataForCase, cancelEnrichmentForCase } from "./perplexityEnrichment";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
@@ -212,16 +212,69 @@ export async function registerRoutes(
     }
   });
 
-  /* --- Flux enrichment webhooks and status routes (commented out) ---
-  app.options("/api/webhooks/juror-enrichment/:enrichmentId", (req, res) => { ... });
-  app.options("/api/webhooks/juror-enrichment/", (req, res) => { ... });
-  app.post("/api/webhooks/juror-enrichment/", async (req, res) => { ... });
-  app.options("/api/webhooks/flux-test", (req, res) => { ... });
-  app.post("/api/webhooks/flux-test", async (req, res) => { ... });
-  app.post("/api/webhooks/juror-enrichment/:enrichmentId", async (req, res) => { ... });
-  app.get("/api/cases/:caseId/enrichment-status", authMiddleware, async (req, res) => { ... });
-  app.post("/api/cases/:caseId/stop-enrichment", authMiddleware, async (req, res) => { ... });
-  --- end commented out Flux routes --- */
+  app.get("/api/cases/:caseId/enrichment-status", authMiddleware, async (req, res) => {
+    try {
+      const { caseId } = req.params;
+      const caseRecord = await storage.getCase(caseId);
+      if (!caseRecord || caseRecord.userId !== req.user!.id) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const enrichments = await storage.getJurorEnrichmentsByCase(caseId);
+      const jurorsList = await storage.getJurorsByCase(caseId);
+      const jurorNames: Record<number, string> = {};
+      for (const j of jurorsList) {
+        jurorNames[j.number] = j.name;
+      }
+      const items = enrichments.map(e => ({
+        jurorNumber: e.jurorNumber,
+        jurorName: jurorNames[e.jurorNumber] || `Juror #${e.jurorNumber}`,
+        status: e.status,
+        enrichmentId: e.enrichmentId,
+        createdAt: e.createdAt,
+        completedAt: e.completedAt,
+        hasData: !!(e.enrichedData && (e.enrichedData as any).text),
+      }));
+      const summary = {
+        total: items.length,
+        pending: items.filter(i => i.status === "pending").length,
+        dispatched: items.filter(i => i.status === "dispatched").length,
+        completed: items.filter(i => i.status === "completed").length,
+        failed: items.filter(i => i.status === "failed").length,
+        error: items.filter(i => i.status === "error").length,
+      };
+      res.json({ items, summary });
+    } catch (err: any) {
+      console.error("[EnrichmentStatus] Error:", err);
+      res.status(500).json({ message: "Failed to fetch enrichment status" });
+    }
+  });
+
+  app.post("/api/cases/:caseId/stop-enrichment", authMiddleware, async (req, res) => {
+    try {
+      const { caseId } = req.params;
+      const caseRecord = await storage.getCase(caseId);
+      if (!caseRecord || caseRecord.userId !== req.user!.id) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      cancelEnrichmentForCase(caseId);
+      const enrichments = await storage.getJurorEnrichmentsByCase(caseId);
+      let cancelled = 0;
+      for (const e of enrichments) {
+        if (e.status === "pending" || e.status === "dispatched") {
+          await storage.updateJurorEnrichment(e.enrichmentId, {
+            status: "cancelled",
+            completedAt: Date.now(),
+          });
+          cancelled++;
+        }
+      }
+      console.log(`[Enrichment] Stopped enrichment for case ${caseId}: ${cancelled} items cancelled`);
+      res.json({ success: true, cancelled });
+    } catch (err: any) {
+      console.error("[Enrichment] Stop error:", err);
+      res.status(500).json({ message: "Failed to stop enrichment" });
+    }
+  });
 
   app.use("/api/cases", authMiddleware);
   app.use("/api/jurors", authMiddleware);
@@ -319,9 +372,9 @@ export async function registerRoutes(
         address: j.address,
         cityStateZip: j.cityStateZip,
       }));
-      // triggerEnrichmentForJurors(caseId, jurorData).catch(err =>
-      //   console.error("[FluxEnrichment] Background enrichment failed:", err.message)
-      // );
+      triggerEnrichmentForJurors(caseId, jurorData).catch(err =>
+        console.error("[PerplexityEnrichment] Background enrichment failed:", err.message)
+      );
     } else {
       const data = { ...body, caseId };
       const parsed = insertJurorSchema.safeParse(data);
@@ -329,20 +382,20 @@ export async function registerRoutes(
       const juror = await storage.createJuror(parsed.data);
       res.status(201).json(juror);
 
-      // triggerEnrichmentForJurors(caseId, [{
-      //   number: juror.number,
-      //   name: juror.name,
-      //   phone: juror.phone,
-      //   sex: juror.sex,
-      //   race: juror.race,
-      //   birthDate: juror.birthDate,
-      //   occupation: juror.occupation,
-      //   employer: juror.employer,
-      //   address: juror.address,
-      //   cityStateZip: juror.cityStateZip,
-      // }]).catch(err =>
-      //   console.error("[FluxEnrichment] Background enrichment failed:", err.message)
-      // );
+      triggerEnrichmentForJurors(caseId, [{
+        number: juror.number,
+        name: juror.name,
+        phone: juror.phone,
+        sex: juror.sex,
+        race: juror.race,
+        birthDate: juror.birthDate,
+        occupation: juror.occupation,
+        employer: juror.employer,
+        address: juror.address,
+        cityStateZip: juror.cityStateZip,
+      }]).catch(err =>
+        console.error("[PerplexityEnrichment] Background enrichment failed:", err.message)
+      );
     }
   });
 
@@ -560,11 +613,25 @@ export async function registerRoutes(
       const parsed = z.object({
         caseInfo: caseInfoSchema,
         jurors: z.array(jurorSummarySchema),
+        caseId: z.string().optional(),
       }).safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
       }
-      const result = await generateFullVoirDire(parsed.data.caseInfo, parsed.data.jurors);
+
+      let enrichmentMap: Record<number, Record<string, any>> = {};
+      if (parsed.data.caseId) {
+        try {
+          const caseRecord = await storage.getCase(parsed.data.caseId);
+          if (caseRecord && caseRecord.userId === req.user!.id) {
+            enrichmentMap = await getEnrichedDataForCase(parsed.data.caseId);
+          }
+        } catch (err) {
+          console.error("[VoirDire] Failed to fetch enrichment data:", err);
+        }
+      }
+
+      const result = await generateFullVoirDire(parsed.data.caseInfo, parsed.data.jurors, enrichmentMap);
       res.json(result);
     } catch (err: any) {
       console.error("Voir dire generation error:", err);
@@ -578,11 +645,25 @@ export async function registerRoutes(
         rawQuestions: z.string().min(1),
         caseInfo: caseInfoSchema,
         jurors: z.array(jurorSummarySchema).default([]),
+        caseId: z.string().optional(),
       }).safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
       }
-      const result = await refineUserQuestions(parsed.data.rawQuestions, parsed.data.caseInfo, parsed.data.jurors);
+
+      let enrichmentMap: Record<number, Record<string, any>> = {};
+      if (parsed.data.caseId) {
+        try {
+          const caseRecord = await storage.getCase(parsed.data.caseId);
+          if (caseRecord && caseRecord.userId === req.user!.id) {
+            enrichmentMap = await getEnrichedDataForCase(parsed.data.caseId);
+          }
+        } catch (err) {
+          console.error("[RefineQuestions] Failed to fetch enrichment data:", err);
+        }
+      }
+
+      const result = await refineUserQuestions(parsed.data.rawQuestions, parsed.data.caseInfo, parsed.data.jurors, enrichmentMap);
       res.json({ questions: result });
     } catch (err: any) {
       console.error("Question refinement error:", err);

@@ -210,10 +210,17 @@ Return a JSON object with this structure:
   ]
 }`;
 
-function buildCaseContext(caseInfo: CaseContext, jurors: JurorSummary[]): string {
-  const jurorList = jurors.map(j =>
-    `  #${j.number}: ${j.name} | ${j.sex} | ${j.race} | DOB: ${j.birthDate} | ${j.occupation} | ${j.employer}`
-  ).join("\n");
+function buildCaseContext(caseInfo: CaseContext, jurors: JurorSummary[], enrichmentMap?: Record<number, Record<string, any>>): string {
+  const jurorList = jurors.map(j => {
+    let line = `  #${j.number}: ${j.name} | ${j.sex} | ${j.race} | DOB: ${j.birthDate} | ${j.occupation} | ${j.employer}`;
+    const enrichment = enrichmentMap?.[j.number];
+    if (enrichment?.text) {
+      line += `\n    BACKGROUND RESEARCH:\n    ${String(enrichment.text).replace(/\n/g, "\n    ")}`;
+    }
+    return line;
+  }).join("\n");
+
+  const hasEnrichment = enrichmentMap && Object.keys(enrichmentMap).length > 0;
 
   return `CASE INFORMATION:
 Area of Law: ${caseInfo.areaOfLaw}
@@ -222,15 +229,16 @@ Case Summary: ${caseInfo.summary}
 Favorable Juror Traits: ${caseInfo.favorableTraits.join(", ")}
 Risk Traits / Strike Triggers: ${caseInfo.riskTraits.join(", ")}
 
-JUROR PANEL (${jurors.length} jurors):
+JUROR PANEL (${jurors.length} jurors)${hasEnrichment ? " — includes background research data where available" : ""}:
 ${jurorList}`;
 }
 
 export async function generateFullVoirDire(
   caseInfo: CaseContext,
-  jurors: JurorSummary[]
+  jurors: JurorSummary[],
+  enrichmentMap?: Record<number, Record<string, any>>
 ): Promise<VoirDireDocument> {
-  const context = buildCaseContext(caseInfo, jurors);
+  const context = buildCaseContext(caseInfo, jurors, enrichmentMap);
 
   const response = await openai.chat.completions.create({
     model: "gpt-5.4-2026-03-05",
@@ -291,9 +299,10 @@ export async function generateFullVoirDire(
 export async function refineUserQuestions(
   rawQuestions: string,
   caseInfo: CaseContext,
-  jurors: JurorSummary[]
+  jurors: JurorSummary[],
+  enrichmentMap?: Record<number, Record<string, any>>
 ): Promise<Array<{ id: number; originalText: string; rephrase: string; followUps: string[] }>> {
-  const context = buildCaseContext(caseInfo, jurors);
+  const context = buildCaseContext(caseInfo, jurors, enrichmentMap);
 
   const response = await openai.chat.completions.create({
     model: "gpt-5.4-2026-03-05",

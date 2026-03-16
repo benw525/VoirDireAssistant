@@ -22,6 +22,8 @@ import {
   Download,
   Upload,
   CheckCircle2,
+  Clock,
+  Search,
 } from 'lucide-react';
 import { VoirDireQuestion, VoirDireDocument, CaseInfo, Juror } from '../../types';
 import * as api from '../../lib/api';
@@ -59,9 +61,13 @@ export function VoirDireQuestions({
   const [voirDireDoc, setVoirDireDoc] = useState<VoirDireDocument | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
-  // const enrichmentFileRef = useRef<HTMLInputElement>(null);
-  // const [isImporting, setIsImporting] = useState(false);
-  // const [importResult, setImportResult] = useState<{ matched: number; unmatched: number; unmatchedNames: string[] } | null>(null);
+  const [showEnrichmentDialog, setShowEnrichmentDialog] = useState(false);
+  const [enrichmentPending, setEnrichmentPending] = useState(0);
+  const [enrichmentTotal, setEnrichmentTotal] = useState(0);
+  const [enrichmentCompleted, setEnrichmentCompleted] = useState(0);
+  const [isPollingEnrichment, setIsPollingEnrichment] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'generate' | 'refine' | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!showExportMenu) return;
@@ -86,12 +92,84 @@ export function VoirDireQuestions({
     setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleGenerateFullVoirDire = async () => {
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, []);
+
+  const checkEnrichmentAndProceed = async (action: 'generate' | 'refine') => {
+    if (!caseId) {
+      if (action === 'generate') await executeGenerate();
+      else await executeRefine();
+      return;
+    }
+
+    try {
+      const status = await api.getEnrichmentStatus(caseId);
+      const inProgress = status.summary.pending + status.summary.dispatched;
+      if (inProgress > 0) {
+        setEnrichmentPending(inProgress);
+        setEnrichmentTotal(status.summary.total);
+        setEnrichmentCompleted(status.summary.completed);
+        setPendingAction(action);
+        setShowEnrichmentDialog(true);
+        return;
+      }
+    } catch {
+    }
+
+    if (action === 'generate') await executeGenerate();
+    else await executeRefine();
+  };
+
+  const startPollingEnrichment = () => {
+    if (!caseId) return;
+    setIsPollingEnrichment(true);
+    setShowEnrichmentDialog(false);
+    setIsProcessing(true);
+    setProcessingLabel('Waiting for background research to complete...');
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const status = await api.getEnrichmentStatus(caseId!);
+        const inProgress = status.summary.pending + status.summary.dispatched;
+        setEnrichmentPending(inProgress);
+        setEnrichmentCompleted(status.summary.completed);
+        setEnrichmentTotal(status.summary.total);
+
+        if (inProgress === 0) {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          pollingRef.current = null;
+          setIsPollingEnrichment(false);
+          if (pendingAction === 'generate') await executeGenerate();
+          else if (pendingAction === 'refine') await executeRefine();
+          setPendingAction(null);
+        }
+      } catch {
+        if (pollingRef.current) clearInterval(pollingRef.current);
+        pollingRef.current = null;
+        setIsPollingEnrichment(false);
+        if (pendingAction === 'generate') await executeGenerate();
+        else if (pendingAction === 'refine') await executeRefine();
+        setPendingAction(null);
+      }
+    }, 3000);
+  };
+
+  const dismissEnrichmentAndProceed = () => {
+    setShowEnrichmentDialog(false);
+    if (pendingAction === 'generate') executeGenerate();
+    else if (pendingAction === 'refine') executeRefine();
+    setPendingAction(null);
+  };
+
+  const executeGenerate = async () => {
     setIsProcessing(true);
     setProcessingLabel('Building voir dire strategy...');
     setError(null);
     try {
-      const doc = await api.generateVoirDire(caseInfo, jurors);
+      const doc = await api.generateVoirDire(caseInfo, jurors, caseId);
       setVoirDireDoc(doc);
       const questionsWithLock: VoirDireQuestion[] = doc.questions.map((q) => ({
         id: q.id,
@@ -109,13 +187,13 @@ export function VoirDireQuestions({
     }
   };
 
-  const handleRefineQuestions = async () => {
+  const executeRefine = async () => {
     if (!inputText.trim()) return;
     setIsProcessing(true);
     setProcessingLabel('Refining questions with AI...');
     setError(null);
     try {
-      const refined = await api.refineQuestions(inputText, caseInfo, jurors);
+      const refined = await api.refineQuestions(inputText, caseInfo, jurors, caseId);
       onQuestionsProcessed(refined);
       setInputText('');
     } catch (err: any) {
@@ -125,6 +203,9 @@ export function VoirDireQuestions({
       setProcessingLabel('');
     }
   };
+
+  const handleGenerateFullVoirDire = () => checkEnrichmentAndProceed('generate');
+  const handleRefineQuestions = () => checkEnrichmentAndProceed('refine');
 
   const updateQuestion = (id: number, field: keyof VoirDireQuestion, value: any) => {
     if (locked) return;
@@ -227,6 +308,71 @@ export function VoirDireQuestions({
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8 h-full flex flex-col">
+      <AnimatePresence>
+        {showEnrichmentDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+            data-testid="dialog-enrichment-wait"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 max-w-md w-full mx-4 relative"
+            >
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center mr-4">
+                  <Search className="w-6 h-6 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-lg">Background Research in Progress</h3>
+                  <p className="text-sm text-slate-500">
+                    {enrichmentCompleted} of {enrichmentTotal} jurors researched
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm text-slate-600 mb-6">
+                Juror background research is still running for {enrichmentPending} juror{enrichmentPending !== 1 ? 's' : ''}.
+                Waiting will produce more informed voir dire questions that leverage what we've learned about each juror.
+              </p>
+              <div className="w-full bg-slate-100 rounded-full h-2 mb-6">
+                <div
+                  className="bg-amber-500 h-2 rounded-full transition-all duration-300"
+                  style={{ width: enrichmentTotal > 0 ? `${(enrichmentCompleted / enrichmentTotal) * 100}%` : '0%' }}
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={startPollingEnrichment}
+                  data-testid="button-wait-for-enrichment"
+                  className="flex-1 inline-flex items-center justify-center px-4 py-3 bg-amber-600 text-white font-medium rounded-xl hover:bg-amber-700 transition-colors"
+                >
+                  <Clock className="w-4 h-4 mr-2" />
+                  Wait & Generate
+                </button>
+                <button
+                  onClick={dismissEnrichmentAndProceed}
+                  data-testid="button-generate-now"
+                  className="flex-1 inline-flex items-center justify-center px-4 py-3 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 transition-colors"
+                >
+                  Generate Now
+                </button>
+              </div>
+              <button
+                onClick={() => { setShowEnrichmentDialog(false); setPendingAction(null); }}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+                data-testid="button-close-enrichment-dialog"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="mb-6 flex justify-between items-end shrink-0">
         <div>
           <h2 className="text-2xl font-bold text-slate-900" data-testid="text-phase-title">
@@ -264,28 +410,6 @@ export function VoirDireQuestions({
         </motion.div>
       )}
 
-      {importResult && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start"
-        >
-          <CheckCircle2 className="w-5 h-5 text-emerald-600 mr-3 mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <p className="text-emerald-800 text-sm font-medium">
-              Enrichment data imported: {importResult.matched} juror{importResult.matched !== 1 ? 's' : ''} matched
-            </p>
-            {importResult.unmatched > 0 && (
-              <p className="text-amber-700 text-xs mt-1">
-                {importResult.unmatched} row{importResult.unmatched !== 1 ? 's' : ''} could not be matched: {importResult.unmatchedNames.join(', ')}
-              </p>
-            )}
-          </div>
-          <button onClick={() => setImportResult(null)} className="text-emerald-400 hover:text-emerald-600 ml-2">
-            <X className="w-4 h-4" />
-          </button>
-        </motion.div>
-      )}
 
       {!hasContent ? (
         <motion.div

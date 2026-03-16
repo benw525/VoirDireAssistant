@@ -325,7 +325,7 @@ export async function parseStrikeList(fileOrText: File[] | string): Promise<Juro
   }));
 }
 
-export async function generateVoirDire(caseInfo: CaseInfo, jurors: Juror[]): Promise<VoirDireDocument> {
+export async function generateVoirDire(caseInfo: CaseInfo, jurors: Juror[], caseId?: string | null): Promise<VoirDireDocument> {
   const jurorSummaries = jurors.map(j => ({
     number: j.number,
     name: j.name,
@@ -337,11 +337,11 @@ export async function generateVoirDire(caseInfo: CaseInfo, jurors: Juror[]): Pro
   }));
   return fetchJson<VoirDireDocument>(`${API_BASE}/generate-voir-dire`, {
     method: 'POST',
-    body: JSON.stringify({ caseInfo, jurors: jurorSummaries }),
+    body: JSON.stringify({ caseInfo, jurors: jurorSummaries, ...(caseId ? { caseId } : {}) }),
   });
 }
 
-export async function refineQuestions(rawText: string, caseInfo: CaseInfo, jurors: Juror[]): Promise<VoirDireQuestion[]> {
+export async function refineQuestions(rawText: string, caseInfo: CaseInfo, jurors: Juror[], caseId?: string | null): Promise<VoirDireQuestion[]> {
   const jurorSummaries = jurors.map(j => ({
     number: j.number,
     name: j.name,
@@ -355,7 +355,7 @@ export async function refineQuestions(rawText: string, caseInfo: CaseInfo, juror
     `${API_BASE}/refine-questions`,
     {
       method: 'POST',
-      body: JSON.stringify({ rawQuestions: rawText, caseInfo, jurors: jurorSummaries }),
+      body: JSON.stringify({ rawQuestions: rawText, caseInfo, jurors: jurorSummaries, ...(caseId ? { caseId } : {}) }),
     }
   );
   return result.questions.map(q => ({
@@ -657,12 +657,28 @@ export async function pushJuryAnalysisToMattrMindr(
 //   formData.append('file', file);
 //   const res = await fetch(`${API_BASE}/import-enrichment/${caseId}`, {
 //     method: 'POST',
-//     headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-//     body: formData,
-//   });
-//   if (!res.ok) {
-//     const err = await res.json().catch(() => ({ message: res.statusText }));
-//     throw new ApiError(err.message || 'Import failed', res.status);
-//   }
-//   return res.json();
-// }
+export interface EnrichmentStatusItem {
+  jurorNumber: number;
+  jurorName: string;
+  status: string;
+  enrichmentId: string;
+  createdAt: number;
+  completedAt: number | null;
+  hasData: boolean;
+}
+
+export interface EnrichmentStatusResponse {
+  items: EnrichmentStatusItem[];
+  summary: {
+    total: number;
+    pending: number;
+    dispatched: number;
+    completed: number;
+    failed: number;
+    error: number;
+  };
+}
+
+export async function getEnrichmentStatus(caseId: string): Promise<EnrichmentStatusResponse> {
+  return fetchJson<EnrichmentStatusResponse>(`${API_BASE}/cases/${caseId}/enrichment-status`);
+}

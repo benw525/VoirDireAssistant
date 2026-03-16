@@ -8,7 +8,8 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - **Backend**: Express.js server with REST API
 - **Database**: PostgreSQL with Drizzle ORM
 - **Auth**: JWT-based authentication with bcrypt password hashing, per-user data isolation
-- **AI**: OpenAI for voir dire generation (gpt-5.2), juror analysis (gpt-4o), AI chat assistant (gpt-4o-mini), voice transcription (whisper-1); Google Gemini (gemini-3.1-pro-preview) for strike list OCR/parsing with image support via sharp conversion
+- **AI**: OpenAI for voir dire generation (gpt-5.4-2026-03-05), juror analysis (gpt-5.4-2026-03-05), AI chat assistant (gpt-4o-mini), voice transcription (whisper-1); Google Gemini (gemini-3.1-pro-preview) for strike list OCR/parsing with image support via sharp conversion
+- **Juror Enrichment**: Perplexity Sonar Pro API for automated background research on jurors (replaces FluxPrompt). Triggered on juror upload, sequential per-juror processing with status tracking
 - **MattrMindr**: Optional integration to import cases from MattrMindr (filtered to Trial Center only) and push jury analysis back
 - **Build**: Vite for frontend, tsx for server
 
@@ -48,14 +49,14 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `client/src/components/AIAssistant/AIAssistantButton.tsx` — Floating draggable AI chat button (pointer capture)
 - `client/src/components/AIAssistant/AIAssistantPanel.tsx` — AI Assistant chat panel with streaming and context awareness
 - `client/src/lib/exportVoirDire.ts` — Voir dire strategy export (PDF via jsPDF, Word via docx, plain text via file-saver)
-- `client/src/lib/exportFluxCsv.ts` — CSV export of juror data for FluxPrompt manual enrichment (auto-downloads on strike list confirmation)
-- `server/fluxEnrichment.ts` — FluxPrompt API integration for automatic juror enrichment (API-based + manual CSV import fallback)
+- `server/perplexityEnrichment.ts` — Perplexity Sonar Pro API integration for automatic juror background research (triggerEnrichmentForJurors, getEnrichedDataForCase, cancelEnrichmentForCase)
+- `client/src/components/EnrichmentStatus.tsx` — Floating enrichment status bubble showing background research progress
 
 ## Application Phases
 0. Welcome Screen (past cases, new case)
 1. Case Initialization (name, area of law, summary, side) — optional MattrMindr import
-2. Strike List (upload/paste juror data — AI-powered parsing). On "Confirm & Proceed", auto-downloads a CSV with juror data for manual FluxPrompt enrichment.
-3. Voir Dire Questions (enter/generate questions). Includes "Import Enrichment Data" button to upload FluxPrompt results CSV — matches rows to jurors by name/number and stores enrichment data.
+2. Strike List (upload/paste juror data — AI-powered parsing). On "Confirm & Proceed", triggers automatic Perplexity Sonar Pro background research on all jurors.
+3. Voir Dire Questions (enter/generate questions). Before generation, checks enrichment status — if research is still running, offers "Wait & Generate" (polls until complete) or "Generate Now" (proceeds with available data). Enrichment data is automatically included in AI prompts.
 4. Response Recording (two sub-stages: your side's examination + opposing counsel's examination)
 5. Juror Review (assess leanings and risk tiers)
 6. End Report (final analysis, collapsible jury panel, peremptory strike boxes, recommendations, optional push to MattrMindr)
