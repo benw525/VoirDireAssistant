@@ -72,6 +72,7 @@ export function EndReport({
   const [sortField, setSortField] = useState<SortField>('number');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [expandedJuror, setExpandedJuror] = useState<number | null>(null);
+  const [isDownloadingCsv, setIsDownloadingCsv] = useState(false);
   const [aiSummaries, setAiSummaries] = useState<Record<number, string>>(() => {
     const initial: Record<number, string> = {};
     jurors.forEach(j => { if (j.aiSummary) initial[j.number] = j.aiSummary; });
@@ -419,6 +420,116 @@ export function EndReport({
       case 'medium': return 'bg-amber-100 text-amber-800';
       case 'low': return 'bg-emerald-100 text-emerald-800';
       default: return 'bg-slate-100 text-slate-600';
+    }
+  };
+
+  const escapeCsvField = (value: string): string => {
+    let sanitized = value;
+    if (/^[=+\-@\t\r]/.test(sanitized)) {
+      sanitized = `'${sanitized}`;
+    }
+    if (sanitized.includes(',') || sanitized.includes('"') || sanitized.includes('\n')) {
+      return `"${sanitized.replace(/"/g, '""')}"`;
+    }
+    return sanitized;
+  };
+
+  const handleDownloadCsv = async () => {
+    setIsDownloadingCsv(true);
+    try {
+      let enrichmentMap: Record<string, Record<string, any>> = {};
+      if (activeCaseId) {
+        try {
+          enrichmentMap = await api.getEnrichmentData(activeCaseId);
+        } catch {
+        }
+      }
+
+      const headers = [
+        'Juror Number', 'Name', 'Address', 'City/State/Zip', 'Phone',
+        'Sex', 'Race', 'Birth Date', 'Occupation', 'Employer',
+        'Lean', 'Risk Tier', 'Notes', 'AI Summary', 'AI Analysis',
+        'Court Dismissed',
+        'Strike for Cause Category', 'Strike for Cause Basis', 'Strike for Cause Reasoning', 'Strike for Cause Argument',
+        'Batson Defensive Risk', 'Batson Defensive Protected Class', 'Batson Defensive Justification',
+        'Batson Offensive Strength', 'Batson Offensive Protected Class', 'Batson Offensive Argument',
+        'Enrichment Data',
+        'Responses'
+      ];
+
+      const dismissedSet = new Set(savedCourtDismissed || []);
+
+      const rows = sortedJurors.map(juror => {
+        const jurorResponses = responses
+          .filter(r => r.jurorNumber === juror.number)
+          .sort((a, b) => a.timestamp - b.timestamp)
+          .map(r => {
+            const qText = getQuestionText(r);
+            const side = r.side === 'yours' ? 'Your' : r.side === 'opposing' ? 'Opposing' : 'Court';
+            let entry = `[${side}] ${qText}: ${r.responseText}`;
+            if (r.followUps && r.followUps.length > 0) {
+              const fuText = r.followUps.map(fu => `  Follow-up: ${fu.question} → ${fu.answer}`).join('; ');
+              entry += ` | ${fuText}`;
+            }
+            return entry;
+          })
+          .join(' || ');
+
+        const sfcMatch = (savedStrikesForCause || []).find(s => s.jurorNumber === juror.number);
+        const batsonDef = savedBatsonAnalysis?.defensive?.find(d => d.jurorNumber === juror.number);
+        const batsonOff = savedBatsonAnalysis?.offensive?.find(o => o.jurorNumber === juror.number);
+
+        const jurorId = juror.id || String(juror.number);
+        const enrichment = enrichmentMap[jurorId];
+        const enrichmentText = enrichment?.text || '';
+
+        return [
+          String(juror.number),
+          juror.name,
+          juror.address,
+          juror.cityStateZip,
+          juror.phone,
+          juror.sex,
+          juror.race,
+          juror.birthDate,
+          juror.occupation,
+          juror.employer,
+          juror.lean,
+          juror.riskTier,
+          juror.notes,
+          juror.aiSummary || aiSummaries[juror.number] || '',
+          juror.aiAnalysis || '',
+          dismissedSet.has(juror.number) ? 'Yes' : 'No',
+          sfcMatch?.category || '',
+          sfcMatch?.basis || '',
+          sfcMatch?.reasoning || '',
+          sfcMatch?.argument || '',
+          batsonDef?.riskLevel || '',
+          batsonDef?.protectedClass || '',
+          batsonDef?.currentJustification || '',
+          batsonOff?.strengthOfChallenge || '',
+          batsonOff?.protectedClass || '',
+          batsonOff?.suggestedArgument || '',
+          enrichmentText,
+          jurorResponses,
+        ].map(v => escapeCsvField(String(v)));
+      });
+
+      const csvContent = [headers.map(h => escapeCsvField(h)).join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const safeName = caseInfo.name.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
+      link.download = `${safeName}_juror_data.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('CSV download error:', err);
+    } finally {
+      setIsDownloadingCsv(false);
     }
   };
 
@@ -1313,6 +1424,25 @@ export function EndReport({
             >
               <Download className="w-5 h-5 mr-2" />
               Download as PDF
+            </button>
+
+            <button
+              onClick={handleDownloadCsv}
+              disabled={isDownloadingCsv}
+              data-testid="button-download-csv"
+              className="inline-flex items-center px-8 py-4 bg-emerald-700 text-white font-bold rounded-xl hover:bg-emerald-800 transition-colors shadow-lg disabled:opacity-50"
+            >
+              {isDownloadingCsv ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Preparing CSV...
+                </>
+              ) : (
+                <>
+                  <Download className="w-5 h-5 mr-2" />
+                  Download Juror Data
+                </>
+              )}
             </button>
 
             {isMattrMindrConnected && mattrmindrCaseId && (

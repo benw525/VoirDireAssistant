@@ -721,3 +721,8 @@ export interface EnrichmentStatusResponse {
 export async function getEnrichmentStatus(caseId: string): Promise<EnrichmentStatusResponse> {
   return fetchJson<EnrichmentStatusResponse>(`${API_BASE}/cases/${caseId}/enrichment-status`);
 }
+
+export async function getEnrichmentData(caseId: string): Promise<Record<string, Record<string, any>>> {
+  const result = await fetchJson<{ enrichments: Record<string, Record<string, any>> }>(`${API_BASE}/cases/${caseId}/enrichment-data`);
+  return result.enrichments;
+}

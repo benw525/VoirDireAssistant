@@ -260,6 +260,21 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/cases/:caseId/enrichment-data", authMiddleware, async (req, res) => {
+    try {
+      const { caseId } = req.params;
+      const caseRecord = await storage.getCase(caseId);
+      if (!caseRecord || caseRecord.userId !== req.user!.id) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const enrichedMap = await getEnrichedDataForCase(caseId);
+      res.json({ enrichments: enrichedMap });
+    } catch (err: any) {
+      console.error("[EnrichmentData] Error:", err);
+      res.status(500).json({ message: "Failed to fetch enrichment data" });
+    }
+  });
+
   app.post("/api/cases/:caseId/stop-enrichment", authMiddleware, async (req, res) => {
     try {
       const { caseId } = req.params;
