@@ -210,6 +210,28 @@ export function VoirDireQuestions({
   const handleGenerateFullVoirDire = () => checkEnrichmentAndProceed('generate');
   const handleRefineQuestions = () => checkEnrichmentAndProceed('refine');
 
+  const handleUseAsIs = () => {
+    if (!inputText.trim()) return;
+    const lines = inputText
+      .split(/\n/)
+      .map(l => l.replace(/^\s*\d+[\.\)\-:]\s*/, '').trim())
+      .filter(l => l.length > 0);
+    const questionsFromText: VoirDireQuestion[] = lines.map((text, idx) => ({
+      id: idx + 1,
+      originalText: text,
+      rephrase: '',
+      followUps: [],
+      locked: false,
+    }));
+    if (questionsFromText.length === 0) {
+      setError('No questions could be extracted from the text.');
+      return;
+    }
+    onQuestionsProcessed(questionsFromText);
+    setInputText('');
+    setUploadedFileName(null);
+  };
+
   const updateQuestion = (id: number, field: keyof VoirDireQuestion, value: any) => {
     if (locked) return;
     const updated = questions.map((q) => (q.id === id ? { ...q, [field]: value } : q));
@@ -488,9 +510,9 @@ export function VoirDireQuestions({
                   <FileText className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900">Refine My Questions</h3>
+                  <h3 className="font-bold text-slate-900">Use My Questions</h3>
                   <p className="text-sm text-slate-500">
-                    Paste your own questions or upload a document and let AI enhance them strategically
+                    Paste your own questions or upload a document
                   </p>
                 </div>
               </div>
@@ -542,15 +564,26 @@ export function VoirDireQuestions({
                   </button>
                   <span className="text-xs text-slate-400">PDF, DOCX, TXT, RTF</span>
                 </div>
-                <button
-                  onClick={handleRefineQuestions}
-                  disabled={!inputText.trim()}
-                  data-testid="button-refine-questions"
-                  className="inline-flex items-center px-6 py-3 bg-slate-900 text-white font-medium rounded-xl hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 disabled:opacity-50 transition-colors"
-                >
-                  <HelpCircle className="w-5 h-5 mr-2" />
-                  Refine Questions
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleUseAsIs}
+                    disabled={!inputText.trim()}
+                    data-testid="button-use-as-is"
+                    className="inline-flex items-center px-5 py-3 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:opacity-50 transition-colors"
+                  >
+                    <FileText className="w-5 h-5 mr-2" />
+                    Use As-Is
+                  </button>
+                  <button
+                    onClick={handleRefineQuestions}
+                    disabled={!inputText.trim()}
+                    data-testid="button-refine-questions"
+                    className="inline-flex items-center px-5 py-3 bg-slate-900 text-white font-medium rounded-xl hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 disabled:opacity-50 transition-colors"
+                  >
+                    <Sparkles className="w-5 h-5 mr-2" />
+                    Refine with AI
+                  </button>
+                </div>
               </div>
             </div>
           </div>
