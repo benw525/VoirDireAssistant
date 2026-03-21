@@ -858,8 +858,8 @@ export async function registerRoutes(
           console.error("[Enrichment] Failed to fetch enrichment data:", err);
         }
       }
-      const analysis = await analyzeJuror(parsed.data.caseInfo, parsed.data.juror, parsed.data.responses, enrichedData);
-      res.json({ analysis });
+      const result = await analyzeJuror(parsed.data.caseInfo, parsed.data.juror, parsed.data.responses, enrichedData);
+      res.json({ analysis: result.analysis, riskScore: result.riskScore, aiRiskTier: result.aiRiskTier });
     } catch (err: any) {
       console.error("Juror analysis error:", err);
       res.status(500).json({ message: err.message || "Failed to analyze juror" });

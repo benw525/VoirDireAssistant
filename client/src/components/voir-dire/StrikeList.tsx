@@ -226,6 +226,8 @@ export function StrikeList({
     responses: [],
     lean: 'unknown',
     riskTier: 'unassessed',
+    aiRiskTier: 'unassessed',
+    riskScore: 0,
     notes: '',
     aiSummary: '',
     aiAnalysis: '',

@@ -35,6 +35,8 @@ export interface Juror {
   responses: JurorResponse[];
   lean: 'favorable' | 'neutral' | 'unfavorable' | 'unknown';
   riskTier: 'low' | 'medium' | 'high' | 'unassessed';
+  aiRiskTier: 'low' | 'medium' | 'high' | 'unassessed';
+  riskScore: number;
   notes: string;
   aiSummary: string;
   aiAnalysis: string;

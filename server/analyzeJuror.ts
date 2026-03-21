@@ -43,23 +43,37 @@ You will receive:
 4. The juror's current lean assessment and risk tier as set by the attorney
 5. Any attorney notes on the juror
 
-Your job is to produce a concise, strategic analysis explaining:
+You MUST respond with valid JSON in this exact format:
+{
+  "riskScore": <number 1-100>,
+  "aiRiskTier": "low" | "medium" | "high",
+  "analysis": "<your full 3-5 paragraph analysis as a single string>"
+}
 
-**RISK ASSESSMENT** — Why this juror is classified at their current risk tier. Reference specific responses, demographic factors, and case-relevant concerns. If you disagree with the current tier, say so and explain why.
+RISK SCORE (1-100): Assign a numeric risk score reflecting how dangerous this juror is to the attorney's case. 1 = ideal juror, 100 = worst possible juror.
 
-**KEY CONCERNS** — The 2-3 most important things the attorney should know about this juror. Flag any responses that suggest bias, strong feelings, or potential cause challenges.
+RISK SCORE WEIGHTING — This is critical:
+- Recorded voir dire responses are the PRIMARY signal (60-70% weight). What the juror actually said during questioning — their tone, hedging, strong opinions, specific statements about the case issues — matters most.
+- Enrichment/background data is the SECONDARY signal (15-25% weight). Employment history, legal issues, community involvement, business ties found through research.
+- Demographics alone (occupation, age, race, sex) are a TERTIARY signal (10-15% weight). Demographics inform context but should NOT drive the score by themselves. A healthcare worker or teacher is not automatically high-risk — their responses determine that.
+- A juror with zero recorded responses should score between 30-60 (moderate uncertainty), NOT automatically high.
 
-**STRATEGIC RECOMMENDATION** — A brief, actionable recommendation: keep, strike for cause (with basis), or use peremptory strike. Explain your reasoning in terms the attorney can use.
+AI RISK TIER: Based on your score, assign "high" (score 70-100), "medium" (score 35-69), or "low" (score 1-34).
+
+ANALYSIS: Produce a concise, strategic analysis covering:
+- RISK ASSESSMENT — Why this juror received this risk score. Reference specific responses first, then background data, then demographics. If the attorney's current tier disagrees with yours, explain the discrepancy.
+- KEY CONCERNS — The 2-3 most important things the attorney should know. Flag responses suggesting bias, strong feelings, or potential cause challenges.
+- STRATEGIC RECOMMENDATION — Keep, strike for cause (with basis), or use peremptory strike. Explain reasoning.
 
 Rules:
 - Be direct and practical — this is a working tool for a trial attorney
 - Reference specific responses by quoting them when relevant
 - Consider how the juror's occupation, background, and responses interact with the case facts
-- If the juror has no recorded responses, base your analysis on demographics and note that more information is needed
-- Keep the total analysis to 3-5 short paragraphs
-- Do not use headers, bullet points, or markdown formatting — write in flowing prose paragraphs
+- If the juror has no recorded responses, note that more information is needed and score conservatively (do NOT default to high risk)
+- Keep the analysis to 3-5 short paragraphs
+- Do not use headers, bullet points, or markdown formatting in the analysis — write in flowing prose paragraphs
 - Always frame analysis from the perspective of the attorney's side
-- IMPORTANT: If enriched background data is provided below the juror profile, you MUST reference at least one finding from it in your analysis. If the enrichment data reveals employment history, business ownership, legal issues, community involvement, or other background relevant to the case, discuss how it affects your risk assessment. Do not ignore enrichment data when it is present.`;
+- IMPORTANT: If enriched background data is provided below the juror profile, you MUST reference at least one finding from it in your analysis. Do not ignore enrichment data when it is present.`;
 
 const BRIEF_SUMMARY_PROMPT = `You are a Juror Risk Assessment Analyst. Given case context and a juror's profile with their voir dire responses, produce a brief 1-2 sentence summary explaining why this juror is classified at their current lean and risk tier. Be specific — reference their occupation, key responses, or demographic factors that drive the classification. If enriched background data is provided, you MUST incorporate at least one relevant finding (employment history, business ties, community involvement, legal history) into the summary. Write from the attorney's perspective. No headers, no bullet points — just 1-2 flowing sentences.`;
 
@@ -124,12 +138,18 @@ Write a 1-2 sentence summary explaining this juror's classification.`;
   return completion.choices[0]?.message?.content || "Unable to generate summary.";
 }
 
+export interface AnalysisResult {
+  analysis: string;
+  riskScore: number;
+  aiRiskTier: 'low' | 'medium' | 'high';
+}
+
 export async function analyzeJuror(
   caseContext: CaseContext,
   juror: JurorData,
   responses: ResponseData[],
   enrichedData?: Record<string, any> | null
-): Promise<string> {
+): Promise<AnalysisResult> {
   const responsesText = responses.length > 0
     ? responses.map((r, i) => {
         const questionLabel = r.side === 'court'
@@ -189,11 +209,25 @@ Provide your risk assessment analysis for this juror.`;
       { role: "user", content: userPrompt },
     ],
     temperature: 0.4,
-    max_completion_tokens: 800,
+    max_completion_tokens: 1200,
+    response_format: { type: "json_object" },
     store: false,
   });
 
-  return completion.choices[0]?.message?.content || "Unable to generate analysis.";
+  const raw = completion.choices[0]?.message?.content || '{}';
+  try {
+    const parsed = JSON.parse(raw);
+    const score = typeof parsed.riskScore === 'number' ? Math.max(1, Math.min(100, Math.round(parsed.riskScore))) : 50;
+    const validTiers = new Set(['low', 'medium', 'high']);
+    const tier = validTiers.has(parsed.aiRiskTier) ? parsed.aiRiskTier : (score >= 70 ? 'high' : score >= 35 ? 'medium' : 'low');
+    return {
+      analysis: typeof parsed.analysis === 'string' ? parsed.analysis : 'Unable to generate analysis.',
+      riskScore: score,
+      aiRiskTier: tier as 'low' | 'medium' | 'high',
+    };
+  } catch {
+    return { analysis: raw, riskScore: 50, aiRiskTier: 'medium' };
+  }
 }
 
 export interface StrikeForCauseEntry {

@@ -86,7 +86,7 @@ const generateSampleJurors = (): Juror[] => {
     sex: i % 2 === 0 ? 'M' : 'F', race: ['W', 'B', 'H', 'A', 'O'][i % 5],
     birthDate: `19${60 + i * 3}-0${i % 9 + 1}-15`,
     occupation: occupations[i], employer: 'Various',
-    responses: [], lean: 'unknown' as const, riskTier: 'unassessed' as const, notes: '',
+    responses: [], lean: 'unknown' as const, riskTier: 'unassessed' as const, aiRiskTier: 'unassessed' as const, riskScore: 0, notes: '',
     aiSummary: '', aiAnalysis: '',
   }));
 };
@@ -339,8 +339,10 @@ export default function VoirDireApp() {
           ];
           let newRisk = j.riskTier;
           let newLean = j.lean;
-          if (jResponses.length > 2) newRisk = 'high';
-          else if (jResponses.length > 0) newRisk = 'medium';
+          if (newRisk === 'unassessed') {
+            if (jResponses.length > 2) newRisk = 'medium';
+            else if (jResponses.length > 0) newRisk = 'medium';
+          }
           if (newLean === 'unknown') {
             newLean = Math.random() > 0.5 ? 'favorable' : 'unfavorable';
           }

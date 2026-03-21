@@ -457,7 +457,7 @@ export function EndReport({
       const headers = [
         'Juror Number', 'Name', 'Address', 'City/State/Zip', 'Phone',
         'Sex', 'Race', 'Birth Date', 'Occupation', 'Employer',
-        'Lean', 'Risk Tier', 'Notes', 'AI Summary', 'AI Analysis',
+        'Lean', 'Risk Tier', 'Risk Score', 'AI Risk Tier', 'Notes', 'AI Summary', 'AI Analysis',
         'Court Dismissed',
         'Strike for Cause Category', 'Strike for Cause Basis', 'Strike for Cause Reasoning', 'Strike for Cause Argument',
         'Batson Defensive Risk', 'Batson Defensive Protected Class', 'Batson Defensive Justification',
@@ -505,6 +505,8 @@ export function EndReport({
           juror.employer,
           juror.lean,
           juror.riskTier,
+          String(juror.riskScore || 0),
+          juror.aiRiskTier || 'unassessed',
           juror.notes,
           juror.aiSummary || aiSummaries[juror.number] || '',
           juror.aiAnalysis || '',
@@ -728,7 +730,12 @@ export function EndReport({
                       {juror.lean}
                     </span>
                   </div>
-                  <div>
+                  <div className="flex items-center gap-1">
+                    {juror.riskScore > 0 && (
+                      <span className={`text-xs font-black tabular-nums ${juror.riskScore >= 70 ? 'text-rose-600' : juror.riskScore >= 35 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                        {juror.riskScore}
+                      </span>
+                    )}
                     <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold capitalize ${getRiskBadge(juror.riskTier)}`} data-testid={`badge-risk-${juror.number}`}>
                       {juror.riskTier}
                     </span>

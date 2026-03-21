@@ -66,6 +66,8 @@ export const jurors = pgTable("jurors", {
   employer: text("employer").notNull().default(""),
   lean: text("lean").notNull().default("unknown"),
   riskTier: text("risk_tier").notNull().default("unassessed"),
+  aiRiskTier: text("ai_risk_tier").notNull().default("unassessed"),
+  riskScore: integer("risk_score").notNull().default(0),
   notes: text("notes").notNull().default(""),
   aiSummary: text("ai_summary").notNull().default(""),
   aiAnalysis: text("ai_analysis").notNull().default(""),

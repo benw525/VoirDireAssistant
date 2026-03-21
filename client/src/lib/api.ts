@@ -72,6 +72,8 @@ interface DbJuror {
   employer: string;
   lean: string;
   riskTier: string;
+  aiRiskTier: string;
+  riskScore: number;
   notes: string;
   aiSummary: string;
   aiAnalysis: string;
@@ -150,6 +152,8 @@ function dbJurorToJuror(j: DbJuror): Juror {
     responses: [],
     lean: j.lean as Juror['lean'],
     riskTier: j.riskTier as Juror['riskTier'],
+    aiRiskTier: (j.aiRiskTier || 'unassessed') as Juror['aiRiskTier'],
+    riskScore: j.riskScore || 0,
     notes: j.notes,
     aiSummary: j.aiSummary || '',
     aiAnalysis: j.aiAnalysis || '',
@@ -240,6 +244,8 @@ export async function saveJurors(caseId: string, jurors: Juror[]): Promise<void>
         employer: j.employer,
         lean: j.lean,
         riskTier: j.riskTier,
+        aiRiskTier: j.aiRiskTier || 'unassessed',
+        riskScore: j.riskScore || 0,
         notes: j.notes,
       }))),
     });
@@ -342,6 +348,8 @@ export async function parseStrikeList(fileOrText: File[] | string): Promise<Pars
     responses: [],
     lean: 'unknown' as const,
     riskTier: 'unassessed' as const,
+    aiRiskTier: 'unassessed' as const,
+    riskScore: 0,
     notes: '',
     aiSummary: '',
     aiAnalysis: '',
@@ -425,13 +433,19 @@ export async function suggestFollowups(
   return result.suggestions;
 }
 
+export interface AnalysisResult {
+  analysis: string;
+  riskScore: number;
+  aiRiskTier: 'low' | 'medium' | 'high';
+}
+
 export async function analyzeJuror(
   caseInfo: CaseInfo,
   juror: Juror,
   responses: JurorResponse[],
   questions: Array<{ id: number; originalText: string }>,
   caseId?: string | null
-): Promise<string> {
+): Promise<AnalysisResult> {
   const mappedResponses = responses.map(r => ({
     questionText: r.questionId ? (questions.find(q => q.id === r.questionId)?.originalText || null) : null,
     questionSummary: r.questionSummary || null,
@@ -439,7 +453,7 @@ export async function analyzeJuror(
     side: r.side,
     followUps: r.followUps || [],
   }));
-  const result = await fetchJson<{ analysis: string }>(`${API_BASE}/analyze-juror`, {
+  const result = await fetchJson<{ analysis: string; riskScore: number; aiRiskTier: string }>(`${API_BASE}/analyze-juror`, {
     method: 'POST',
     body: JSON.stringify({
       caseInfo,
@@ -460,7 +474,11 @@ export async function analyzeJuror(
       ...(caseId ? { caseId } : {}),
     }),
   });
-  return result.analysis;
+  return {
+    analysis: result.analysis,
+    riskScore: result.riskScore || 50,
+    aiRiskTier: (result.aiRiskTier as any) || 'medium',
+  };
 }
 
 export async function analyzeJurorsBatch(
@@ -611,6 +629,8 @@ export async function updateJurorOnServer(caseId: string, jurorNumber: number, u
     const patchData: Record<string, any> = {};
     if (updates.lean !== undefined) patchData.lean = updates.lean;
     if (updates.riskTier !== undefined) patchData.riskTier = updates.riskTier;
+    if (updates.aiRiskTier !== undefined) patchData.aiRiskTier = updates.aiRiskTier;
+    if (updates.riskScore !== undefined) patchData.riskScore = updates.riskScore;
     if (updates.notes !== undefined) patchData.notes = updates.notes;
     if (updates.aiSummary !== undefined) patchData.aiSummary = updates.aiSummary;
     if (updates.aiAnalysis !== undefined) patchData.aiAnalysis = updates.aiAnalysis;

@@ -87,10 +87,14 @@ export function JurorReview({
     setAnalyzingJuror(juror.number);
     try {
       const jurorResponses = responses.filter(r => r.jurorNumber === juror.number);
-      const analysis = await api.analyzeJuror(caseInfo, juror, jurorResponses, questions, activeCaseId);
-      setAiAnalysis(prev => ({ ...prev, [juror.number]: analysis }));
+      const result = await api.analyzeJuror(caseInfo, juror, jurorResponses, questions, activeCaseId);
+      setAiAnalysis(prev => ({ ...prev, [juror.number]: result.analysis }));
       setFailedAnalyses(prev => { const n = new Set(prev); n.delete(juror.number); return n; });
-      onUpdateJuror(juror.number, { aiAnalysis: analysis });
+      onUpdateJuror(juror.number, {
+        aiAnalysis: result.analysis,
+        riskScore: result.riskScore,
+        aiRiskTier: result.aiRiskTier,
+      });
       return true;
     } catch (err) {
       console.error('Failed to analyze juror:', err);
@@ -260,6 +264,29 @@ export function JurorReview({
         </div>
       </div>
 
+      {(() => {
+        if (jurors.length <= 5) return null;
+        const threshold = Math.ceil(jurors.length * 0.6);
+        const tierCounts: Record<string, number> = {};
+        jurors.forEach(j => { tierCounts[j.riskTier] = (tierCounts[j.riskTier] || 0) + 1; });
+        const dominant = Object.entries(tierCounts).find(([, count]) => count >= threshold);
+        if (dominant) {
+          const [tier, count] = dominant;
+          return (
+            <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-sm shrink-0" data-testid="banner-tier-imbalance">
+              <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+              <div>
+                <span className="font-semibold text-rose-800">{count} of {jurors.length} jurors are at {tier.charAt(0).toUpperCase() + tier.slice(1)} risk.</span>
+                <span className="text-rose-700 ml-1">
+                  When most jurors share the same tier, it becomes harder to prioritize strikes. Consider reclassifying some to create a more useful gradient. Use "Analyze All" to get AI-recommended tiers based on individual risk scores.
+                </span>
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
       {enrichmentStatus.isRunning && (
         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-sm shrink-0" data-testid="banner-enrichment-pending">
           <Search className="w-4 h-4 text-amber-500 shrink-0" />
@@ -315,13 +342,24 @@ export function JurorReview({
                 <div className="p-4 bg-slate-50 flex-1">
                   <div className="flex justify-between items-center mb-3">
                     <span className="text-xs font-semibold text-slate-500 uppercase">
-                      Risk Tier
+                      Risk
                     </span>
-                    <span
-                  className={`text-xs font-bold px-2 py-0.5 rounded capitalize ${juror.riskTier === 'high' ? 'bg-rose-100 text-rose-700' : juror.riskTier === 'medium' ? 'bg-amber-100 text-amber-700' : juror.riskTier === 'low' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
-
-                      {juror.riskTier}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {juror.riskScore > 0 && (
+                        <span className={`text-xs font-black tabular-nums ${juror.riskScore >= 70 ? 'text-rose-600' : juror.riskScore >= 35 ? 'text-amber-600' : 'text-emerald-600'}`} data-testid={`score-${juror.number}`}>
+                          {juror.riskScore}
+                        </span>
+                      )}
+                      <span
+                        className={`text-xs font-bold px-2 py-0.5 rounded capitalize ${juror.riskTier === 'high' ? 'bg-rose-100 text-rose-700' : juror.riskTier === 'medium' ? 'bg-amber-100 text-amber-700' : juror.riskTier === 'low' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                        {juror.riskTier}
+                      </span>
+                      {juror.aiRiskTier && juror.aiRiskTier !== 'unassessed' && juror.aiRiskTier !== juror.riskTier && (
+                        <span className="text-[10px] text-slate-400" title={`AI recommends: ${juror.aiRiskTier}`}>
+                          (AI: {juror.aiRiskTier})
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex justify-between items-center mb-3">
                     <span className="text-xs font-semibold text-slate-500 uppercase">
@@ -484,7 +522,9 @@ export function JurorReview({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-2">
-                    Risk Tier
+                    Risk Tier {selectedJuror.aiRiskTier && selectedJuror.aiRiskTier !== 'unassessed' && selectedJuror.aiRiskTier !== selectedJuror.riskTier && (
+                      <span className="text-amber-500 normal-case font-normal">(AI: {selectedJuror.aiRiskTier})</span>
+                    )}
                   </label>
                   <select
                   value={selectedJuror.riskTier}
@@ -506,6 +546,32 @@ export function JurorReview({
                   </select>
                 </div>
               </div>
+
+              {selectedJuror.riskScore > 0 && (
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm" data-testid={`risk-score-panel-${selectedJuror.number}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-slate-500 uppercase">AI Risk Score</span>
+                    <span className={`text-2xl font-black tabular-nums ${selectedJuror.riskScore >= 70 ? 'text-rose-600' : selectedJuror.riskScore >= 35 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      {selectedJuror.riskScore}<span className="text-sm font-normal text-slate-400">/100</span>
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${selectedJuror.riskScore >= 70 ? 'bg-rose-500' : selectedJuror.riskScore >= 35 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                      style={{ width: `${selectedJuror.riskScore}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+                    <span>Low</span><span>Medium</span><span>High</span>
+                  </div>
+                  {selectedJuror.aiRiskTier && selectedJuror.aiRiskTier !== 'unassessed' && selectedJuror.aiRiskTier !== selectedJuror.riskTier && (
+                    <p className="mt-2 text-xs text-amber-600 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Your tier ({selectedJuror.riskTier}) differs from AI recommendation ({selectedJuror.aiRiskTier}).
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* AI Analysis */}
               <div>
