@@ -13,6 +13,11 @@ import {
   Mic,
   MicOff,
   Square,
+  Target,
+  Plus,
+  X,
+  Upload,
+  ChevronDown,
 } from 'lucide-react';
 import { CaseInfo } from '../../types';
 import * as api from '../../lib/api';
@@ -24,7 +29,7 @@ interface CaseSetupProps {
   isMattrMindrConnected?: boolean;
 }
 
-const AREAS_OF_LAW = [
+const CASE_TYPES = [
   'Personal Injury',
   'Criminal Defense',
   'Medical Malpractice',
@@ -34,6 +39,252 @@ const AREAS_OF_LAW = [
   'Civil Rights',
   'Other',
 ];
+
+interface JurorProfile {
+  favorable: string[];
+  risk: string[];
+}
+
+const TARGET_JUROR_PROFILES: Record<string, Record<string, JurorProfile>> = {
+  'Personal Injury': {
+    plaintiff: {
+      favorable: [
+        'Empathetic toward injury victims',
+        'Believes in corporate accountability',
+        'Open to significant non-economic damages',
+        'Has experienced personal injury or knows someone who has',
+        'Distrusts large corporations or insurers',
+      ],
+      risk: [
+        'Tort reform advocate',
+        'Skeptical of emotional distress claims',
+        'Believes lawsuits are excessive',
+        'Works in insurance or risk management',
+        'Strong personal responsibility ideology',
+      ],
+    },
+    defense: {
+      favorable: [
+        'Values personal responsibility',
+        'Skeptical of large damage awards',
+        'Detail-oriented and analytical',
+        'Works in business, finance, or management',
+        'Believes some lawsuits are frivolous',
+      ],
+      risk: [
+        'Anti-corporate bias',
+        'Highly emotional or sympathetic',
+        'Prior negative experience with insurance companies',
+        'Has filed a personal injury claim before',
+        'Distrusts corporations',
+      ],
+    },
+  },
+  'Criminal Defense': {
+    plaintiff: {
+      favorable: [
+        'Trusts law enforcement',
+        'Believes in strict justice',
+        'Has been a victim of crime or knows a victim',
+        'Respects authority and institutions',
+        'Favors community safety over individual rights',
+      ],
+      risk: [
+        'Distrusts police or prosecutors',
+        'Believes system is biased against defendants',
+        'Has had negative experiences with law enforcement',
+        'Strong civil liberties advocate',
+        'Knows someone who was wrongly accused',
+      ],
+    },
+    defense: {
+      favorable: [
+        'Skeptical of government authority',
+        'Believes strongly in presumption of innocence',
+        'Independent thinker, questions narratives',
+        'Values civil liberties and individual rights',
+        'Has had negative experience with law enforcement',
+      ],
+      risk: [
+        'Law-and-order oriented',
+        'Victim of crime or close to a victim',
+        'Works in law enforcement or military',
+        'Trusts prosecutors and authority figures',
+        'Believes accused are usually guilty',
+      ],
+    },
+  },
+  'Medical Malpractice': {
+    plaintiff: {
+      favorable: [
+        'Skeptical of medical establishment',
+        'Has had a bad medical experience',
+        'Empathetic toward patients',
+        'Open to holding doctors accountable',
+        'Believes medical errors should be compensated',
+      ],
+      risk: [
+        'Works in healthcare or has close family in healthcare',
+        'Believes doctors do their best under difficult conditions',
+        'Skeptical of large damage awards',
+        'Thinks malpractice suits raise healthcare costs',
+        'Highly deferential to medical professionals',
+      ],
+    },
+    defense: {
+      favorable: [
+        'Works in or respects medical profession',
+        'Understands medicine involves inherent risk',
+        'Skeptical of large damage awards',
+        'Analytical and evidence-focused',
+        'Believes malpractice suits are often frivolous',
+      ],
+      risk: [
+        'Has experienced medical negligence firsthand',
+        'Distrusts doctors or hospitals',
+        'Highly empathetic toward patients',
+        'Anti-corporate or anti-institutional bias',
+        'Lost a loved one due to medical error',
+      ],
+    },
+  },
+  'Contract Dispute': {
+    plaintiff: {
+      favorable: [
+        'Values honoring agreements',
+        'Has experience with business dealings',
+        'Believes in holding parties accountable',
+        'Detail-oriented and reads fine print',
+        'Sympathetic to smaller party in a dispute',
+      ],
+      risk: [
+        'Skeptical of contract claims',
+        'Believes both sides share blame in disputes',
+        'Dislikes litigation over business disagreements',
+        'Pro-business with large company sympathy',
+        'Believes contracts are too complex for juries',
+      ],
+    },
+    defense: {
+      favorable: [
+        'Business-savvy and understands commercial risk',
+        'Skeptical of breach claims',
+        'Analytical and focused on contract language',
+        'Believes in freedom of contract',
+        'Works in business, law, or finance',
+      ],
+      risk: [
+        'Sympathizes with smaller parties',
+        'Anti-corporate sentiment',
+        'Has felt cheated by a contract',
+        'Emotional decision-maker',
+        'Suspicious of large organizations',
+      ],
+    },
+  },
+  'Employment Law': {
+    plaintiff: {
+      favorable: [
+        'Has experienced workplace mistreatment',
+        'Pro-worker and pro-union',
+        'Empathetic toward employees',
+        'Skeptical of corporate HR departments',
+        'Believes employers have significant power imbalance',
+      ],
+      risk: [
+        'Business owner or manager',
+        'Believes employees exaggerate complaints',
+        'Skeptical of discrimination claims',
+        'Pro-employer and values at-will employment',
+        'Works in HR or management',
+      ],
+    },
+    defense: {
+      favorable: [
+        'Business owner, manager, or HR professional',
+        'Understands workplace management challenges',
+        'Skeptical of employee complaints',
+        'Values at-will employment doctrine',
+        'Believes in following proper procedures',
+      ],
+      risk: [
+        'Has been fired or laid off unfairly',
+        'Pro-worker, pro-union background',
+        'Has filed a workplace complaint or lawsuit',
+        'Distrusts corporate employers',
+        'Strong empathy for employees',
+      ],
+    },
+  },
+  'Family Law': {
+    plaintiff: {
+      favorable: [
+        'Values stability for children',
+        'Sympathetic to primary caregivers',
+        'Believes in equitable asset division',
+        'Has been through a similar family situation',
+        'Empathetic and emotionally attuned',
+      ],
+      risk: [
+        'Strong bias toward one parent gender',
+        'Believes divorce is always avoidable',
+        'Judgmental about family decisions',
+        'Lacks empathy for emotional situations',
+        'Very traditional family values',
+      ],
+    },
+    defense: {
+      favorable: [
+        'Values fairness and both parents having involvement',
+        'Analytical approach to family disputes',
+        'Believes in examining both sides',
+        'Skeptical of emotional manipulation in custody',
+        'Understands complexity of family situations',
+      ],
+      risk: [
+        'Strong sympathy toward one parent type',
+        'Has had a bitter divorce or custody battle',
+        'Emotional decision-maker in family matters',
+        'Pre-formed opinions about custody',
+        'Distrusts the other gender in family disputes',
+      ],
+    },
+  },
+  'Civil Rights': {
+    plaintiff: {
+      favorable: [
+        'Believes in systemic accountability',
+        'Has experienced discrimination',
+        'Strong advocate for civil rights and equality',
+        'Distrusts institutions that resist reform',
+        'Open to significant damages for rights violations',
+      ],
+      risk: [
+        'Skeptical of discrimination claims',
+        'Works in law enforcement or government',
+        'Believes system works fairly for everyone',
+        'Strong authority-respecting disposition',
+        'Views civil rights suits as politically motivated',
+      ],
+    },
+    defense: {
+      favorable: [
+        'Respects institutions and authority',
+        'Believes system generally works fairly',
+        'Skeptical of large damage awards',
+        'Analytical and evidence-focused',
+        'Works in government, law enforcement, or administration',
+      ],
+      risk: [
+        'Has experienced discrimination personally',
+        'Distrusts government institutions',
+        'Strong civil rights advocate',
+        'Highly empathetic toward marginalized groups',
+        'Active in social justice causes',
+      ],
+    },
+  },
+};
 
 function mapCaseTypeToAreaOfLaw(caseType: string): string {
   const lc = caseType.toLowerCase();
@@ -107,6 +358,12 @@ export function CaseSetup({
   const [side, setSide] = useState<'plaintiff' | 'defense' | null>(existingInfo?.side || null);
   const [isInitialized, setIsInitialized] = useState(!!existingInfo);
   const [selectedMattrMindrId, setSelectedMattrMindrId] = useState<string | null>(null);
+  const [objectiveSource, setObjectiveSource] = useState<'preset' | 'custom'>('preset');
+  const [favorableTraits, setFavorableTraits] = useState<string[]>(existingInfo?.favorableTraits || []);
+  const [riskTraits, setRiskTraits] = useState<string[]>(existingInfo?.riskTraits || []);
+  const [newFavorableTrait, setNewFavorableTrait] = useState('');
+  const [newRiskTrait, setNewRiskTrait] = useState('');
+  const [customObjectivesText, setCustomObjectivesText] = useState('');
 
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -180,22 +437,63 @@ export function CaseSetup({
     }
   }, [showMmPicker, mmLoading, mmCases.length]);
 
+  const loadPresetProfile = (caseType: string, selectedSide: 'plaintiff' | 'defense') => {
+    const profile = TARGET_JUROR_PROFILES[caseType]?.[selectedSide];
+    if (profile) {
+      setFavorableTraits([...profile.favorable]);
+      setRiskTraits([...profile.risk]);
+      setObjectiveSource('preset');
+    }
+  };
+
+  const parseCustomObjectives = (text: string) => {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const favorable: string[] = [];
+    const risk: string[] = [];
+    let section: 'favorable' | 'risk' | null = null;
+    for (const line of lines) {
+      const lower = line.toLowerCase();
+      if (lower.includes('favorable') || lower.includes('ideal') || lower.includes('want') || lower.includes('target')) {
+        section = 'favorable';
+        continue;
+      }
+      if (lower.includes('risk') || lower.includes('avoid') || lower.includes('unfavorable') || lower.includes('concern')) {
+        section = 'risk';
+        continue;
+      }
+      const cleaned = line.replace(/^[-•*]\s*/, '').trim();
+      if (!cleaned) continue;
+      if (section === 'risk') risk.push(cleaned);
+      else favorable.push(cleaned);
+    }
+    if (favorable.length > 0) setFavorableTraits(favorable);
+    if (risk.length > 0) setRiskTraits(risk);
+  };
+
   const handleInitialize = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !areaOfLaw || !summary || !side) return;
 
-    const favorableTraits =
-      side === 'plaintiff'
-        ? ['Empathetic', 'Believes in corporate accountability', 'Open to non-economic damages']
-        : ['Skeptical of claims', 'Respects personal responsibility', 'Detail-oriented'];
+    let finalFavorable = favorableTraits;
+    let finalRisk = riskTraits;
 
-    const riskTraits =
-      side === 'plaintiff'
-        ? ['Tort reform advocate', 'Strict rule-follower', 'Skeptical of emotional distress']
-        : ['Anti-corporate bias', 'Highly emotional', 'Prior negative experience with similar defendants'];
+    if (finalFavorable.length === 0 && finalRisk.length === 0) {
+      const profile = TARGET_JUROR_PROFILES[areaOfLaw]?.[side];
+      if (profile) {
+        finalFavorable = profile.favorable;
+        finalRisk = profile.risk;
+      } else {
+        finalFavorable = side === 'plaintiff'
+          ? ['Empathetic', 'Believes in accountability', 'Open to damages']
+          : ['Skeptical of claims', 'Values personal responsibility', 'Detail-oriented'];
+        finalRisk = side === 'plaintiff'
+          ? ['Skeptical of claims', 'Pro-defendant bias', 'Resistant to emotional arguments']
+          : ['Anti-corporate bias', 'Highly emotional', 'Prior negative experience'];
+      }
+    }
 
     onCaseSetup(
-      { name, areaOfLaw, summary, side, favorableTraits, riskTraits },
+      { name, areaOfLaw, summary, side, favorableTraits: finalFavorable, riskTraits: finalRisk },
       selectedMattrMindrId || undefined
     );
     setIsInitialized(true);
