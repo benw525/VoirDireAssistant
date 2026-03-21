@@ -47,6 +47,8 @@ You MUST respond with valid JSON in this exact format:
 {
   "riskScore": <number 1-100>,
   "aiRiskTier": "low" | "medium" | "high",
+  "suggestedLean": "favorable" | "neutral" | "unfavorable" | "unknown",
+  "leanConfidence": "high" | "moderate" | "low",
   "analysis": "<your full 3-5 paragraph analysis as a single string>"
 }
 
@@ -59,6 +61,10 @@ RISK SCORE WEIGHTING — This is critical:
 - A juror with zero recorded responses should score between 30-60 (moderate uncertainty), NOT automatically high.
 
 AI RISK TIER: Based on your score, assign "high" (score 70-100), "medium" (score 35-69), or "low" (score 1-34).
+
+SUGGESTED LEAN: Based on all available evidence, recommend whether this juror leans "favorable" (good for the attorney's case), "unfavorable" (bad for the attorney's case), "neutral" (genuinely mixed signals or ambiguous), or "unknown" (insufficient information to classify). Do NOT force a binary favorable/unfavorable classification when the evidence is ambiguous — use "neutral" when signals genuinely cut both ways. Use "unknown" only when the juror has barely spoken and demographics alone are insufficient.
+
+LEAN CONFIDENCE: Rate your confidence in the suggested lean: "high" (strong, consistent signals — clear responses, corroborating background data), "moderate" (some evidence but mixed or limited), or "low" (very little evidence, mostly demographic inference).
 
 ANALYSIS: Produce a concise, strategic analysis covering:
 - RISK ASSESSMENT — Why this juror received this risk score. Reference specific responses first, then background data, then demographics. If the attorney's current tier disagrees with yours, explain the discrepancy.
@@ -75,7 +81,9 @@ Rules:
 - Always frame analysis from the perspective of the attorney's side
 - IMPORTANT: If enriched background data is provided below the juror profile, you MUST reference at least one finding from it in your analysis. Do not ignore enrichment data when it is present.`;
 
-const BRIEF_SUMMARY_PROMPT = `You are a Juror Risk Assessment Analyst. Given case context and a juror's profile with their voir dire responses, produce a brief 1-2 sentence summary explaining why this juror is classified at their current lean and risk tier. Be specific — reference their occupation, key responses, or demographic factors that drive the classification. If enriched background data is provided, you MUST incorporate at least one relevant finding (employment history, business ties, community involvement, legal history) into the summary. Write from the attorney's perspective. No headers, no bullet points — just 1-2 flowing sentences.`;
+const BRIEF_SUMMARY_PROMPT = `You are a Juror Risk Assessment Analyst. Given case context and a juror's profile with their voir dire responses, produce a brief 1-2 sentence summary explaining why this juror is classified at their current lean and risk tier. Be specific — reference their occupation, key responses, or demographic factors that drive the classification. If enriched background data is provided, you MUST incorporate at least one relevant finding (employment history, business ties, community involvement, legal history) into the summary. Write from the attorney's perspective. No headers, no bullet points — just 1-2 flowing sentences.
+
+IMPORTANT: If the juror's responses and demographics provide insufficient evidence to determine a lean, or if the signals are genuinely mixed (favorable on some issues but unfavorable on others), recommend a Neutral lean. Do not force a favorable or unfavorable classification when the data is ambiguous. If the juror has barely spoken or provided no meaningful responses, recommend keeping them at Unknown.`;
 
 export async function generateBriefSummary(
   caseContext: CaseContext,
@@ -142,6 +150,8 @@ export interface AnalysisResult {
   analysis: string;
   riskScore: number;
   aiRiskTier: 'low' | 'medium' | 'high';
+  suggestedLean: 'favorable' | 'neutral' | 'unfavorable' | 'unknown';
+  leanConfidence: 'high' | 'moderate' | 'low';
 }
 
 export async function analyzeJuror(
@@ -220,13 +230,19 @@ Provide your risk assessment analysis for this juror.`;
     const score = typeof parsed.riskScore === 'number' ? Math.max(1, Math.min(100, Math.round(parsed.riskScore))) : 50;
     const validTiers = new Set(['low', 'medium', 'high']);
     const tier = validTiers.has(parsed.aiRiskTier) ? parsed.aiRiskTier : (score >= 70 ? 'high' : score >= 35 ? 'medium' : 'low');
+    const validLeans = new Set(['favorable', 'neutral', 'unfavorable', 'unknown']);
+    const suggestedLean = validLeans.has(parsed.suggestedLean) ? parsed.suggestedLean : 'unknown';
+    const validConfidences = new Set(['high', 'moderate', 'low']);
+    const leanConfidence = validConfidences.has(parsed.leanConfidence) ? parsed.leanConfidence : 'moderate';
     return {
       analysis: typeof parsed.analysis === 'string' ? parsed.analysis : 'Unable to generate analysis.',
       riskScore: score,
       aiRiskTier: tier as 'low' | 'medium' | 'high',
+      suggestedLean: suggestedLean as 'favorable' | 'neutral' | 'unfavorable' | 'unknown',
+      leanConfidence: leanConfidence as 'high' | 'moderate' | 'low',
     };
   } catch {
-    return { analysis: raw, riskScore: 50, aiRiskTier: 'medium' };
+    return { analysis: raw, riskScore: 50, aiRiskTier: 'medium', suggestedLean: 'unknown', leanConfidence: 'low' };
   }
 }
 

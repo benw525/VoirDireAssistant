@@ -86,7 +86,7 @@ const generateSampleJurors = (): Juror[] => {
     sex: i % 2 === 0 ? 'M' : 'F', race: ['W', 'B', 'H', 'A', 'O'][i % 5],
     birthDate: `19${60 + i * 3}-0${i % 9 + 1}-15`,
     occupation: occupations[i], employer: 'Various',
-    responses: [], lean: 'unknown' as const, riskTier: 'unassessed' as const, aiRiskTier: 'unassessed' as const, riskScore: 0, notes: '',
+    responses: [], lean: 'unknown' as const, leanConfidence: 'none' as const, riskTier: 'unassessed' as const, aiRiskTier: 'unassessed' as const, riskScore: 0, notes: '',
     aiSummary: '', aiAnalysis: '',
   }));
 };
@@ -338,17 +338,13 @@ export default function VoirDireApp() {
             newResponse,
           ];
           let newRisk = j.riskTier;
-          let newLean = j.lean;
           if (newRisk === 'unassessed') {
             if (jResponses.length > 2) newRisk = 'medium';
             else if (jResponses.length > 0) newRisk = 'medium';
           }
-          if (newLean === 'unknown') {
-            newLean = Math.random() > 0.5 ? 'favorable' : 'unfavorable';
-          }
-          const updated = { ...j, riskTier: newRisk, lean: newLean };
+          const updated = { ...j, riskTier: newRisk };
           if (activeCaseId) {
-            api.updateJurorOnServer(activeCaseId, j.number, { riskTier: newRisk, lean: newLean }).catch(console.error);
+            api.updateJurorOnServer(activeCaseId, j.number, { riskTier: newRisk }).catch(console.error);
           }
           return updated;
         }

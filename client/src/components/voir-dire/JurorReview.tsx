@@ -90,11 +90,19 @@ export function JurorReview({
       const result = await api.analyzeJuror(caseInfo, juror, jurorResponses, questions, activeCaseId);
       setAiAnalysis(prev => ({ ...prev, [juror.number]: result.analysis }));
       setFailedAnalyses(prev => { const n = new Set(prev); n.delete(juror.number); return n; });
-      onUpdateJuror(juror.number, {
+      const jurorUpdates: Partial<Juror> = {
         aiAnalysis: result.analysis,
         riskScore: result.riskScore,
         aiRiskTier: result.aiRiskTier,
-      });
+      };
+      if (juror.lean === 'unknown' && result.suggestedLean !== 'unknown') {
+        jurorUpdates.lean = result.suggestedLean;
+        jurorUpdates.leanConfidence = result.leanConfidence;
+      }
+      if (juror.leanConfidence === 'none') {
+        jurorUpdates.leanConfidence = result.leanConfidence;
+      }
+      onUpdateJuror(juror.number, jurorUpdates);
       return true;
     } catch (err) {
       console.error('Failed to analyze juror:', err);
@@ -300,6 +308,37 @@ export function JurorReview({
         </div>
       )}
 
+      {(() => {
+        if (jurors.length <= 5) return null;
+        const neutralCount = jurors.filter(j => j.lean === 'neutral').length;
+        const unknownCount = jurors.filter(j => j.lean === 'unknown').length;
+        const favCount = jurors.filter(j => j.lean === 'favorable').length;
+        const unfavCount = jurors.filter(j => j.lean === 'unfavorable').length;
+        const allClassified = unknownCount === 0;
+        const noneNeutral = neutralCount === 0 && allClassified;
+        return (
+          <div className="mb-4 shrink-0">
+            <div className="flex items-center gap-3 text-xs" data-testid="lean-distribution-bar">
+              <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-semibold">{favCount} Favorable</span>
+              <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded font-semibold">{neutralCount} Neutral</span>
+              <span className="bg-rose-100 text-rose-700 px-2 py-1 rounded font-semibold">{unfavCount} Unfavorable</span>
+              <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded font-semibold">{unknownCount} Unknown</span>
+            </div>
+            {noneNeutral && (
+              <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2 text-sm" data-testid="banner-lean-review">
+                <HelpCircle className="w-4 h-4 text-blue-500 shrink-0" />
+                <div>
+                  <span className="font-semibold text-blue-800">Every juror is classified as either favorable or unfavorable.</span>
+                  <span className="text-blue-700 ml-1">
+                    Some voir dire panels have genuinely ambiguous jurors. Would you like to review your classifications? Consider marking jurors with mixed signals as Neutral.
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto min-h-0 pb-6">
         {viewMode === 'board' ?
@@ -332,11 +371,17 @@ export function JurorReview({
                       </p>
                     </div>
                   </div>
-                  <div
-                className={`px-2 py-1 rounded text-xs font-bold border flex items-center capitalize ${getLeanColor(juror.lean)}`}>
-
-                    {getLeanIcon(juror.lean)}
-                    {juror.lean}
+                  <div className="flex flex-col items-end gap-0.5">
+                    <div
+                  className={`px-2 py-1 rounded text-xs font-bold border flex items-center capitalize ${getLeanColor(juror.lean)}`}>
+                      {getLeanIcon(juror.lean)}
+                      {juror.lean}
+                    </div>
+                    {juror.leanConfidence && juror.leanConfidence !== 'none' && (
+                      <span className={`text-[10px] capitalize ${juror.leanConfidence === 'high' ? 'text-emerald-500' : juror.leanConfidence === 'moderate' ? 'text-amber-500' : 'text-slate-400'}`}>
+                        {juror.leanConfidence} conf.
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="p-4 bg-slate-50 flex-1">
@@ -428,10 +473,16 @@ export function JurorReview({
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <div
-                    className={`inline-flex px-2 py-1 rounded text-xs font-bold border capitalize items-center ${getLeanColor(juror.lean)}`}>
-
-                        {juror.lean}
+                      <div className="flex items-center gap-1.5">
+                        <div
+                      className={`inline-flex px-2 py-1 rounded text-xs font-bold border capitalize items-center ${getLeanColor(juror.lean)}`}>
+                          {juror.lean}
+                        </div>
+                        {juror.leanConfidence && juror.leanConfidence !== 'none' && (
+                          <span className={`text-[10px] capitalize ${juror.leanConfidence === 'high' ? 'text-emerald-500' : juror.leanConfidence === 'moderate' ? 'text-amber-500' : 'text-slate-400'}`}>
+                            {juror.leanConfidence}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-4">
@@ -504,12 +555,13 @@ export function JurorReview({
 
             <div className="flex-1 overflow-y-auto p-6 space-y-8">
               {/* Assessment Controls */}
-              <div className="grid grid-cols-2 gap-6 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+              <div className="grid grid-cols-3 gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-2">
-                    Manual Lean Override
+                    Lean Assessment
                   </label>
                   <select
+                  data-testid={`select-lean-${selectedJuror.number}`}
                   value={selectedJuror.lean}
                   onChange={(e) => handleLeanChangeWithAutoAnalysis(selectedJuror, e.target.value)}
                   className={`w-full px-3 py-2 rounded-lg border text-sm font-bold capitalize focus:ring-2 focus:ring-amber-500 outline-none ${getLeanColor(selectedJuror.lean)}`}>
@@ -518,6 +570,25 @@ export function JurorReview({
                     <option value="neutral">Neutral</option>
                     <option value="unfavorable">Unfavorable</option>
                     <option value="unknown">Unknown</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-2">
+                    Confidence
+                  </label>
+                  <select
+                    data-testid={`select-confidence-${selectedJuror.number}`}
+                    value={selectedJuror.leanConfidence}
+                    onChange={(e) => {
+                      const val = e.target.value as Juror['leanConfidence'];
+                      onUpdateJuror(selectedJuror.number, { leanConfidence: val });
+                      setSelectedJuror({ ...selectedJuror, leanConfidence: val });
+                    }}
+                    className={`w-full px-3 py-2 rounded-lg border text-sm font-bold capitalize bg-white focus:ring-2 focus:ring-amber-500 outline-none ${selectedJuror.leanConfidence === 'high' ? 'text-emerald-700 border-emerald-300' : selectedJuror.leanConfidence === 'moderate' ? 'text-amber-700 border-amber-300' : selectedJuror.leanConfidence === 'low' ? 'text-slate-500 border-slate-300' : 'text-slate-400 border-slate-200'}`}>
+                    <option value="none">Not Set</option>
+                    <option value="high">High</option>
+                    <option value="moderate">Moderate</option>
+                    <option value="low">Low</option>
                   </select>
                 </div>
                 <div>

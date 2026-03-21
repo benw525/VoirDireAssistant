@@ -828,6 +828,7 @@ export async function registerRoutes(
           occupation: z.string(),
           employer: z.string(),
           lean: z.string(),
+          leanConfidence: z.string().default('none'),
           riskTier: z.string(),
           notes: z.string(),
         }),
@@ -859,7 +860,7 @@ export async function registerRoutes(
         }
       }
       const result = await analyzeJuror(parsed.data.caseInfo, parsed.data.juror, parsed.data.responses, enrichedData);
-      res.json({ analysis: result.analysis, riskScore: result.riskScore, aiRiskTier: result.aiRiskTier });
+      res.json({ analysis: result.analysis, riskScore: result.riskScore, aiRiskTier: result.aiRiskTier, suggestedLean: result.suggestedLean, leanConfidence: result.leanConfidence });
     } catch (err: any) {
       console.error("Juror analysis error:", err);
       res.status(500).json({ message: err.message || "Failed to analyze juror" });
@@ -887,6 +888,7 @@ export async function registerRoutes(
           occupation: z.string().default('Unknown'),
           employer: z.string().default('Unknown'),
           lean: z.string().default('unknown'),
+          leanConfidence: z.string().default('none'),
           riskTier: z.string().default('unassessed'),
           notes: z.string().optional().default(''),
           responses: z.array(z.object({
@@ -959,6 +961,7 @@ export async function registerRoutes(
           occupation: z.string().default('Unknown'),
           employer: z.string().default('Unknown'),
           lean: z.string().default('unknown'),
+          leanConfidence: z.string().default('none'),
           riskTier: z.string().default('unassessed'),
           notes: z.string().optional().default(''),
           responses: z.array(z.object({
@@ -1017,6 +1020,7 @@ export async function registerRoutes(
           occupation: z.string().default('Unknown'),
           employer: z.string().default('Unknown'),
           lean: z.string().default('unknown'),
+          leanConfidence: z.string().default('none'),
           riskTier: z.string().default('unassessed'),
           notes: z.string().optional().default(''),
           aiSummary: z.string().optional().default(''),

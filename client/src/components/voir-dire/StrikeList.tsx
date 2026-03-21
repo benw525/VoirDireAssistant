@@ -225,6 +225,7 @@ export function StrikeList({
     employer: newJuror.employer.trim() || 'Unknown',
     responses: [],
     lean: 'unknown',
+    leanConfidence: 'none',
     riskTier: 'unassessed',
     aiRiskTier: 'unassessed',
     riskScore: 0,

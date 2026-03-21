@@ -71,6 +71,7 @@ interface DbJuror {
   occupation: string;
   employer: string;
   lean: string;
+  leanConfidence: string;
   riskTier: string;
   aiRiskTier: string;
   riskScore: number;
@@ -151,6 +152,7 @@ function dbJurorToJuror(j: DbJuror): Juror {
     employer: j.employer,
     responses: [],
     lean: j.lean as Juror['lean'],
+    leanConfidence: (j.leanConfidence || 'none') as Juror['leanConfidence'],
     riskTier: j.riskTier as Juror['riskTier'],
     aiRiskTier: (j.aiRiskTier || 'unassessed') as Juror['aiRiskTier'],
     riskScore: j.riskScore || 0,
@@ -243,6 +245,7 @@ export async function saveJurors(caseId: string, jurors: Juror[]): Promise<void>
         occupation: j.occupation,
         employer: j.employer,
         lean: j.lean,
+        leanConfidence: j.leanConfidence || 'none',
         riskTier: j.riskTier,
         aiRiskTier: j.aiRiskTier || 'unassessed',
         riskScore: j.riskScore || 0,
@@ -347,6 +350,7 @@ export async function parseStrikeList(fileOrText: File[] | string): Promise<Pars
     employer: j.employer || 'Unknown',
     responses: [],
     lean: 'unknown' as const,
+    leanConfidence: 'none' as const,
     riskTier: 'unassessed' as const,
     aiRiskTier: 'unassessed' as const,
     riskScore: 0,
@@ -437,6 +441,8 @@ export interface AnalysisResult {
   analysis: string;
   riskScore: number;
   aiRiskTier: 'low' | 'medium' | 'high';
+  suggestedLean: 'favorable' | 'neutral' | 'unfavorable' | 'unknown';
+  leanConfidence: 'high' | 'moderate' | 'low';
 }
 
 export async function analyzeJuror(
@@ -453,7 +459,7 @@ export async function analyzeJuror(
     side: r.side,
     followUps: r.followUps || [],
   }));
-  const result = await fetchJson<{ analysis: string; riskScore: number; aiRiskTier: string }>(`${API_BASE}/analyze-juror`, {
+  const result = await fetchJson<{ analysis: string; riskScore: number; aiRiskTier: string; suggestedLean?: string; leanConfidence?: string }>(`${API_BASE}/analyze-juror`, {
     method: 'POST',
     body: JSON.stringify({
       caseInfo,
@@ -478,6 +484,8 @@ export async function analyzeJuror(
     analysis: result.analysis,
     riskScore: result.riskScore || 50,
     aiRiskTier: (result.aiRiskTier as any) || 'medium',
+    suggestedLean: (result.suggestedLean as any) || 'unknown',
+    leanConfidence: (result.leanConfidence as any) || 'moderate',
   };
 }
 
@@ -628,6 +636,7 @@ export async function updateJurorOnServer(caseId: string, jurorNumber: number, u
   if (dbJuror) {
     const patchData: Record<string, any> = {};
     if (updates.lean !== undefined) patchData.lean = updates.lean;
+    if (updates.leanConfidence !== undefined) patchData.leanConfidence = updates.leanConfidence;
     if (updates.riskTier !== undefined) patchData.riskTier = updates.riskTier;
     if (updates.aiRiskTier !== undefined) patchData.aiRiskTier = updates.aiRiskTier;
     if (updates.riskScore !== undefined) patchData.riskScore = updates.riskScore;
