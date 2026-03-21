@@ -45,7 +45,10 @@ export function JurorReview({
     jurors.forEach(j => { if (j.aiAnalysis) initial[j.number] = j.aiAnalysis; });
     return initial;
   });
+  const [analysisErrors, setAnalysisErrors] = useState<Record<number, boolean>>({});
   const [analyzingJuror, setAnalyzingJuror] = useState<number | null>(null);
+  const [batchAnalyzing, setBatchAnalyzing] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const [enrichmentStatus, setEnrichmentStatus] = useState<Record<string, { hasData: boolean; demographicFlag?: string }>>({});
 
   useEffect(() => {
@@ -66,19 +69,60 @@ export function JurorReview({
     return enrichmentStatus[juror.id || String(juror.number)] || null;
   };
 
-  const handleAnalyzeJuror = async (juror: Juror) => {
-    if (analyzingJuror !== null) return;
-    setAnalyzingJuror(juror.number);
+  const isAnalysisBusy = analyzingJuror !== null || batchAnalyzing;
+
+  const runSingleAnalysis = async (juror: Juror): Promise<boolean> => {
     try {
       const jurorResponses = responses.filter(r => r.jurorNumber === juror.number);
       const analysis = await api.analyzeJuror(caseInfo, juror, jurorResponses, questions, activeCaseId);
       setAiAnalysis(prev => ({ ...prev, [juror.number]: analysis }));
+      setAnalysisErrors(prev => { const n = { ...prev }; delete n[juror.number]; return n; });
       onUpdateJuror(juror.number, { aiAnalysis: analysis });
+      return true;
     } catch (err) {
       console.error('Failed to analyze juror:', err);
-      setAiAnalysis(prev => ({ ...prev, [juror.number]: 'Unable to generate analysis. Please try again.' }));
-    } finally {
-      setAnalyzingJuror(null);
+      setAnalysisErrors(prev => ({ ...prev, [juror.number]: true }));
+      return false;
+    }
+  };
+
+  const handleAnalyzeJuror = async (juror: Juror) => {
+    if (isAnalysisBusy) return;
+    setAnalyzingJuror(juror.number);
+    await runSingleAnalysis(juror);
+    setAnalyzingJuror(null);
+  };
+
+  const handleBatchAnalyzeAll = async () => {
+    if (isAnalysisBusy) return;
+    const jurorsNeedingAnalysis = jurors.filter(j => !aiAnalysis[j.number] || analysisErrors[j.number]);
+    if (jurorsNeedingAnalysis.length === 0) return;
+
+    setBatchAnalyzing(true);
+    setBatchProgress({ current: 0, total: jurorsNeedingAnalysis.length });
+
+    for (let i = 0; i < jurorsNeedingAnalysis.length; i++) {
+      const juror = jurorsNeedingAnalysis[i];
+      setBatchProgress({ current: i + 1, total: jurorsNeedingAnalysis.length });
+      setAnalyzingJuror(juror.number);
+      await runSingleAnalysis(juror);
+    }
+
+    setAnalyzingJuror(null);
+    setBatchAnalyzing(false);
+    setBatchProgress({ current: 0, total: 0 });
+  };
+
+  const handleLeanChange = (juror: Juror, newLean: string) => {
+    onUpdateJuror(juror.number, { lean: newLean as any });
+    const updatedJuror = { ...juror, lean: newLean as any };
+    setSelectedJuror(updatedJuror);
+
+    if (newLean !== 'unknown' && !aiAnalysis[juror.number] && !isAnalysisBusy) {
+      setTimeout(() => {
+        setAnalyzingJuror(updatedJuror.number);
+        runSingleAnalysis(updatedJuror).finally(() => setAnalyzingJuror(null));
+      }, 0);
     }
   };
 
@@ -164,6 +208,30 @@ export function JurorReview({
             <option value="unknown">Unknown</option>
           </select>
 
+          {(() => {
+            const unanalyzedCount = jurors.filter(j => !aiAnalysis[j.number] || analysisErrors[j.number]).length;
+            return unanalyzedCount > 0 ? (
+              <button
+                onClick={handleBatchAnalyzeAll}
+                disabled={isAnalysisBusy}
+                data-testid="button-batch-analyze-all"
+                className="inline-flex items-center px-3 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors shadow-sm disabled:opacity-50"
+              >
+                {batchAnalyzing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                    Analyzing {batchProgress.current}/{batchProgress.total}...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-4 h-4 mr-1.5" />
+                    Analyze All ({unanalyzedCount})
+                  </>
+                )}
+              </button>
+            ) : null;
+          })()}
+
           <button
             onClick={onProceed}
             className="inline-flex items-center px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors shadow-sm">
@@ -172,6 +240,26 @@ export function JurorReview({
           </button>
         </div>
       </div>
+
+      {batchAnalyzing && (
+        <div className="mb-4 bg-violet-50 border border-violet-200 rounded-lg p-3 flex items-center gap-3 shrink-0">
+          <Loader2 className="w-4 h-4 animate-spin text-violet-600" />
+          <div className="flex-1">
+            <div className="text-sm font-medium text-violet-800">
+              Generating full analysis for juror {batchProgress.current} of {batchProgress.total}...
+            </div>
+            <div className="mt-1.5 h-1.5 bg-violet-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-violet-600 rounded-full transition-all duration-300"
+                style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+              />
+            </div>
+          </div>
+          <span className="text-xs font-medium text-violet-600">
+            {Math.round((batchProgress.current / batchProgress.total) * 100)}%
+          </span>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto min-h-0 pb-6">
@@ -246,6 +334,12 @@ export function JurorReview({
                       </div>
                     );
                   })()}
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Brain className={`w-3.5 h-3.5 ${analysisErrors[juror.number] ? 'text-rose-400' : aiAnalysis[juror.number] ? 'text-violet-500' : 'text-slate-300'}`} />
+                    <span className={`text-xs font-medium ${analysisErrors[juror.number] ? 'text-rose-500' : aiAnalysis[juror.number] ? 'text-violet-600' : 'text-slate-400'}`}>
+                      {analyzingJuror === juror.number ? 'Analyzing...' : analysisErrors[juror.number] ? 'Analysis failed' : aiAnalysis[juror.number] ? 'Full analysis' : 'Not analyzed'}
+                    </span>
+                  </div>
                 </div>
               </div>
           )}
@@ -380,15 +474,7 @@ export function JurorReview({
                   </label>
                   <select
                   value={selectedJuror.lean}
-                  onChange={(e) => {
-                    onUpdateJuror(selectedJuror.number, {
-                      lean: e.target.value as any
-                    });
-                    setSelectedJuror({
-                      ...selectedJuror,
-                      lean: e.target.value as any
-                    });
-                  }}
+                  onChange={(e) => handleLeanChange(selectedJuror, e.target.value)}
                   className={`w-full px-3 py-2 rounded-lg border text-sm font-bold capitalize focus:ring-2 focus:ring-amber-500 outline-none ${getLeanColor(selectedJuror.lean)}`}>
 
                     <option value="favorable">Favorable</option>
@@ -431,7 +517,7 @@ export function JurorReview({
                   </h4>
                   <button
                     onClick={() => handleAnalyzeJuror(selectedJuror)}
-                    disabled={analyzingJuror !== null}
+                    disabled={isAnalysisBusy}
                     data-testid={`button-analyze-juror-${selectedJuror.number}`}
                     className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-violet-100 text-violet-700 border border-violet-200 hover:bg-violet-200 disabled:opacity-50"
                   >
