@@ -1,0 +1,354 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0\fswiss\fcharset0 Helvetica;}{\f1\fmodern\fcharset0 Courier New;}}
+{\colortbl;\red0\green0\blue0;\red33\green37\blue41;\red100\green100\blue100;\red0\green102\blue204;\red220\green220\blue220;\red255\green245\blue230;\red34\green139\blue34;\red178\green34\blue34;}
+
+\paperw12240\paperh15840\margl1440\margr1440\margt1440\margb1440
+
+\pard\qc\sb0\sa400
+{\f0\fs56\b\cf2 Voir Dire Analyst}
+\par
+\pard\qc\sb0\sa200
+{\f0\fs28\cf3 Application Overview}
+\par
+\pard\qc\sb0\sa600
+{\f0\fs20\cf3 March 2026}
+\par
+
+\pard\sb0\sa300
+{\f0\fs36\b\cf2 What Is Voir Dire Analyst?}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Voir Dire Analyst is a full-stack jury selection assistant built for trial attorneys. It guides an attorney through the entire voir dire process\emdash from case setup and strike list import through live courtroom response recording to final juror assessment and strike recommendations\emdash in a single, integrated application.}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 The application combines real-time response tracking with multiple AI-powered analysis agents to give attorneys a data-driven edge during jury selection. Rather than working from handwritten notes and gut instinct alone, attorneys can record responses live, get instant risk assessments, and receive strategic recommendations backed by case-specific analysis.}
+\par
+
+\pard\sb400\sa300
+{\f0\fs36\b\cf2 Who Is It For?}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Voir Dire Analyst is designed for trial attorneys\emdash plaintiff and defense\emdash in both civil and criminal cases. It is jurisdiction-aware (with particular depth in Alabama practice) and adapts its analysis, terminology, and recommendations based on the area of law and which side the attorney represents.}
+\par
+
+\pard\sb400\sa300
+{\f0\fs36\b\cf2 The Problem It Solves}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Jury selection is one of the most consequential parts of any trial, yet most attorneys still rely on paper strike lists, scribbled notes, and memory. Key challenges include:}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Unstructured data}\emdash Strike lists arrive as poorly formatted PDFs from aging court systems, often with garbled text and inconsistent layouts.}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Real-time pressure}\emdash During live voir dire, attorneys must listen, take notes, formulate follow-ups, and assess jurors simultaneously.}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Incomplete information}\emdash Attorneys know a juror\rquote s name, occupation, and a few answers, but have no easy way to research backgrounds quickly.}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Strike strategy gaps}\emdash Identifying cause challenges, evaluating Batson exposure, and prioritizing peremptory strikes requires careful analysis that is difficult to perform under courtroom time pressure.}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Voir Dire Analyst addresses each of these by digitizing the workflow, automating the analysis, and putting AI-driven strategic recommendations directly in the attorney\rquote s hands during the selection process.}
+\par
+
+\pard\sb400\sa300
+{\f0\fs36\b\cf2 How It Works: The Six-Phase Workflow}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 The application guides attorneys through a structured, sequential workflow:}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf2 Phase 0: Welcome Screen}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 The home dashboard where attorneys see their existing cases and can create a new one. Past cases are available for reference at any time. Billing status is displayed here\emdash the free tier allows one case, with paid plans offering unlimited access.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf2 Phase 1: Case Initialization}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 The attorney enters the case name, area of law (personal injury, criminal, family, etc.), a summary of the case, and which side they represent (plaintiff/prosecution or defense). They also define favorable juror traits and risk traits\emdash the characteristics they want on the jury versus the ones they want to screen out.}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Attorneys with a MattrMindr case management account can optionally import case details directly from their MattrMindr Trial Center rather than entering them manually.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf2 Phase 2: Strike List Import}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Attorneys upload their court-issued strike list as a PDF, image, or plain text. The application uses AI-powered document parsing (Google Gemini vision models) to extract structured juror data from even poorly formatted court documents\emdash handling garbled characters, inconsistent layouts, and OCR artifacts. Extracted fields include juror number, name, address, phone, sex, race, date of birth, occupation, and employer.}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Once jurors are confirmed, the system automatically begins background research on each juror using the Perplexity Sonar Pro API. This enrichment process searches public records for education history, employment history, legal issues, media mentions, social media presence, and community involvement\emdash all without any action required from the attorney.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf2 Phase 3: Voir Dire Questions}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Attorneys can enter their own voir dire questions, upload an existing question document (PDF, Word, TXT, or RTF), or use the AI strategy agent to generate a complete courtroom-ready voir dire script. The AI generation produces:}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  A brief opening statement}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  A neutral case overview}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  12\endash 20 strategic questions organized by module (experience-based, attitude-based, theme-specific, damages, inoculation, burden/fairness)}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  Alternative phrasings for each question}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  Targeted follow-up questions for specific high-risk jurors}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  Cause challenge flags with lock-down questions}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  Rehabilitation options}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  A preliminary strike guide}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 If juror background research is still running, the system alerts the attorney and offers to wait until enrichment is complete so the AI can incorporate that data into its question strategy.}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Attorneys can also submit their own draft questions for AI refinement\emdash the system will keep the original wording, provide a courtroom-optimized rephrase, and generate strategic follow-ups for each question.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf2 Phase 4: Response Recording}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 This is the live courtroom phase. The screen displays a configurable jury seating grid at the top\emdash a visual pew-style layout showing each juror in their seat position. The grid supports 2, 3, or 4 rows with configurable direction, and each juror cell includes quick-reaction buttons:}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Raised Hand}\emdash marks that the juror raised their hand in response to the active question}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Head Nod}\emdash marks agreement/affirmation}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Head Shake}\emdash marks disagreement/disapproval}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Note}\emdash opens a floating note input to record a custom observation}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Reactions are automatically tied to whichever question is currently active. Below the grid, each question can be expanded to view and edit detailed juror responses. After the attorney records a response on their examination, the AI automatically suggests 2\endash 3 targeted follow-up questions. Each suggestion can be immediately asked (with an inline response box) or marked for later reference.}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Response recording supports three examination stages: your side\rquote s examination, opposing counsel\rquote s examination, and court examination. All three are tracked separately so the AI can distinguish which side elicited each response.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf2 Phase 5: Juror Review}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 After voir dire questioning concludes, the attorney reviews each juror and sets two assessments:}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Lean}\emdash Favorable, Neutral, Unfavorable, or Unknown}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Risk Tier}\emdash Low, Medium, High, or Unassessed}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 The AI can generate both brief summaries (1\endash 2 sentences) and full risk assessments (3\endash 5 paragraphs) for each juror, incorporating their demographics, recorded responses, follow-up exchanges, attorney notes, and any background research data gathered during enrichment. These AI analyses are stored with the juror record for reference throughout the rest of the process.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf2 Phase 6: End Report}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 The final phase brings everything together into a comprehensive report with several analysis components:}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Complete Juror Panel}\emdash Collapsible view of all jurors with their assessments, responses, and AI analysis}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Peremptory Strikes}\emdash Side-by-side strike boxes for plaintiff/prosecution and defense, with mutual exclusion logic}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Batson Challenge Check}\emdash AI analysis of strike patterns for potential Batson v. Kentucky violations, covering both defensive exposure (your strikes) and offensive opportunities (their strikes), with statistical analysis, comparative juror analysis per Miller-El v. Dretke, and suggested courtroom arguments}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Strikes for Cause}\emdash AI evaluation of every juror for potential cause challenges, categorized as Highly Likely, Possible, or Unlikely, with full courtroom-ready scripts the attorney can read verbatim to the judge}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Strategic Recommendations}\emdash Suggested strike order and jury composition strategy}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b CSV Export}\emdash Download all juror data including demographics, assessments, AI analysis, enrichment results, and recorded responses}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Attorneys with MattrMindr integration can push the complete jury analysis back to their case management system directly from this screen.}
+\par
+
+\pard\sb400\sa300
+{\f0\fs36\b\cf2 AI Capabilities}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Voir Dire Analyst uses multiple specialized AI agents, each tuned for a specific task in the jury selection process:}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf4 Voir Dire Strategy Agent}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Generates a complete, courtroom-ready voir dire script tailored to the case. Produces sequenced questions designed to reduce juror defensiveness, explore strike triggers from multiple angles, develop cause challenges, and preserve favorable jurors\emdash all while sounding natural in a real courtroom. Includes case-specific decision logic (e.g., screening for sympathy bias in defense injury cases, or tort reform attitudes in plaintiff cases).}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf4 Question Refinement Agent}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Takes the attorney\rquote s own draft questions and creates courtroom-optimized rephrases with strategic follow-ups. Preserves the original intent while making questions more conversational, removing compound phrasing, and eliminating commitment language.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf4 Juror Risk Assessment Agent}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Analyzes individual jurors by evaluating their responses, demographics, occupation, and background research data against the case facts. Produces both brief summaries and detailed assessments covering risk classification, key concerns, and an actionable strategic recommendation (keep, strike for cause, or use peremptory).}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf4 Strike-for-Cause Analyst}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Evaluates every juror in the venire for potential cause challenges. Categorizes each juror and, for those with viable grounds, generates a full courtroom script the attorney can read directly to the judge\emdash including formal address, quoted juror statements, legal basis, rehabilitation analysis, and closing request.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf4 Batson Challenge Analyst}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Performs two-sided Batson analysis: defensive (identifying vulnerability in the attorney\rquote s own strike pattern) and offensive (identifying challengeable patterns in opposing counsel\rquote s strikes). Uses statistical analysis across protected classes, comparative juror methodology from Miller-El v. Dretke, and evaluation of articulated justifications. Designed to be honest\emdash if the attorney\rquote s strikes show a genuine Batson problem, it says so directly.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf4 Follow-Up Suggestion Engine}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 During live response recording, automatically generates 2\endash 3 targeted follow-up questions after each juror response. Tailored to the case context and the specific answer given, helping attorneys dig deeper in real time.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf4 Background Research (Juror Enrichment)}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Automatically searches public sources for each juror\rquote s education, employment history, legal issues, media mentions, social media presence, and community involvement. This data is fed into all subsequent AI analyses, giving the models richer context for their assessments.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf4 AI Chat Assistant}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 A floating, draggable chat interface available throughout the application. Specializes in jury selection law, voir dire strategy, juror psychology, and trial strategy. Context-aware\emdash it automatically receives the current case details, juror panel summary, and active phase so it can provide specific, tailored advice rather than generic answers.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf4 Strike List OCR Parser}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Extracts structured juror data from court-issued strike list documents regardless of format. Handles the garbled characters, encoding errors, and inconsistent layouts commonly found in PDFs generated by older court computer systems. Uses vision-capable AI models to read document images directly.}
+\par
+
+\pard\sb400\sa300
+{\f0\fs36\b\cf2 Voir Dire Strategy Export}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 The AI-generated voir dire strategy can be exported in three formats for offline use or sharing with co-counsel:}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b PDF}\emdash formatted document via jsPDF}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Word (.docx)}\emdash editable document for further refinement}
+\par
+\pard\sb0\sa100\li360
+{\f0\fs24\cf2 \bullet  {\b Plain Text (.txt)}\emdash simple text export}
+\par
+
+\pard\sb400\sa300
+{\f0\fs36\b\cf2 Additional Features}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf2 User Authentication & Data Isolation}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 JWT-based authentication with bcrypt password hashing. Each attorney\rquote s cases, jurors, questions, responses, and conversations are fully isolated\emdash no user can access another user\rquote s data.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf2 MattrMindr Integration}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Optional integration with the MattrMindr case management platform. Attorneys can import case details from MattrMindr\rquote s Trial Center and push completed jury analysis (including Batson results) back to their case management system.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf2 Billing & Subscription}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Three tiers: Free (1 case), Monthly Unlimited ($20/month), and Per Case ($20 each). Powered by Stripe with live checkout, billing portal, and webhook handling.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf2 Help Center}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Built-in help system with four sections: step-by-step tutorials for each workflow phase, frequently asked questions, AI assistant overview, and a contact/support form.}
+\par
+
+\pard\sb200\sa100
+{\f0\fs28\b\cf2 Guided Tour}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 An interactive walkthrough for new users featuring a spotlight overlay, auto-positioning tooltips, and progress navigation to introduce each part of the interface.}
+\par
+
+\pard\sb400\sa300
+{\f0\fs36\b\cf2 Technology Stack}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2
+\trowd\trgaph108\trleft-108
+\clbrdrt\brdrth\clbrdrl\brdrth\clbrdrb\brdrth\clbrdrr\brdrth\cellx3200
+\clbrdrt\brdrth\clbrdrl\brdrth\clbrdrb\brdrth\clbrdrr\brdrth\cellx9700
+\pard\intbl {\b Layer}\cell {\b Technology}\cell\row
+
+\trowd\trgaph108\trleft-108
+\clbrdrt\brdrs\clbrdrl\brdrs\clbrdrb\brdrs\clbrdrr\brdrs\cellx3200
+\clbrdrt\brdrs\clbrdrl\brdrs\clbrdrb\brdrs\clbrdrr\brdrs\cellx9700
+\pard\intbl Frontend\cell React + TypeScript, Tailwind CSS, Vite, wouter, Framer Motion\cell\row
+\pard\intbl Backend\cell Node.js, Express.js, TypeScript\cell\row
+\pard\intbl Database\cell PostgreSQL with Drizzle ORM\cell\row
+\pard\intbl Authentication\cell JWT + bcrypt\cell\row
+\pard\intbl AI (Strategy & Analysis)\cell OpenAI GPT-5.4\cell\row
+\pard\intbl AI (Chat & Suggestions)\cell OpenAI GPT-4o-mini\cell\row
+\pard\intbl AI (Document Parsing)\cell Google Gemini Flash\cell\row
+\pard\intbl AI (Background Research)\cell Perplexity Sonar Pro\cell\row
+\pard\intbl Payments\cell Stripe (Checkout, Billing Portal, Webhooks)\cell\row
+\pard\intbl Exports\cell jsPDF, docx, file-saver\cell\row
+}
+\par
+
+\pard\sb400\sa300
+{\f0\fs36\b\cf2 Summary}
+\par
+\pard\sb0\sa200
+{\f0\fs24\cf2 Voir Dire Analyst transforms jury selection from a paper-and-instinct process into a structured, AI-augmented workflow. It handles the tedious parts\emdash parsing court documents, tracking responses, researching backgrounds\emdash so the attorney can focus on reading the room, asking the right questions, and making strategic decisions with better data than they have ever had at their fingertips during voir dire.}
+\par
+
+}
