@@ -6,3 +6,9 @@ id = "BV55VXiM2UqwRt6kfYXIj"
 uri = "file://FluxPrompt_Process_Documentation.txt"
 type = "text"
 title = "FluxPrompt Process Documentation"
+
+[[outputs]]
+id = "VZEmyH7X4reJNG0gTnMls"
+uri = "file://docs/ai_prompts_reference.rtf"
+type = "unspecified"
+title = "AI Prompts Reference Document"
