@@ -19,6 +19,11 @@ import {
   Loader2,
   Bookmark,
   MessageSquarePlus,
+  StickyNote,
+  Eye,
+  X,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Juror, VoirDireQuestion, JurorResponse, CaseInfo, SeatingConfig } from '../../types';
 import { JurySeatingGrid } from './JurySeatingGrid';
@@ -33,6 +38,12 @@ interface MarkedFollowUp {
   jurorName: string;
 }
 
+const DEMEANOR_TAGS = [
+  'Hesitant', 'Confident', 'Avoiding Eye Contact', 'Engaged',
+  'Fidgeting', 'Arms Crossed', 'Leaning Forward', 'Uncomfortable',
+  'Smiling', 'Hostile Tone', 'Reluctant', 'Nodding Frequently',
+];
+
 interface ResponseRecordingProps {
   jurors: Juror[];
   questions: VoirDireQuestion[];
@@ -40,6 +51,7 @@ interface ResponseRecordingProps {
   onRecordResponse: (response: Omit<JurorResponse, 'id' | 'timestamp'>) => void;
   onAddFollowUp: (responseId: string, followUp: {question: string, answer: string}) => void;
   onProceed: () => void;
+  onUpdateJuror: (jurorNumber: number, updates: Partial<Juror>) => void;
   caseInfo: CaseInfo;
   seatingConfig: SeatingConfig | null;
   onSeatingConfigChange: (config: SeatingConfig) => void;
@@ -55,6 +67,7 @@ export function ResponseRecording({
   onRecordResponse,
   onAddFollowUp,
   onProceed,
+  onUpdateJuror,
   caseInfo,
   seatingConfig,
   onSeatingConfigChange,
@@ -82,6 +95,10 @@ export function ResponseRecording({
   const [markedFollowUps, setMarkedFollowUps] = useState<MarkedFollowUp[]>([]);
   const [expandedMarked, setExpandedMarked] = useState<Record<string, boolean>>({});
   const [showMarkedSection, setShowMarkedSection] = useState(true);
+  const [showNotesPrompt, setShowNotesPrompt] = useState(false);
+  const [notesWalkthroughIdx, setNotesWalkthroughIdx] = useState(0);
+  const [walkthroughNotes, setWalkthroughNotes] = useState<Record<number, string>>({});
+  const [walkthroughTags, setWalkthroughTags] = useState<Record<number, string[]>>({});
 
   const stableKey = (r: JurorResponse) => `${r.jurorNumber}-${r.timestamp}`;
 
@@ -340,7 +357,7 @@ export function ResponseRecording({
           </p>
         </div>
         <button
-          onClick={onProceed}
+          onClick={() => setShowNotesPrompt(true)}
           data-testid="button-proceed-review"
           className="inline-flex items-center px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors"
         >
@@ -1108,6 +1125,191 @@ export function ResponseRecording({
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showNotesPrompt && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => { setShowNotesPrompt(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col"
+              data-testid="notes-transition-prompt"
+            >
+              <div className="p-6 border-b border-slate-200">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                    <StickyNote className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">Add Observations Before Review</h3>
+                    <p className="text-sm text-slate-500">Body language, tone, and demeanor cannot be captured from responses alone.</p>
+                  </div>
+                </div>
+                <div className="mt-3 p-2.5 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-xs text-blue-700">
+                    <Eye className="w-3 h-3 inline mr-1" />
+                    Your notes directly improve AI risk assessments. Even brief observations help distinguish jurors who gave similar verbal responses.
+                  </p>
+                </div>
+              </div>
+
+              {(() => {
+                const activeJurors = jurors.filter(j => !courtDismissed.includes(j.number)).sort((a, b) => a.number - b.number);
+                const currentJuror = activeJurors[notesWalkthroughIdx];
+                if (!currentJuror) return null;
+                const jurorResponses = responses.filter(r => r.jurorNumber === currentJuror.number);
+                const existingNotes = currentJuror.notes || '';
+                const draftNotes = walkthroughNotes[currentJuror.number] ?? existingNotes;
+                const draftTags = walkthroughTags[currentJuror.number] || [];
+
+                return (
+                  <div className="flex-1 overflow-y-auto p-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-400 uppercase">Juror {notesWalkthroughIdx + 1} of {activeJurors.length}</span>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => setNotesWalkthroughIdx(Math.max(0, notesWalkthroughIdx - 1))}
+                          disabled={notesWalkthroughIdx === 0}
+                          className="p-1 rounded hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                          data-testid="button-notes-prev"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setNotesWalkthroughIdx(Math.min(activeJurors.length - 1, notesWalkthroughIdx + 1))}
+                          disabled={notesWalkthroughIdx === activeJurors.length - 1}
+                          className="p-1 rounded hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                          data-testid="button-notes-next"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 mb-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-lg font-bold text-slate-900">#{currentJuror.number}</span>
+                        <span className="text-sm text-slate-600">{currentJuror.name || 'Unnamed'}</span>
+                        {currentJuror.occupation && (
+                          <span className="text-xs text-slate-400">· {currentJuror.occupation}</span>
+                        )}
+                      </div>
+                      {jurorResponses.length > 0 ? (
+                        <div className="space-y-1 max-h-24 overflow-y-auto">
+                          {jurorResponses.slice(-3).map((r, i) => (
+                            <div key={i} className="text-xs text-slate-500 truncate">
+                              {r.responseText.startsWith('[') ? (
+                                <ReactionText text={r.responseText} className="text-xs" />
+                              ) : (
+                                <span>"{r.responseText.slice(0, 80)}{r.responseText.length > 80 ? '...' : ''}"</span>
+                              )}
+                            </div>
+                          ))}
+                          {jurorResponses.length > 3 && (
+                            <div className="text-[10px] text-slate-400">+{jurorResponses.length - 3} more responses</div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-slate-400 italic">No responses recorded</div>
+                      )}
+                    </div>
+
+                    <div className="mb-2">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Quick Tags</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {DEMEANOR_TAGS.map(tag => {
+                        const isActive = draftTags.includes(tag);
+                        return (
+                          <button
+                            key={tag}
+                            onClick={() => {
+                              setWalkthroughTags(prev => {
+                                const curr = prev[currentJuror.number] || [];
+                                return {
+                                  ...prev,
+                                  [currentJuror.number]: isActive
+                                    ? curr.filter(t => t !== tag)
+                                    : [...curr, tag]
+                                };
+                              });
+                            }}
+                            data-testid={`button-walkthrough-tag-${tag.toLowerCase().replace(/\s+/g, '-')}`}
+                            className={`px-2 py-1 text-xs rounded-full border transition-colors cursor-pointer ${
+                              isActive
+                                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <textarea
+                      value={draftNotes}
+                      onChange={(e) => setWalkthroughNotes(prev => ({ ...prev, [currentJuror.number]: e.target.value }))}
+                      placeholder="Additional observations — tone of voice, body language, interactions with other jurors..."
+                      className="w-full p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-sm resize-none min-h-[80px] outline-none"
+                      data-testid={`textarea-walkthrough-notes-${currentJuror.number}`}
+                    />
+                  </div>
+                );
+              })()}
+
+              <div className="p-4 border-t border-slate-200 flex items-center justify-between">
+                <button
+                  onClick={() => {
+                    setShowNotesPrompt(false);
+                    onProceed();
+                  }}
+                  className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
+                  data-testid="button-skip-notes"
+                >
+                  Skip — proceed without notes
+                </button>
+                <button
+                  onClick={() => {
+                    const activeJurors = jurors.filter(j => !courtDismissed.includes(j.number));
+                    activeJurors.forEach(j => {
+                      const tags = walkthroughTags[j.number] || [];
+                      const wasDraftEdited = j.number in walkthroughNotes;
+                      const existingNotes = j.notes || '';
+
+                      if (tags.length === 0 && !wasDraftEdited) return;
+
+                      const baseText = wasDraftEdited ? walkthroughNotes[j.number].trim() : existingNotes.trim();
+                      const tagSuffix = tags.length > 0 ? ` [${tags.join(', ')}]` : '';
+                      const combinedNotes = (baseText + tagSuffix).trim();
+
+                      if (combinedNotes !== existingNotes.trim()) {
+                        onUpdateJuror(j.number, { notes: combinedNotes });
+                      }
+                    });
+                    setShowNotesPrompt(false);
+                    onProceed();
+                  }}
+                  className="inline-flex items-center px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors"
+                  data-testid="button-save-notes-proceed"
+                >
+                  Save & Continue <ArrowRight className="w-4 h-4 ml-2" />
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -39,6 +39,12 @@ const REACTION_LABELS: Record<ReactionType, string> = {
   'head-shake': '[Shake] Head shake',
 };
 
+const QUICK_NOTE_TAGS = [
+  'Hesitant', 'Confident', 'Avoiding Eye Contact', 'Engaged',
+  'Fidgeting', 'Arms Crossed', 'Leaning Forward', 'Uncomfortable',
+  'Smiling', 'Hostile Tone', 'Reluctant', 'Nodding Frequently',
+];
+
 function arrangeJurorsInGrid(
   jurors: Juror[],
   config: SeatingConfig
@@ -473,6 +479,35 @@ export function JurySeatingGrid({
                                         <X className="w-3 h-3" />
                                       </button>
                                     </div>
+                                    <div className="flex flex-wrap gap-1 mb-1.5">
+                                      {QUICK_NOTE_TAGS.map(tag => (
+                                        <button
+                                          key={tag}
+                                          onClick={() => {
+                                            const tagNote = `[Note] ${tag}`;
+                                            onRecordResponse({
+                                              jurorNumber: juror.number,
+                                              questionId: activeQuestion!.id,
+                                              responseText: tagNote,
+                                              side: activeQuestion!.side,
+                                              questionSummary: activeQuestion!.id === null ? activeQuestion!.text : undefined,
+                                            });
+                                            setFlashedCells(prev => ({ ...prev, [juror.number]: 'note' as any }));
+                                            setTimeout(() => {
+                                              setFlashedCells(prev => {
+                                                const next = { ...prev };
+                                                delete next[juror.number];
+                                                return next;
+                                              });
+                                            }, 800);
+                                          }}
+                                          data-testid={`button-quick-tag-${tag.toLowerCase().replace(/\s+/g, '-')}-${juror.number}`}
+                                          className="px-1.5 py-0.5 text-[9px] rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-colors cursor-pointer"
+                                        >
+                                          {tag}
+                                        </button>
+                                      ))}
+                                    </div>
                                     <div className="flex gap-1.5">
                                       <input
                                         ref={noteInputRef}
@@ -491,7 +526,7 @@ export function JurySeatingGrid({
                                         }}
                                         data-testid={`input-note-${juror.number}`}
                                         className="flex-1 min-w-0 px-2.5 py-1.5 text-sm rounded-lg border border-blue-300 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 bg-white outline-none"
-                                        placeholder="e.g. made a disgusted face..."
+                                        placeholder="Or type a custom note..."
                                       />
                                       <button
                                         onClick={() => handleNoteSubmit(juror.number)}
@@ -502,7 +537,7 @@ export function JurySeatingGrid({
                                       </button>
                                     </div>
                                     <div className="text-[9px] text-slate-400 mt-1.5 text-center">
-                                      Press Enter to save
+                                      Tap a tag or type your own — Enter to save
                                     </div>
                                     <div className="absolute left-1/2 -translate-x-1/2 top-full w-2.5 h-2.5 bg-white border-r border-b border-blue-200 rotate-45 -mt-[5px]" />
                                   </motion.div>

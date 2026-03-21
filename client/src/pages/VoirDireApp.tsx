@@ -504,6 +504,7 @@ export default function VoirDireApp() {
             onRecordResponse={handleRecordResponse}
             onAddFollowUp={handleAddFollowUp}
             onProceed={() => proceedToPhase(5)}
+            onUpdateJuror={handleUpdateJuror}
             caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
             seatingConfig={seatingConfig}
             onSeatingConfigChange={handleSeatingConfigChange}
