@@ -792,12 +792,33 @@ export function EndReport({
                           )}
                         </div>
 
-                        {aiSummaries[juror.number] && (
-                          <div className="bg-violet-50 border border-violet-200 rounded-lg p-3">
-                            <div className="flex items-start gap-2">
-                              <Brain className="w-4 h-4 text-violet-500 mt-0.5 flex-shrink-0" />
-                              <p className="text-sm text-slate-800 leading-relaxed">{aiSummaries[juror.number]}</p>
+                        {juror.aiAnalysis ? (
+                          <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
+                            <h5 className="text-xs font-bold text-violet-600 uppercase tracking-wider mb-2 flex items-center">
+                              <Brain className="w-3.5 h-3.5 mr-1.5" />
+                              Full AI Risk Analysis
+                            </h5>
+                            <div className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+                              {juror.aiAnalysis}
                             </div>
+                          </div>
+                        ) : (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2" data-testid={`warning-no-analysis-${juror.number}`}>
+                            <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="text-sm font-semibold text-amber-800">Detailed analysis not generated for this juror.</p>
+                              <p className="text-xs text-amber-600 mt-0.5">Return to Phase 5 to run AI analysis, or use "Analyze All" to generate assessments for all jurors.</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {aiSummaries[juror.number] && (
+                          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                            <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center">
+                              <Brain className="w-3 h-3 mr-1" />
+                              Brief Summary
+                            </h5>
+                            <p className="text-sm text-slate-700 leading-relaxed">{aiSummaries[juror.number]}</p>
                           </div>
                         )}
 

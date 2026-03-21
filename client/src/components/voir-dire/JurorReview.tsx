@@ -46,6 +46,10 @@ export function JurorReview({
     return initial;
   });
   const [analyzingJuror, setAnalyzingJuror] = useState<number | null>(null);
+  const [batchAnalyzing, setBatchAnalyzing] = useState<{ current: number; total: number; jurorNum: number } | null>(null);
+  const batchCancelRef = React.useRef(false);
+  const pendingLeanAnalysis = React.useRef<Juror | null>(null);
+  const [failedAnalyses, setFailedAnalyses] = useState<Set<number>>(new Set());
   const [enrichmentStatus, setEnrichmentStatus] = useState<{
     enrichedJurors: Set<number>;
     pending: number;
@@ -79,19 +83,63 @@ export function JurorReview({
     return () => clearInterval(interval);
   }, [fetchEnrichmentStatus]);
 
-  const handleAnalyzeJuror = async (juror: Juror) => {
-    if (analyzingJuror !== null) return;
+  const runAnalysis = async (juror: Juror) => {
     setAnalyzingJuror(juror.number);
     try {
       const jurorResponses = responses.filter(r => r.jurorNumber === juror.number);
       const analysis = await api.analyzeJuror(caseInfo, juror, jurorResponses, questions, activeCaseId);
       setAiAnalysis(prev => ({ ...prev, [juror.number]: analysis }));
+      setFailedAnalyses(prev => { const n = new Set(prev); n.delete(juror.number); return n; });
       onUpdateJuror(juror.number, { aiAnalysis: analysis });
+      return true;
     } catch (err) {
       console.error('Failed to analyze juror:', err);
-      setAiAnalysis(prev => ({ ...prev, [juror.number]: 'Unable to generate analysis. Please try again.' }));
+      setFailedAnalyses(prev => new Set(prev).add(juror.number));
+      return false;
     } finally {
       setAnalyzingJuror(null);
+    }
+  };
+
+  const handleAnalyzeJuror = async (juror: Juror) => {
+    if (analyzingJuror !== null) return;
+    await runAnalysis(juror);
+    if (pendingLeanAnalysis.current) {
+      const queued = pendingLeanAnalysis.current;
+      pendingLeanAnalysis.current = null;
+      await runAnalysis(queued);
+    }
+  };
+
+  const handleAnalyzeAll = async () => {
+    if (analyzingJuror !== null || batchAnalyzing !== null) return;
+    const jurorsNeedingAnalysis = jurors.filter(j => !aiAnalysis[j.number] || failedAnalyses.has(j.number));
+    if (jurorsNeedingAnalysis.length === 0) return;
+    batchCancelRef.current = false;
+    const total = jurorsNeedingAnalysis.length;
+    for (let i = 0; i < jurorsNeedingAnalysis.length; i++) {
+      if (batchCancelRef.current) break;
+      const juror = jurorsNeedingAnalysis[i];
+      setBatchAnalyzing({ current: i + 1, total, jurorNum: juror.number });
+      await runAnalysis(juror);
+    }
+    setBatchAnalyzing(null);
+  };
+
+  const hasRealAnalysis = (jurorNumber: number) => aiAnalysis[jurorNumber] && !failedAnalyses.has(jurorNumber);
+  const allAnalyzed = jurors.every(j => hasRealAnalysis(j.number));
+  const unanalyzedCount = jurors.filter(j => !hasRealAnalysis(j.number)).length;
+
+  const handleLeanChangeWithAutoAnalysis = (juror: Juror, newLean: string) => {
+    onUpdateJuror(juror.number, { lean: newLean as any });
+    setSelectedJuror({ ...juror, lean: newLean as any });
+    if (newLean !== 'unknown' && !hasRealAnalysis(juror.number)) {
+      const updatedJuror = { ...juror, lean: newLean as any };
+      if (analyzingJuror !== null) {
+        pendingLeanAnalysis.current = updatedJuror;
+      } else {
+        handleAnalyzeJuror(updatedJuror);
+      }
     }
   };
 
@@ -176,6 +224,32 @@ export function JurorReview({
             <option value="unfavorable">Unfavorable</option>
             <option value="unknown">Unknown</option>
           </select>
+
+          {batchAnalyzing ? (
+            <div className="flex items-center gap-2 px-4 py-2 bg-violet-50 border border-violet-200 rounded-lg text-sm" data-testid="batch-analysis-progress">
+              <Loader2 className="w-4 h-4 animate-spin text-violet-500" />
+              <span className="font-medium text-violet-700">
+                Analyzing juror {batchAnalyzing.current} of {batchAnalyzing.total}...
+              </span>
+              <button
+                onClick={() => { batchCancelRef.current = true; }}
+                className="ml-1 text-xs text-violet-500 hover:text-violet-700 underline"
+                data-testid="button-cancel-batch"
+              >
+                {batchCancelRef.current ? 'Stopping after current...' : 'Cancel'}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleAnalyzeAll}
+              disabled={analyzingJuror !== null || allAnalyzed}
+              data-testid="button-analyze-all"
+              className="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-colors bg-violet-100 text-violet-700 border border-violet-200 hover:bg-violet-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Brain className="w-4 h-4 mr-2" />
+              {allAnalyzed ? 'All Analyzed' : `Analyze All (${unanalyzedCount})`}
+            </button>
+          )}
 
           <button
             onClick={onProceed}
@@ -399,15 +473,7 @@ export function JurorReview({
                   </label>
                   <select
                   value={selectedJuror.lean}
-                  onChange={(e) => {
-                    onUpdateJuror(selectedJuror.number, {
-                      lean: e.target.value as any
-                    });
-                    setSelectedJuror({
-                      ...selectedJuror,
-                      lean: e.target.value as any
-                    });
-                  }}
+                  onChange={(e) => handleLeanChangeWithAutoAnalysis(selectedJuror, e.target.value)}
                   className={`w-full px-3 py-2 rounded-lg border text-sm font-bold capitalize focus:ring-2 focus:ring-amber-500 outline-none ${getLeanColor(selectedJuror.lean)}`}>
 
                     <option value="favorable">Favorable</option>
@@ -472,10 +538,15 @@ export function JurorReview({
                           <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
                           Analyzing...
                         </>
-                      ) : aiAnalysis[selectedJuror.number] ? (
+                      ) : hasRealAnalysis(selectedJuror.number) ? (
                         <>
                           <Brain className="w-3 h-3 mr-1.5" />
                           Re-analyze
+                        </>
+                      ) : failedAnalyses.has(selectedJuror.number) ? (
+                        <>
+                          <AlertTriangle className="w-3 h-3 mr-1.5" />
+                          Retry Analysis
                         </>
                       ) : (
                         <>
