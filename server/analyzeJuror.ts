@@ -76,10 +76,13 @@ Rules:
 - Reference specific responses by quoting them when relevant
 - Consider how the juror's occupation, background, and responses interact with the case facts
 - If the juror has no recorded responses, note that more information is needed and score conservatively (do NOT default to high risk)
+- If the juror has fewer than 3 recorded responses, begin your analysis by explicitly noting that the assessment is based on limited data and should be treated with caution. Avoid strong keep/strike recommendations for jurors with minimal response records. Mark leanConfidence as "low" in such cases.
 - Keep the analysis to 3-5 short paragraphs
 - Do not use headers, bullet points, or markdown formatting in the analysis — write in flowing prose paragraphs
 - Always frame analysis from the perspective of the attorney's side
-- IMPORTANT: If enriched background data is provided below the juror profile, you MUST reference at least one finding from it in your analysis. Do not ignore enrichment data when it is present.`;
+- IMPORTANT: If enriched background data is provided below the juror profile, you MUST reference at least one finding from it in your analysis. Do not ignore enrichment data when it is present.
+- NON-VERBAL REACTIONS: Responses prefixed with [Hand], [Nod], [Shake], or [Note] are non-verbal behavioral observations. A hand raise on a sensitive question (e.g., "Has anyone been a victim of a crime?") is meaningful data. Head nods and shakes indicate agreement or disagreement. Reference specific reactions by question when they reveal bias, sympathy, or concern.
+- SILENCE RECORDS: Responses marked "[Silent] No response" indicate the juror was explicitly asked and chose not to respond. Deliberate silence on a specific question can be as telling as a verbal answer — consider what the question was and whether non-response suggests discomfort, disengagement, or caution.`;
 
 const BRIEF_SUMMARY_PROMPT = `You are a Juror Risk Assessment Analyst. Given case context and a juror's profile with their voir dire responses, produce a brief 1-2 sentence summary explaining why this juror is classified at their current lean and risk tier. Be specific — reference their occupation, key responses, or demographic factors that drive the classification. If enriched background data is provided, you MUST incorporate at least one relevant finding (employment history, business ties, community involvement, legal history) into the summary. Write from the attorney's perspective. No headers, no bullet points — just 1-2 flowing sentences.
 
@@ -160,29 +163,63 @@ export async function analyzeJuror(
   responses: ResponseData[],
   enrichedData?: Record<string, any> | null
 ): Promise<AnalysisResult> {
-  const responsesText = responses.length > 0
-    ? responses.map((r, i) => {
+  const reactionResponses = responses.filter(r => r.responseText.startsWith('['));
+  const verbalResponses = responses.filter(r => !r.responseText.startsWith('['));
+  const totalChars = responses.reduce((sum, r) => sum + r.responseText.length, 0);
+
+  const formatResponse = (r: ResponseData, i: number) => {
+    const questionLabel = r.side === 'court'
+      ? `Court asked: "${r.questionSummary || 'Unknown question'}"`
+      : r.side === 'opposing'
+      ? `Opposing counsel asked: "${r.questionSummary || 'Unknown question'}"`
+      : r.questionText
+        ? `Your question: "${r.questionText}"`
+        : r.questionSummary
+          ? `New question: "${r.questionSummary}"`
+          : 'Unknown question';
+
+    let text = `${i + 1}. ${questionLabel}\n   Response: "${r.responseText}"`;
+
+    if (r.followUps && r.followUps.length > 0) {
+      r.followUps.forEach(fu => {
+        text += `\n   Follow-up: "${fu.question}" → "${fu.answer}"`;
+      });
+    }
+
+    return text;
+  };
+
+  let responsesText: string;
+  if (responses.length === 0) {
+    responsesText = 'No responses recorded for this juror.';
+  } else {
+    const sections: string[] = [];
+    if (verbalResponses.length > 0) {
+      sections.push('VERBAL RESPONSES:\n' + verbalResponses.map((r, i) => formatResponse(r, i + 1)).join('\n\n'));
+    }
+    if (reactionResponses.length > 0) {
+      sections.push('NON-VERBAL REACTIONS (observed during questioning — treat as behavioral signals):\n' + reactionResponses.map((r, i) => {
         const questionLabel = r.side === 'court'
           ? `Court asked: "${r.questionSummary || 'Unknown question'}"`
           : r.side === 'opposing'
-          ? `Opposing counsel asked: "${r.questionSummary || 'Unknown question'}"`
+          ? `Opposing: "${r.questionSummary || 'Unknown question'}"`
           : r.questionText
-            ? `Your question: "${r.questionText}"`
+            ? `Your Q: "${r.questionText}"`
             : r.questionSummary
-              ? `New question: "${r.questionSummary}"`
+              ? `Q: "${r.questionSummary}"`
               : 'Unknown question';
+        return `${i + 1}. ${questionLabel} → ${r.responseText}`;
+      }).join('\n'));
+    }
+    if (verbalResponses.length === 0 && reactionResponses.length > 0) {
+      sections.push('\nNote: This juror has ONLY non-verbal reactions and no recorded verbal testimony. Non-verbal signals (hand raises, nods, head shakes) are meaningful behavioral data — a juror who raised their hand on a sensitive question has revealed something important even without speaking.');
+    }
+    responsesText = sections.join('\n\n');
+  }
 
-        let text = `${i + 1}. ${questionLabel}\n   Response: "${r.responseText}"`;
-
-        if (r.followUps && r.followUps.length > 0) {
-          r.followUps.forEach(fu => {
-            text += `\n   Follow-up: "${fu.question}" → "${fu.answer}"`;
-          });
-        }
-
-        return text;
-      }).join('\n\n')
-    : 'No responses recorded for this juror.';
+  const dataSufficiency = responses.length < 2 || (verbalResponses.length === 0 && totalChars < 150)
+    ? `\nDATA SUFFICIENCY WARNING: This juror has limited response data (${verbalResponses.length} verbal responses, ${reactionResponses.length} reactions, ${totalChars} total characters). Base your assessment primarily on what data exists, but explicitly note the limitation and avoid strong recommendations.\n`
+    : '';
 
   let enrichmentSection = '';
   if (enrichedData && Object.keys(enrichedData).length > 0) {
@@ -209,7 +246,7 @@ ${enrichmentSection}
 
 RECORDED RESPONSES:
 ${responsesText}
-
+${dataSufficiency}
 Provide your risk assessment analysis for this juror.`;
 
   const completion = await openai.chat.completions.create({

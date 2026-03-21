@@ -11,6 +11,7 @@ import {
   X,
   Check,
   Grid3x3,
+  EyeOff,
 } from 'lucide-react';
 import { Juror, JurorResponse, SeatingConfig } from '../../types';
 
@@ -347,6 +348,7 @@ export function JurySeatingGrid({
                               ? flashType === 'raised-hand' ? 'bg-yellow-100 border-yellow-400 ring-2 ring-yellow-300'
                                 : flashType === 'head-nod' ? 'bg-green-100 border-green-400 ring-2 ring-green-300'
                                 : flashType === 'head-shake' ? 'bg-red-100 border-red-400 ring-2 ring-red-300'
+                                : flashType === 'no-response' ? 'bg-slate-100 border-slate-400 ring-2 ring-slate-300'
                                 : 'bg-blue-100 border-blue-400 ring-2 ring-blue-300'
                               : hasResponded
                               ? 'bg-emerald-50 border-emerald-300'
@@ -422,6 +424,32 @@ export function JurySeatingGrid({
                                 >
                                   <StickyNote className="w-3.5 h-3.5" />
                                 </button>
+                                {hasQuestion && !hasResponded && (
+                                  <button
+                                    onClick={() => {
+                                      onRecordResponse({
+                                        jurorNumber: juror.number,
+                                        questionId: activeQuestion!.id,
+                                        responseText: '[Silent] No response',
+                                        side: activeQuestion!.side,
+                                        questionSummary: activeQuestion!.id === null ? activeQuestion!.text : undefined,
+                                      });
+                                      setFlashedCells(prev => ({ ...prev, [juror.number]: 'no-response' as any }));
+                                      setTimeout(() => {
+                                        setFlashedCells(prev => {
+                                          const next = { ...prev };
+                                          delete next[juror.number];
+                                          return next;
+                                        });
+                                      }, 800);
+                                    }}
+                                    data-testid={`button-no-response-${juror.number}`}
+                                    title="No Response — record that this juror was silent"
+                                    className="p-1 rounded transition-colors hover:bg-slate-200 text-slate-400 active:bg-slate-300"
+                                  >
+                                    <EyeOff className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                               </div>
 
                               <AnimatePresence>

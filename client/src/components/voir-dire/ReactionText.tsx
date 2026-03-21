@@ -1,5 +1,5 @@
 import React from 'react';
-import { Hand, ThumbsUp, ThumbsDown, StickyNote } from 'lucide-react';
+import { Hand, ThumbsUp, ThumbsDown, StickyNote, EyeOff } from 'lucide-react';
 
 interface ReactionTextProps {
   text: string;
@@ -36,6 +36,14 @@ export function ReactionText({ text, className = '' }: ReactionTextProps) {
       <span className={`inline-flex items-center gap-1 ${className}`}>
         <StickyNote className="w-3.5 h-3.5 text-blue-600 shrink-0" />
         {text.slice(7)}
+      </span>
+    );
+  }
+  if (text.startsWith('[Silent] ')) {
+    return (
+      <span className={`inline-flex items-center gap-1 text-slate-400 italic ${className}`}>
+        <EyeOff className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+        {text.slice(9)}
       </span>
     );
   }

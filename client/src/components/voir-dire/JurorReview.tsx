@@ -410,9 +410,24 @@ export function JurorReview({
                     <span className="text-xs font-semibold text-slate-500 uppercase">
                       Responses
                     </span>
-                    <span className="text-sm font-bold text-slate-900">
-                      {juror.responseCount}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold text-slate-900">
+                        {juror.responseCount}
+                      </span>
+                      {(() => {
+                        const totalResponses = juror.jurorResponses.length;
+                        const verbalResponses = juror.jurorResponses.filter(r => !r.responseText.startsWith('['));
+                        const totalChars = juror.jurorResponses.reduce((sum, r) => sum + r.responseText.length, 0);
+                        if (totalResponses < 2 || (verbalResponses.length === 0 && totalChars < 150)) {
+                          return (
+                            <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" data-testid={`thin-data-${juror.number}`} title="Assessment based primarily on demographics and reactions">
+                              Limited data
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-semibold text-slate-500 uppercase">
