@@ -318,6 +318,7 @@ export async function getEnrichedDataForCase(
     const data = nameToData[name] || nameToData[j.id];
     if (data) {
       result[j.id] = data;
+      result[String(j.number)] = data;
     }
   }
 
@@ -326,6 +327,9 @@ export async function getEnrichedDataForCase(
       const key = e.jurorId || String(e.jurorNumber);
       if (!result[key]) {
         result[key] = e.enrichedData;
+      }
+      if (e.jurorNumber && !result[String(e.jurorNumber)]) {
+        result[String(e.jurorNumber)] = e.enrichedData;
       }
     }
   }

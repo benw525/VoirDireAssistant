@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   LayoutGrid,
@@ -12,7 +12,9 @@ import {
   MessageSquare,
   Brain,
   Loader2,
-  X } from
+  X,
+  Globe,
+  ShieldAlert } from
 'lucide-react';
 import { Juror, JurorResponse, VoirDireQuestion, CaseInfo } from '../../types';
 import * as api from '../../lib/api';
@@ -44,6 +46,25 @@ export function JurorReview({
     return initial;
   });
   const [analyzingJuror, setAnalyzingJuror] = useState<number | null>(null);
+  const [enrichmentStatus, setEnrichmentStatus] = useState<Record<string, { hasData: boolean; demographicFlag?: string }>>({});
+
+  useEffect(() => {
+    if (!activeCaseId) return;
+    api.getEnrichmentData(activeCaseId).then(data => {
+      const statusMap: Record<string, { hasData: boolean; demographicFlag?: string }> = {};
+      for (const [key, val] of Object.entries(data)) {
+        statusMap[key] = {
+          hasData: !!(val?.text && val.text.length > 50),
+          demographicFlag: val?.demographicFlag || undefined,
+        };
+      }
+      setEnrichmentStatus(statusMap);
+    }).catch(() => {});
+  }, [activeCaseId]);
+
+  const getJurorEnrichmentStatus = (juror: Juror) => {
+    return enrichmentStatus[juror.id || String(juror.number)] || null;
+  };
 
   const handleAnalyzeJuror = async (juror: Juror) => {
     if (analyzingJuror !== null) return;
@@ -202,7 +223,7 @@ export function JurorReview({
                       {juror.riskTier}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center mb-3">
                     <span className="text-xs font-semibold text-slate-500 uppercase">
                       Responses
                     </span>
@@ -210,6 +231,21 @@ export function JurorReview({
                       {juror.responseCount}
                     </span>
                   </div>
+                  {(() => {
+                    const es = getJurorEnrichmentStatus(juror);
+                    if (!es) return null;
+                    return (
+                      <div className="flex items-center gap-1.5">
+                        <Globe className={`w-3.5 h-3.5 ${es.hasData ? 'text-emerald-500' : 'text-slate-300'}`} />
+                        <span className={`text-xs font-medium ${es.hasData ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {es.hasData ? 'Enriched' : 'No data'}
+                        </span>
+                        {es.demographicFlag && (
+                          <ShieldAlert className="w-3.5 h-3.5 text-orange-500" title={es.demographicFlag} />
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
           )}
@@ -313,6 +349,18 @@ export function JurorReview({
                     {selectedJuror.sex} • {selectedJuror.race} • DOB:{' '}
                     {selectedJuror.birthDate}
                   </p>
+                  {(() => {
+                    const es = getJurorEnrichmentStatus(selectedJuror);
+                    if (es?.demographicFlag) {
+                      return (
+                        <div className="mt-1.5 flex items-start gap-1.5 text-xs bg-orange-50 border border-orange-200 rounded-lg px-2 py-1.5">
+                          <ShieldAlert className="w-3.5 h-3.5 text-orange-500 shrink-0 mt-0.5" />
+                          <span className="text-orange-700">{es.demographicFlag}</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
               <button
