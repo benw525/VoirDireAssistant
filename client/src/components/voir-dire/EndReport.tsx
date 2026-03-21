@@ -653,19 +653,6 @@ export function EndReport({
             )}
           </div>
 
-          {!panelCollapsed && (() => {
-            const missingAnalysisCount = jurors.filter(j => !j.aiAnalysis).length;
-            if (missingAnalysisCount === 0) return null;
-            return (
-              <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2" data-testid="text-missing-analysis-warning">
-                <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-amber-700">
-                  <span className="font-semibold">{missingAnalysisCount} of {jurors.length} jurors</span> are missing a detailed AI risk analysis. Return to Phase 5 and use "Analyze All" to generate full assessments.
-                </p>
-              </div>
-            );
-          })()}
-
           {summaryError && (
             <div className="mb-4 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700" data-testid="text-summary-error">
               {summaryError}
@@ -805,46 +792,11 @@ export function EndReport({
                           )}
                         </div>
 
-                        {juror.aiAnalysis ? (
-                          <div className="space-y-2">
-                            <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Brain className="w-4 h-4 text-violet-600 flex-shrink-0" />
-                                <span className="text-xs font-bold text-violet-700 uppercase tracking-wider">Full AI Risk Analysis</span>
-                              </div>
-                              <div className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
-                                {juror.aiAnalysis}
-                              </div>
-                            </div>
-                            {aiSummaries[juror.number] && (
-                              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                                <div className="flex items-start gap-2">
-                                  <Brain className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                                  <div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Brief Summary</span>
-                                    <p className="text-xs text-slate-600 leading-relaxed">{aiSummaries[juror.number]}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {aiSummaries[juror.number] && (
-                              <div className="bg-violet-50 border border-violet-200 rounded-lg p-3">
-                                <div className="flex items-start gap-2">
-                                  <Brain className="w-4 h-4 text-violet-500 mt-0.5 flex-shrink-0" />
-                                  <p className="text-sm text-slate-800 leading-relaxed">{aiSummaries[juror.number]}</p>
-                                </div>
-                              </div>
-                            )}
-                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                              <div className="flex items-start gap-2">
-                                <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                                <p className="text-xs text-amber-700 font-medium">
-                                  Detailed analysis not generated for this juror. Return to Phase 5 to generate a full risk assessment.
-                                </p>
-                              </div>
+                        {aiSummaries[juror.number] && (
+                          <div className="bg-violet-50 border border-violet-200 rounded-lg p-3">
+                            <div className="flex items-start gap-2">
+                              <Brain className="w-4 h-4 text-violet-500 mt-0.5 flex-shrink-0" />
+                              <p className="text-sm text-slate-800 leading-relaxed">{aiSummaries[juror.number]}</p>
                             </div>
                           </div>
                         )}

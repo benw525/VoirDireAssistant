@@ -42,7 +42,6 @@ You will receive:
 3. All recorded responses from that juror during voir dire (from both sides' examinations, including follow-up exchanges)
 4. The juror's current lean assessment and risk tier as set by the attorney
 5. Any attorney notes on the juror
-6. Enriched background data from public records research (when available) — this may include employment history, business registrations, community involvement, social media presence, legal history, and other publicly available information
 
 Your job is to produce a concise, strategic analysis explaining:
 
@@ -56,13 +55,12 @@ Rules:
 - Be direct and practical — this is a working tool for a trial attorney
 - Reference specific responses by quoting them when relevant
 - Consider how the juror's occupation, background, and responses interact with the case facts
-- If enriched background data is provided, you MUST reference at least one specific finding from it in your analysis. Discuss how employment history, business affiliations, community involvement, or legal history affects your risk assessment
-- If the juror has no recorded responses, base your analysis on demographics, enrichment data, and note that more information is needed from voir dire
+- If the juror has no recorded responses, base your analysis on demographics and note that more information is needed
 - Keep the total analysis to 3-5 short paragraphs
 - Do not use headers, bullet points, or markdown formatting — write in flowing prose paragraphs
 - Always frame analysis from the perspective of the attorney's side`;
 
-const BRIEF_SUMMARY_PROMPT = `You are a Juror Risk Assessment Analyst. Given case context and a juror's profile with their voir dire responses, produce a brief 1-2 sentence summary explaining why this juror is classified at their current lean and risk tier. Be specific — reference their occupation, key responses, or demographic factors that drive the classification. If enriched background data from public records research is provided, you MUST incorporate at least one relevant finding from it (employment, community involvement, legal history, etc.). Write from the attorney's perspective. No headers, no bullet points — just 1-2 flowing sentences.`;
+const BRIEF_SUMMARY_PROMPT = `You are a Juror Risk Assessment Analyst. Given case context and a juror's profile with their voir dire responses, produce a brief 1-2 sentence summary explaining why this juror is classified at their current lean and risk tier. Be specific — reference their occupation, key responses, or demographic factors that drive the classification. Write from the attorney's perspective. No headers, no bullet points — just 1-2 flowing sentences.`;
 
 export async function generateBriefSummary(
   caseContext: CaseContext,
@@ -91,10 +89,8 @@ export async function generateBriefSummary(
       }).join('\n')
     : 'No responses recorded.';
 
-  const enrichmentText = enrichedData?.text || '';
-  const enrichmentCitations = Array.isArray(enrichedData?.citations) ? enrichedData.citations : [];
-  const enrichmentSection = enrichmentText
-    ? `\nENRICHED BACKGROUND DATA (from public records research):\n${enrichmentText}${enrichmentCitations.length > 0 ? `\nSources: ${enrichmentCitations.join(', ')}` : ''}\n`
+  const enrichmentSection = enrichedData && Object.keys(enrichedData).length > 0
+    ? `\nEnriched background data: ${JSON.stringify(enrichedData)}\n`
     : '';
 
   const userPrompt = `Case: ${caseContext.name} (${caseContext.areaOfLaw}, representing ${caseContext.side})
@@ -109,7 +105,7 @@ ${enrichmentSection}
 Responses:
 ${responsesText}
 
-Write a 1-2 sentence summary explaining this juror's classification.${enrichmentText ? ' If enriched background data is provided, you MUST incorporate at least one relevant finding from it.' : ''}`;
+Write a 1-2 sentence summary explaining this juror's classification.`;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-5.4-2026-03-05",
@@ -155,10 +151,8 @@ export async function analyzeJuror(
       }).join('\n\n')
     : 'No responses recorded for this juror.';
 
-  const enrichmentTextFull = enrichedData?.text || '';
-  const enrichmentCitationsFull = Array.isArray(enrichedData?.citations) ? enrichedData.citations : [];
-  const enrichmentSection = enrichmentTextFull
-    ? `\nENRICHED BACKGROUND DATA (from public records research):\n${enrichmentTextFull}${enrichmentCitationsFull.length > 0 ? `\nSources: ${enrichmentCitationsFull.join(', ')}` : ''}\n`
+  const enrichmentSection = enrichedData && Object.keys(enrichedData).length > 0
+    ? `\nENRICHED BACKGROUND DATA (from public records / data services):\n${JSON.stringify(enrichedData, null, 2)}\n`
     : '';
 
   const userPrompt = `CASE CONTEXT:
@@ -181,7 +175,7 @@ ${enrichmentSection}
 RECORDED RESPONSES:
 ${responsesText}
 
-Provide your risk assessment analysis for this juror.${enrichmentTextFull ? ' IMPORTANT: Enriched background data is provided above — you MUST reference specific findings from it (employment history, business affiliations, community involvement, legal history, etc.) in your analysis and explain how they affect risk assessment.' : ''}`;
+Provide your risk assessment analysis for this juror.`;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-5.4-2026-03-05",
