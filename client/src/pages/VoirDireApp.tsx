@@ -111,6 +111,9 @@ export default function VoirDireApp() {
   const [savedStrikesForCause, setSavedStrikesForCause] = useState<any[]>([]);
   const [savedBatsonAnalysis, setSavedBatsonAnalysis] = useState<any>(null);
   const [savedCourtDismissed, setSavedCourtDismissed] = useState<number[]>([]);
+  const [demographicsChangedAt, setDemographicsChangedAt] = useState<number | null>(null);
+  const [batsonAnalyzedAt, setBatsonAnalyzedAt] = useState<number | null>(null);
+  const [causeAnalyzedAt, setCauseAnalyzedAt] = useState<number | null>(null);
   const [seatingConfig, setSeatingConfig] = useState<SeatingConfig | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
@@ -183,6 +186,9 @@ export default function VoirDireApp() {
       setSavedStrikesForCause(fullCase.strikesForCause || []);
       setSavedBatsonAnalysis(fullCase.batsonAnalysis || null);
       setSavedCourtDismissed(fullCase.courtDismissed || []);
+      setDemographicsChangedAt(fullCase.demographicsChangedAt || null);
+      setBatsonAnalyzedAt(fullCase.batsonAnalyzedAt || null);
+      setCauseAnalyzedAt(fullCase.causeAnalyzedAt || null);
       setSeatingConfig(fullCase.seatingConfig || null);
     } catch (err) {
       console.error('Failed to load case:', err);
@@ -532,6 +538,9 @@ export default function VoirDireApp() {
             savedStrikesForCause={savedStrikesForCause}
             savedBatsonAnalysis={savedBatsonAnalysis}
             savedCourtDismissed={savedCourtDismissed}
+            demographicsChangedAt={demographicsChangedAt}
+            batsonAnalyzedAt={batsonAnalyzedAt}
+            causeAnalyzedAt={causeAnalyzedAt}
           />
         );
       default:

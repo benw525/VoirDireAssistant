@@ -30,6 +30,7 @@ export interface IStorage {
   deleteCase(id: string): Promise<void>;
 
   getJurorsByCase(caseId: string): Promise<Juror[]>;
+  getJurorById(id: string): Promise<Juror | undefined>;
   createJuror(data: InsertJuror): Promise<Juror>;
   createJurors(data: InsertJuror[]): Promise<Juror[]>;
   updateJuror(id: string, data: Partial<InsertJuror>): Promise<Juror | undefined>;
@@ -103,6 +104,11 @@ export class DatabaseStorage implements IStorage {
 
   async getJurorsByCase(caseId: string): Promise<Juror[]> {
     return db.select().from(jurors).where(eq(jurors.caseId, caseId)).orderBy(jurors.number);
+  }
+
+  async getJurorById(id: string): Promise<Juror | undefined> {
+    const [result] = await db.select().from(jurors).where(eq(jurors.id, id));
+    return result;
   }
 
   async createJuror(data: InsertJuror): Promise<Juror> {

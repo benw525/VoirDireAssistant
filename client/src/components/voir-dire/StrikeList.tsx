@@ -13,11 +13,14 @@ import {
   X,
   Pencil,
   Plus,
-  Trash2
+  Trash2,
+  ShieldAlert,
+  CheckCircle2
 } from 'lucide-react';
 import { Juror } from '../../types';
 import { useDropzone } from 'react-dropzone';
 import { parseStrikeList } from '../../lib/api';
+import type { DemographicFlag } from '../../lib/api';
 
 
 interface StrikeListProps {
@@ -29,9 +32,41 @@ interface StrikeListProps {
 
 type EditableField = 'name' | 'phone' | 'sex' | 'race' | 'birthDate' | 'occupation' | 'employer';
 
-interface EditingCell {
-  jurorNumber: number;
-  field: EditableField;
+const RACE_OPTIONS = [
+  { value: 'W', label: 'W — White' },
+  { value: 'B', label: 'B — Black' },
+  { value: 'H', label: 'H — Hispanic' },
+  { value: 'A', label: 'A — Asian' },
+  { value: 'O', label: 'O — Other' },
+  { value: 'U', label: 'U — Unknown' },
+];
+
+const SEX_OPTIONS = [
+  { value: 'M', label: 'M — Male' },
+  { value: 'F', label: 'F — Female' },
+  { value: 'U', label: 'U — Unknown' },
+];
+
+function DropdownCell({ value, options, onSave, hasFlag }: {
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onSave: (newValue: string) => void;
+  hasFlag?: boolean;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onSave(e.target.value)}
+      data-testid="select-demographic"
+      className={`px-1.5 py-0.5 border rounded text-sm bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-500 appearance-auto ${
+        hasFlag ? 'border-orange-400 bg-orange-50 ring-1 ring-orange-300' : 'border-slate-300'
+      }`}
+    >
+      {options.map(o => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  );
 }
 
 function EditableCell({ value, onSave, isIllegible, fieldWidth }: {
@@ -111,16 +146,21 @@ export function StrikeList({
   const [showAddForm, setShowAddForm] = useState(false);
   const [newJuror, setNewJuror] = useState({ number: '', name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' });
   const [renumberConflict, setRenumberConflict] = useState<{ existingJuror: Juror; newJuror: Juror; newNumber: string } | null>(null);
+  const [demographicFlags, setDemographicFlags] = useState<DemographicFlag[]>([]);
+  const [demographicsReviewed, setDemographicsReviewed] = useState(false);
 
   const handleAIParse = useCallback(async (filesOrText: File[] | string) => {
     setIsParsing(true);
     setError('');
+    setDemographicFlags([]);
+    setDemographicsReviewed(false);
     const fileCount = Array.isArray(filesOrText) ? filesOrText.length : 0;
     setStatusMessage(fileCount > 1 ? `Processing ${fileCount} files...` : 'Building strike list...');
 
     try {
-      const parsedJurors = await parseStrikeList(filesOrText);
-      onJurorsLoaded(parsedJurors);
+      const result = await parseStrikeList(filesOrText);
+      onJurorsLoaded(result.jurors);
+      setDemographicFlags(result.demographicFlags);
       setPasteData('');
       setStatusMessage('');
     } catch (err: any) {
@@ -152,6 +192,8 @@ export function StrikeList({
 
   const loadSampleData = () => {
     onJurorsLoaded(generateSampleJurors());
+    setDemographicFlags([]);
+    setDemographicsReviewed(true);
   };
 
   const updateJurorField = (jurorNumber: number, field: EditableField, value: string) => {
@@ -163,6 +205,11 @@ export function StrikeList({
       return { ...updatedJuror, needsReview: hasIllegible };
     });
     onJurorsLoaded(updated);
+
+    if (field === 'race' || field === 'sex') {
+      setDemographicFlags(prev => prev.filter(f => f.jurorNumber !== jurorNumber));
+      setDemographicsReviewed(false);
+    }
   };
 
   const buildNewJuror = (jurorNumber: number): Juror => ({
@@ -171,8 +218,8 @@ export function StrikeList({
     address: '',
     cityStateZip: '',
     phone: 'Unknown',
-    sex: newJuror.sex.trim() || 'Unknown',
-    race: newJuror.race.trim() || 'Unknown',
+    sex: newJuror.sex.trim() || 'U',
+    race: newJuror.race.trim() || 'U',
     birthDate: newJuror.birthDate.trim() || 'Unknown',
     occupation: newJuror.occupation.trim() || 'Unknown',
     employer: newJuror.employer.trim() || 'Unknown',
@@ -234,10 +281,15 @@ export function StrikeList({
 
   const handleDeleteJuror = (jurorNumber: number) => {
     onJurorsLoaded(jurors.filter(j => j.number !== jurorNumber));
+    setDemographicFlags(prev => prev.filter(f => f.jurorNumber !== jurorNumber));
   };
 
   const reviewCount = jurors.filter((j: any) => j.needsReview).length;
   const isIllegibleValue = (val: string) => val === 'Illegible' || val.includes('(partial)');
+  const flaggedJurorNumbers = new Set(demographicFlags.map(f => f.jurorNumber));
+  const getFlagForJuror = (num: number) => demographicFlags.find(f => f.jurorNumber === num);
+
+  const canProceed = demographicsReviewed || jurors.length === 0;
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8 h-full flex flex-col">
@@ -391,6 +443,53 @@ export function StrikeList({
             </div>
           )}
 
+          {demographicFlags.length > 0 && (
+            <div className="mb-3 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-start gap-2 text-sm" data-testid="banner-demographic-flags">
+              <ShieldAlert className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-orange-800">{demographicFlags.length} potential demographic mismatch{demographicFlags.length > 1 ? 'es' : ''} detected.</span>
+                <span className="text-orange-700 ml-1">
+                  Name-origin analysis suggests some race fields may be incorrect. Review the highlighted cells below.
+                  Demographic accuracy is critical — errors cascade into Batson challenge analysis.
+                </span>
+              </div>
+            </div>
+          )}
+
+          {!demographicsReviewed && (
+            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-2 text-sm" data-testid="banner-demographics-review">
+              <ShieldAlert className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <span className="font-semibold text-blue-800">Demographic review required.</span>
+                <span className="text-blue-700 ml-1">
+                  Please verify each juror's Race and Sex fields are correct using the dropdowns below.
+                  These fields directly affect Batson challenge analysis. Once verified, click "Confirm Demographics" to proceed.
+                </span>
+              </div>
+              <button
+                onClick={() => setDemographicsReviewed(true)}
+                data-testid="button-confirm-demographics"
+                className="shrink-0 inline-flex items-center px-4 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                Confirm Demographics
+              </button>
+            </div>
+          )}
+
+          {demographicsReviewed && (
+            <div className="mb-3 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-sm" data-testid="banner-demographics-confirmed">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="text-emerald-700 font-medium">Demographics reviewed and confirmed.</span>
+              <button
+                onClick={() => setDemographicsReviewed(false)}
+                className="text-emerald-600 hover:text-emerald-800 text-xs underline ml-auto"
+              >
+                Re-review
+              </button>
+            </div>
+          )}
+
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex-1 flex flex-col">
             <div className="overflow-x-auto flex-1">
               <table className="w-full text-sm text-left" data-testid="table-jurors">
@@ -399,8 +498,8 @@ export function StrikeList({
                     <th className="px-4 py-3 font-semibold w-12">#</th>
                     <th className="px-4 py-3 font-semibold">Name</th>
                     <th className="px-4 py-3 font-semibold">Phone</th>
-                    <th className="px-4 py-3 font-semibold w-14">Sex</th>
-                    <th className="px-4 py-3 font-semibold w-14">Race</th>
+                    <th className="px-4 py-3 font-semibold w-24">Sex</th>
+                    <th className="px-4 py-3 font-semibold w-28">Race</th>
                     <th className="px-4 py-3 font-semibold w-28">DOB</th>
                     <th className="px-4 py-3 font-semibold">Occupation</th>
                     <th className="px-4 py-3 font-semibold">Employer</th>
@@ -411,83 +510,98 @@ export function StrikeList({
                 <tbody className="divide-y divide-slate-100">
                   {jurors.map((juror) => {
                     const needsReview = (juror as any).needsReview;
+                    const flag = getFlagForJuror(juror.number);
                     return (
-                      <tr
-                        key={juror.number}
-                        data-testid={`row-juror-${juror.number}`}
-                        className={`transition-colors ${needsReview ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-slate-50'}`}
-                      >
-                        <td className="px-4 py-2.5 font-bold text-slate-900">
-                          {juror.number}
-                        </td>
-                        <td className="px-4 py-2.5 font-medium text-slate-700">
-                          <EditableCell
-                            value={juror.name}
-                            onSave={(v) => updateJurorField(juror.number, 'name', v)}
-                            isIllegible={isIllegibleValue(juror.name)}
-                          />
-                        </td>
-                        <td className="px-4 py-2.5 text-slate-600">
-                          <EditableCell
-                            value={juror.phone}
-                            onSave={(v) => updateJurorField(juror.number, 'phone', v)}
-                            isIllegible={isIllegibleValue(juror.phone)}
-                          />
-                        </td>
-                        <td className="px-4 py-2.5 text-slate-600">
-                          <EditableCell
-                            value={juror.sex}
-                            onSave={(v) => updateJurorField(juror.number, 'sex', v)}
-                            isIllegible={isIllegibleValue(juror.sex)}
-                            fieldWidth="w-12"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5 text-slate-600">
-                          <EditableCell
-                            value={juror.race}
-                            onSave={(v) => updateJurorField(juror.number, 'race', v)}
-                            isIllegible={isIllegibleValue(juror.race)}
-                            fieldWidth="w-12"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5 text-slate-600">
-                          <EditableCell
-                            value={juror.birthDate}
-                            onSave={(v) => updateJurorField(juror.number, 'birthDate', v)}
-                            isIllegible={isIllegibleValue(juror.birthDate)}
-                            fieldWidth="w-24"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5 text-slate-600">
-                          <EditableCell
-                            value={juror.occupation}
-                            onSave={(v) => updateJurorField(juror.number, 'occupation', v)}
-                            isIllegible={isIllegibleValue(juror.occupation)}
-                          />
-                        </td>
-                        <td className="px-4 py-2.5 text-slate-600">
-                          <EditableCell
-                            value={juror.employer}
-                            onSave={(v) => updateJurorField(juror.number, 'employer', v)}
-                            isIllegible={isIllegibleValue(juror.employer)}
-                          />
-                        </td>
-                        <td className="px-2 py-2.5">
-                          {needsReview && (
-                            <AlertTriangle className="w-4 h-4 text-amber-500" title="This juror has fields that need review" />
-                          )}
-                        </td>
-                        <td className="px-2 py-2.5">
-                          <button
-                            onClick={() => handleDeleteJuror(juror.number)}
-                            data-testid={`button-delete-juror-${juror.number}`}
-                            className="text-slate-300 hover:text-rose-500 transition-colors p-0.5 rounded"
-                            title="Remove juror"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
+                      <React.Fragment key={juror.number}>
+                        <tr
+                          data-testid={`row-juror-${juror.number}`}
+                          className={`transition-colors ${
+                            flag ? 'bg-orange-50/50 hover:bg-orange-50' :
+                            needsReview ? 'bg-amber-50/50 hover:bg-amber-50' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <td className="px-4 py-2.5 font-bold text-slate-900">
+                            {juror.number}
+                          </td>
+                          <td className="px-4 py-2.5 font-medium text-slate-700">
+                            <EditableCell
+                              value={juror.name}
+                              onSave={(v) => updateJurorField(juror.number, 'name', v)}
+                              isIllegible={isIllegibleValue(juror.name)}
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-600">
+                            <EditableCell
+                              value={juror.phone}
+                              onSave={(v) => updateJurorField(juror.number, 'phone', v)}
+                              isIllegible={isIllegibleValue(juror.phone)}
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-600">
+                            <DropdownCell
+                              value={juror.sex}
+                              options={SEX_OPTIONS}
+                              onSave={(v) => updateJurorField(juror.number, 'sex', v)}
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-600">
+                            <DropdownCell
+                              value={juror.race}
+                              options={RACE_OPTIONS}
+                              onSave={(v) => updateJurorField(juror.number, 'race', v)}
+                              hasFlag={!!flag}
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-600">
+                            <EditableCell
+                              value={juror.birthDate}
+                              onSave={(v) => updateJurorField(juror.number, 'birthDate', v)}
+                              isIllegible={isIllegibleValue(juror.birthDate)}
+                              fieldWidth="w-24"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-600">
+                            <EditableCell
+                              value={juror.occupation}
+                              onSave={(v) => updateJurorField(juror.number, 'occupation', v)}
+                              isIllegible={isIllegibleValue(juror.occupation)}
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-600">
+                            <EditableCell
+                              value={juror.employer}
+                              onSave={(v) => updateJurorField(juror.number, 'employer', v)}
+                              isIllegible={isIllegibleValue(juror.employer)}
+                            />
+                          </td>
+                          <td className="px-2 py-2.5">
+                            {needsReview && (
+                              <AlertTriangle className="w-4 h-4 text-amber-500" title="This juror has fields that need review" />
+                            )}
+                          </td>
+                          <td className="px-2 py-2.5">
+                            <button
+                              onClick={() => handleDeleteJuror(juror.number)}
+                              data-testid={`button-delete-juror-${juror.number}`}
+                              className="text-slate-300 hover:text-rose-500 transition-colors p-0.5 rounded"
+                              title="Remove juror"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                        {flag && (
+                          <tr className="bg-orange-50" data-testid={`row-flag-${juror.number}`}>
+                            <td></td>
+                            <td colSpan={9} className="px-4 py-2 text-xs">
+                              <div className="flex items-start gap-1.5">
+                                <ShieldAlert className="w-3.5 h-3.5 text-orange-600 shrink-0 mt-0.5" />
+                                <span className="text-orange-700">{flag.message}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
@@ -517,22 +631,24 @@ export function StrikeList({
                     className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
                     onKeyDown={(e) => e.key === 'Enter' && handleAddJuror()}
                   />
-                  <input
+                  <select
                     value={newJuror.sex}
                     onChange={(e) => setNewJuror(prev => ({ ...prev, sex: e.target.value }))}
-                    placeholder="Sex"
                     data-testid="input-add-juror-sex"
                     className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddJuror()}
-                  />
-                  <input
+                  >
+                    <option value="">Sex</option>
+                    {SEX_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <select
                     value={newJuror.race}
                     onChange={(e) => setNewJuror(prev => ({ ...prev, race: e.target.value }))}
-                    placeholder="Race"
                     data-testid="input-add-juror-race"
                     className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddJuror()}
-                  />
+                  >
+                    <option value="">Race</option>
+                    {RACE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
                   <input
                     value={newJuror.birthDate}
                     onChange={(e) => setNewJuror(prev => ({ ...prev, birthDate: e.target.value }))}
@@ -643,7 +759,7 @@ export function StrikeList({
             <div className="bg-slate-50 border-t border-slate-200 p-4 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => onJurorsLoaded([])}
+                  onClick={() => { onJurorsLoaded([]); setDemographicFlags([]); setDemographicsReviewed(false); }}
                   data-testid="button-clear-jurors"
                   className="text-slate-500 hover:text-slate-700 font-medium text-sm">
                   Clear & Re-upload
@@ -661,8 +777,9 @@ export function StrikeList({
               </div>
               <button
                 onClick={() => onProceed()}
+                disabled={!canProceed}
                 data-testid="button-confirm-proceed"
-                className="inline-flex items-center px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-xl hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors shadow-sm">
+                className="inline-flex items-center px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-xl hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                 Confirm & Proceed
                 <ArrowRight className="w-5 h-5 ml-2" />
               </button>

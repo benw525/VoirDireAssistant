@@ -429,10 +429,22 @@ export async function registerRoutes(
   });
 
   app.patch("/api/jurors/:id", async (req, res) => {
+    const existing = await storage.getJurorById(req.params.id);
+    if (!existing) return res.status(404).json({ message: "Juror not found" });
+    const c = await storage.getCase(existing.caseId);
+    if (!c || c.userId !== req.user!.id) return res.status(404).json({ message: "Juror not found" });
+
     const juror = await storage.updateJuror(req.params.id, req.body);
     if (!juror) return res.status(404).json({ message: "Juror not found" });
-    const c = await storage.getCase(juror.caseId);
-    if (!c || c.userId !== req.user!.id) return res.status(404).json({ message: "Juror not found" });
+
+    if (req.body.race !== undefined || req.body.sex !== undefined) {
+      try {
+        await storage.updateCase(juror.caseId, { demographicsChangedAt: Date.now() } as any);
+      } catch (e) {
+        console.error("Failed to update demographicsChangedAt:", e);
+      }
+    }
+
     res.json(juror);
   });
 
@@ -609,7 +621,11 @@ export async function registerRoutes(
       }
 
       allJurors.sort((a, b) => a.number - b.number);
-      res.end(JSON.stringify({ jurors: allJurors }));
+
+      const { checkNameEthnicityPlausibility } = await import("./nameEthnicityCheck");
+      const demographicFlags = checkNameEthnicityPlausibility(allJurors);
+
+      res.end(JSON.stringify({ jurors: allJurors, demographicFlags }));
     } catch (err: any) {
       clearInterval(keepAlive);
       console.error("Strike list parse error:", err);

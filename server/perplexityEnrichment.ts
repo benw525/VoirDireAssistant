@@ -208,6 +208,17 @@ export async function triggerEnrichmentForJurors(
           if (postCheck?.status === "cancelled") {
             console.log(`[PerplexityEnrichment] Juror #${juror.number} was cancelled during request, discarding result`);
           } else {
+            let demographicFlag: string | null = null;
+            try {
+              const { checkEnrichmentEthnicityConflict } = await import("./nameEthnicityCheck");
+              demographicFlag = checkEnrichmentEthnicityConflict(juror.race || "", content);
+              if (demographicFlag) {
+                console.log(`[PerplexityEnrichment] Demographic flag for juror #${juror.number}: ${demographicFlag}`);
+              }
+            } catch (e) {
+              console.error("[PerplexityEnrichment] Demographic check error:", e);
+            }
+
             await storage.updateJurorEnrichment(enrichmentId, {
               status: "completed",
               rawResponse: data,
@@ -216,6 +227,7 @@ export async function triggerEnrichmentForJurors(
                 citations,
                 source: "perplexity_sonar_pro",
                 model: PERPLEXITY_MODEL,
+                ...(demographicFlag ? { demographicFlag } : {}),
               },
               completedAt: Date.now(),
             });

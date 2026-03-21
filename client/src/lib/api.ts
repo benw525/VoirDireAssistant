@@ -53,6 +53,9 @@ interface DbCase {
     defensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string }>;
     offensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; strengthOfChallenge: string; statisticalPattern: string; comparativeEvidence: string; suggestedArgument: string }>;
   } | null;
+  demographicsChangedAt?: number | null;
+  batsonAnalyzedAt?: number | null;
+  causeAnalyzedAt?: number | null;
 }
 
 interface DbJuror {
@@ -125,6 +128,9 @@ function dbCaseToSavedCase(c: DbCase, jurors: Juror[] = [], questions: VoirDireQ
     courtDismissed: c.courtDismissed || [],
     seatingConfig: c.seatingConfig || null,
     batsonAnalysis: c.batsonAnalysis || null,
+    demographicsChangedAt: c.demographicsChangedAt || null,
+    batsonAnalyzedAt: c.batsonAnalyzedAt || null,
+    causeAnalyzedAt: c.causeAnalyzedAt || null,
   };
 }
 
@@ -279,7 +285,20 @@ export async function addFollowUp(responseId: string, followUp: {question: strin
   return dbResponseToResponse(result);
 }
 
-export async function parseStrikeList(fileOrText: File[] | string): Promise<Juror[]> {
+export interface DemographicFlag {
+  jurorNumber: number;
+  field: "race";
+  currentValue: string;
+  suggestedOrigin: string;
+  message: string;
+}
+
+export interface ParseStrikeListResult {
+  jurors: Juror[];
+  demographicFlags: DemographicFlag[];
+}
+
+export async function parseStrikeList(fileOrText: File[] | string): Promise<ParseStrikeListResult> {
   const formData = new FormData();
   if (typeof fileOrText === 'string') {
     formData.append('text', fileOrText);
@@ -309,7 +328,7 @@ export async function parseStrikeList(fileOrText: File[] | string): Promise<Juro
   if (!res.ok) {
     throw new Error(data.message || 'Failed to parse strike list');
   }
-  return (data.jurors || []).map((j: any) => ({
+  const jurors = (data.jurors || []).map((j: any) => ({
     number: j.number,
     name: j.name || 'Unknown',
     address: j.address || 'Unknown',
@@ -328,6 +347,8 @@ export async function parseStrikeList(fileOrText: File[] | string): Promise<Juro
     aiAnalysis: '',
     needsReview: Boolean(j.needsReview),
   }));
+  const demographicFlags: DemographicFlag[] = data.demographicFlags || [];
+  return { jurors, demographicFlags };
 }
 
 export async function generateVoirDire(caseInfo: CaseInfo, jurors: Juror[], caseId?: string | null): Promise<VoirDireDocument> {

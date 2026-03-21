@@ -106,4 +106,7 @@ export interface SavedCase {
     defensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string }>;
     offensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; strengthOfChallenge: string; statisticalPattern: string; comparativeEvidence: string; suggestedArgument: string }>;
   } | null;
+  demographicsChangedAt?: number | null;
+  batsonAnalyzedAt?: number | null;
+  causeAnalyzedAt?: number | null;
 }

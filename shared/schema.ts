@@ -45,6 +45,9 @@ export const cases = pgTable("cases", {
     rows: number;
     direction: 'bottom-right-first' | 'top-left-first';
   } | null>().default(null),
+  demographicsChangedAt: bigint("demographics_changed_at", { mode: "number" }),
+  batsonAnalyzedAt: bigint("batson_analyzed_at", { mode: "number" }),
+  causeAnalyzedAt: bigint("cause_analyzed_at", { mode: "number" }),
   savedAt: bigint("saved_at", { mode: "number" }).notNull(),
 });
 

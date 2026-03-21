@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   ShieldQuestion,
   ShieldOff,
+  AlertTriangle,
 } from 'lucide-react';
 import { CaseInfo, Juror, JurorResponse, VoirDireQuestion } from '../../types';
 import * as api from '../../lib/api';
@@ -54,6 +55,10 @@ interface EndReportProps {
   savedStrikesForCause?: StrikeForCauseResult[];
   savedBatsonAnalysis?: BatsonAnalysisResult | null;
   savedCourtDismissed?: number[];
+  demographicsChangedAt?: number | null;
+  batsonAnalyzedAt?: number | null;
+  causeAnalyzedAt?: number | null;
+  enrichmentDemographicFlags?: Record<string, string>;
 }
 
 export function EndReport({
@@ -68,6 +73,10 @@ export function EndReport({
   savedStrikesForCause,
   savedBatsonAnalysis,
   savedCourtDismissed,
+  demographicsChangedAt,
+  batsonAnalyzedAt,
+  causeAnalyzedAt,
+  enrichmentDemographicFlags,
 }: EndReportProps) {
   const [sortField, setSortField] = useState<SortField>('number');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -293,7 +302,7 @@ export function EndReport({
       setCauseStrikes(results);
       if (activeCaseId) {
         try {
-          await api.updateCase(activeCaseId, { strikesForCause: results });
+          await api.updateCase(activeCaseId, { strikesForCause: results, causeAnalyzedAt: Date.now() });
         } catch (err) {
           console.error('Failed to persist strikes for cause:', err);
         }
@@ -325,7 +334,7 @@ export function EndReport({
 
       if (activeCaseId) {
         try {
-          await api.updateCase(activeCaseId, { batsonAnalysis: result });
+          await api.updateCase(activeCaseId, { batsonAnalysis: result, batsonAnalyzedAt: Date.now() });
         } catch (err) {
           console.error('Failed to persist Batson analysis:', err);
         }
@@ -1016,6 +1025,13 @@ export function EndReport({
                 className="overflow-hidden"
               >
                 <div className="px-6 pb-6">
+                  {batsonResult && demographicsChangedAt && batsonAnalyzedAt && demographicsChangedAt > batsonAnalyzedAt && (
+                    <div className="flex items-center gap-2 p-3 rounded-xl text-sm font-medium bg-amber-50 border border-amber-200 text-amber-700 mb-4" data-testid="banner-batson-stale">
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                      Demographics have been changed since this Batson analysis was last run. Re-run the check for accurate results.
+                    </div>
+                  )}
+
                   {batsonError && (
                     <div className="flex items-center gap-2 p-3 rounded-xl text-sm font-medium bg-rose-50 border border-rose-200 text-rose-700 mb-4" data-testid="text-batson-error">
                       <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -1226,6 +1242,13 @@ export function EndReport({
                 className="overflow-hidden"
               >
                 <div className="px-6 pb-6">
+          {causeStrikes.length > 0 && demographicsChangedAt && causeAnalyzedAt && demographicsChangedAt > causeAnalyzedAt && (
+            <div className="flex items-center gap-2 p-3 rounded-xl text-sm font-medium bg-amber-50 border border-amber-200 text-amber-700 mb-4" data-testid="banner-cause-stale">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              Demographics have been changed since this Strike for Cause analysis was last run. Re-analyze for accurate results.
+            </div>
+          )}
+
           {causeAnalysisError && (
             <div className="flex items-center gap-2 p-3 rounded-xl text-sm font-medium bg-rose-50 border border-rose-200 text-rose-700 mb-4" data-testid="text-cause-error">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
