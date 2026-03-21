@@ -58,9 +58,10 @@ Rules:
 - If the juror has no recorded responses, base your analysis on demographics and note that more information is needed
 - Keep the total analysis to 3-5 short paragraphs
 - Do not use headers, bullet points, or markdown formatting — write in flowing prose paragraphs
-- Always frame analysis from the perspective of the attorney's side`;
+- Always frame analysis from the perspective of the attorney's side
+- IMPORTANT: If enriched background data is provided below the juror profile, you MUST reference at least one finding from it in your analysis. If the enrichment data reveals employment history, business ownership, legal issues, community involvement, or other background relevant to the case, discuss how it affects your risk assessment. Do not ignore enrichment data when it is present.`;
 
-const BRIEF_SUMMARY_PROMPT = `You are a Juror Risk Assessment Analyst. Given case context and a juror's profile with their voir dire responses, produce a brief 1-2 sentence summary explaining why this juror is classified at their current lean and risk tier. Be specific — reference their occupation, key responses, or demographic factors that drive the classification. Write from the attorney's perspective. No headers, no bullet points — just 1-2 flowing sentences.`;
+const BRIEF_SUMMARY_PROMPT = `You are a Juror Risk Assessment Analyst. Given case context and a juror's profile with their voir dire responses, produce a brief 1-2 sentence summary explaining why this juror is classified at their current lean and risk tier. Be specific — reference their occupation, key responses, or demographic factors that drive the classification. If enriched background data is provided, you MUST incorporate at least one relevant finding (employment history, business ties, community involvement, legal history) into the summary. Write from the attorney's perspective. No headers, no bullet points — just 1-2 flowing sentences.`;
 
 export async function generateBriefSummary(
   caseContext: CaseContext,
@@ -89,9 +90,11 @@ export async function generateBriefSummary(
       }).join('\n')
     : 'No responses recorded.';
 
-  const enrichmentSection = enrichedData && Object.keys(enrichedData).length > 0
-    ? `\nEnriched background data: ${JSON.stringify(enrichedData)}\n`
-    : '';
+  let enrichmentSection = '';
+  if (enrichedData && Object.keys(enrichedData).length > 0) {
+    const enrichText = enrichedData.text || JSON.stringify(enrichedData);
+    enrichmentSection = `\nEnriched background data: ${enrichText}\n`;
+  }
 
   const userPrompt = `Case: ${caseContext.name} (${caseContext.areaOfLaw}, representing ${caseContext.side})
 Summary: ${caseContext.summary}
@@ -151,9 +154,11 @@ export async function analyzeJuror(
       }).join('\n\n')
     : 'No responses recorded for this juror.';
 
-  const enrichmentSection = enrichedData && Object.keys(enrichedData).length > 0
-    ? `\nENRICHED BACKGROUND DATA (from public records / data services):\n${JSON.stringify(enrichedData, null, 2)}\n`
-    : '';
+  let enrichmentSection = '';
+  if (enrichedData && Object.keys(enrichedData).length > 0) {
+    const enrichText = enrichedData.text || JSON.stringify(enrichedData, null, 2);
+    enrichmentSection = `\nENRICHED BACKGROUND DATA (from public records / data services):\n${enrichText}\n`;
+  }
 
   const userPrompt = `CASE CONTEXT:
 Case: ${caseContext.name}

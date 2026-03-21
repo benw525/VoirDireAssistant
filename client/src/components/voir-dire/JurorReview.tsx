@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   LayoutGrid,
@@ -12,7 +12,9 @@ import {
   MessageSquare,
   Brain,
   Loader2,
-  X } from
+  X,
+  Globe,
+  Search } from
 'lucide-react';
 import { Juror, JurorResponse, VoirDireQuestion, CaseInfo } from '../../types';
 import * as api from '../../lib/api';
@@ -44,6 +46,38 @@ export function JurorReview({
     return initial;
   });
   const [analyzingJuror, setAnalyzingJuror] = useState<number | null>(null);
+  const [enrichmentStatus, setEnrichmentStatus] = useState<{
+    enrichedJurors: Set<number>;
+    pending: number;
+    total: number;
+    isRunning: boolean;
+  }>({ enrichedJurors: new Set(), pending: 0, total: 0, isRunning: false });
+
+  const fetchEnrichmentStatus = useCallback(async () => {
+    if (!activeCaseId) return;
+    try {
+      const status = await api.getEnrichmentStatus(activeCaseId);
+      const enrichedNums = new Set<number>();
+      status.items.forEach(item => {
+        if (item.status === 'completed' && item.hasData) {
+          enrichedNums.add(item.jurorNumber);
+        }
+      });
+      setEnrichmentStatus({
+        enrichedJurors: enrichedNums,
+        pending: status.summary.pending + status.summary.dispatched,
+        total: status.summary.total,
+        isRunning: status.summary.pending > 0 || status.summary.dispatched > 0,
+      });
+    } catch {
+    }
+  }, [activeCaseId]);
+
+  useEffect(() => {
+    fetchEnrichmentStatus();
+    const interval = setInterval(fetchEnrichmentStatus, 10000);
+    return () => clearInterval(interval);
+  }, [fetchEnrichmentStatus]);
 
   const handleAnalyzeJuror = async (juror: Juror) => {
     if (analyzingJuror !== null) return;
@@ -152,6 +186,19 @@ export function JurorReview({
         </div>
       </div>
 
+      {enrichmentStatus.isRunning && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-sm shrink-0" data-testid="banner-enrichment-pending">
+          <Search className="w-4 h-4 text-amber-500 shrink-0" />
+          <div>
+            <span className="font-semibold text-amber-800">Background research in progress</span>
+            <span className="text-amber-700 ml-1">
+              ({enrichmentStatus.total - enrichmentStatus.pending}/{enrichmentStatus.total} jurors complete).
+              AI analysis will be more thorough after enrichment finishes — jurors with completed research show a green "Enriched" badge.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto min-h-0 pb-6">
         {viewMode === 'board' ?
@@ -202,13 +249,33 @@ export function JurorReview({
                       {juror.riskTier}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center mb-3">
                     <span className="text-xs font-semibold text-slate-500 uppercase">
                       Responses
                     </span>
                     <span className="text-sm font-bold text-slate-900">
                       {juror.responseCount}
                     </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-semibold text-slate-500 uppercase">
+                      Research
+                    </span>
+                    {enrichmentStatus.enrichedJurors.has(juror.number) ? (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 flex items-center" data-testid={`badge-enriched-${juror.number}`}>
+                        <Globe className="w-3 h-3 mr-1" />
+                        Enriched
+                      </span>
+                    ) : enrichmentStatus.isRunning ? (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-600 flex items-center">
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        Pending
+                      </span>
+                    ) : (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded bg-slate-200 text-slate-500">
+                        —
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -381,29 +448,43 @@ export function JurorReview({
                     <Brain className="w-4 h-4 mr-2 text-violet-500" />
                     AI Risk Analysis
                   </h4>
-                  <button
-                    onClick={() => handleAnalyzeJuror(selectedJuror)}
-                    disabled={analyzingJuror !== null}
-                    data-testid={`button-analyze-juror-${selectedJuror.number}`}
-                    className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-violet-100 text-violet-700 border border-violet-200 hover:bg-violet-200 disabled:opacity-50"
-                  >
-                    {analyzingJuror === selectedJuror.number ? (
-                      <>
-                        <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
-                        Analyzing...
-                      </>
-                    ) : aiAnalysis[selectedJuror.number] ? (
-                      <>
-                        <Brain className="w-3 h-3 mr-1.5" />
-                        Re-analyze
-                      </>
-                    ) : (
-                      <>
-                        <Brain className="w-3 h-3 mr-1.5" />
-                        Analyze Juror
-                      </>
+                  <div className="flex items-center gap-2">
+                    {enrichmentStatus.isRunning && !enrichmentStatus.enrichedJurors.has(selectedJuror.number) && (
+                      <span className="text-xs text-amber-600 flex items-center" title="Enrichment is still running for this juror. Analysis will be more accurate after enrichment completes.">
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        Research pending
+                      </span>
                     )}
-                  </button>
+                    {enrichmentStatus.enrichedJurors.has(selectedJuror.number) && (
+                      <span className="text-xs text-emerald-600 flex items-center" data-testid={`badge-modal-enriched-${selectedJuror.number}`}>
+                        <Globe className="w-3 h-3 mr-1" />
+                        Enriched
+                      </span>
+                    )}
+                    <button
+                      onClick={() => handleAnalyzeJuror(selectedJuror)}
+                      disabled={analyzingJuror !== null}
+                      data-testid={`button-analyze-juror-${selectedJuror.number}`}
+                      className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-violet-100 text-violet-700 border border-violet-200 hover:bg-violet-200 disabled:opacity-50"
+                    >
+                      {analyzingJuror === selectedJuror.number ? (
+                        <>
+                          <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : aiAnalysis[selectedJuror.number] ? (
+                        <>
+                          <Brain className="w-3 h-3 mr-1.5" />
+                          Re-analyze
+                        </>
+                      ) : (
+                        <>
+                          <Brain className="w-3 h-3 mr-1.5" />
+                          Analyze Juror
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
                 {aiAnalysis[selectedJuror.number] ? (
                   <div className="bg-violet-50 border border-violet-200 rounded-xl p-4">

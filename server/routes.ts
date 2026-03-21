@@ -852,6 +852,7 @@ export async function registerRoutes(
             const allEnriched = await getEnrichedDataForCase(parsed.data.caseId);
             const jurorKey = parsed.data.juror.id || String(parsed.data.juror.number);
             enrichedData = allEnriched[jurorKey] || null;
+            console.log(`[AnalyzeJuror] Juror #${parsed.data.juror.number} enrichment: ${enrichedData ? `found (${JSON.stringify(enrichedData).length} chars)` : 'none available'}`);
           }
         } catch (err) {
           console.error("[Enrichment] Failed to fetch enrichment data:", err);
