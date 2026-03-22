@@ -109,14 +109,10 @@ export function JurorReview({
         aiAnalysis: result.analysis,
         riskScore: result.riskScore,
         aiRiskTier: result.aiRiskTier,
+        riskTier: result.aiRiskTier,
+        lean: result.suggestedLean,
+        leanConfidence: result.leanConfidence,
       };
-      if (juror.lean === 'unknown' && result.suggestedLean !== 'unknown') {
-        jurorUpdates.lean = result.suggestedLean;
-        jurorUpdates.leanConfidence = result.leanConfidence;
-      }
-      if (juror.leanConfidence === 'none') {
-        jurorUpdates.leanConfidence = result.leanConfidence;
-      }
       onUpdateJuror(juror.number, jurorUpdates);
       return true;
     } catch (err) {
@@ -605,7 +601,17 @@ export function JurorReview({
 
             <div className="flex-1 overflow-y-auto p-6 space-y-8">
               {/* Assessment Controls */}
-              <div className="grid grid-cols-3 gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+              {(() => {
+                const jurorAnalyzed = hasRealAnalysis(selectedJuror.number);
+                return (
+              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                {!jurorAnalyzed && (
+                  <p className="text-xs text-slate-400 mb-3 flex items-center gap-1">
+                    <HelpCircle className="w-3 h-3" />
+                    Assessments will be set by AI analysis. You can override them after analysis completes.
+                  </p>
+                )}
+                <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-2">
                     Lean Assessment
@@ -613,8 +619,9 @@ export function JurorReview({
                   <select
                   data-testid={`select-lean-${selectedJuror.number}`}
                   value={selectedJuror.lean}
+                  disabled={!jurorAnalyzed}
                   onChange={(e) => handleLeanChangeWithAutoAnalysis(selectedJuror, e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border text-sm font-bold capitalize focus:ring-2 focus:ring-amber-500 outline-none ${getLeanColor(selectedJuror.lean)}`}>
+                  className={`w-full px-3 py-2 rounded-lg border text-sm font-bold capitalize focus:ring-2 focus:ring-amber-500 outline-none ${!jurorAnalyzed ? 'opacity-50 cursor-not-allowed' : ''} ${getLeanColor(selectedJuror.lean)}`}>
 
                     <option value="favorable">Favorable</option>
                     <option value="neutral">Neutral</option>
@@ -629,12 +636,13 @@ export function JurorReview({
                   <select
                     data-testid={`select-confidence-${selectedJuror.number}`}
                     value={selectedJuror.leanConfidence}
+                    disabled={!jurorAnalyzed}
                     onChange={(e) => {
                       const val = e.target.value as Juror['leanConfidence'];
                       onUpdateJuror(selectedJuror.number, { leanConfidence: val });
                       setSelectedJuror({ ...selectedJuror, leanConfidence: val });
                     }}
-                    className={`w-full px-3 py-2 rounded-lg border text-sm font-bold capitalize bg-white focus:ring-2 focus:ring-amber-500 outline-none ${selectedJuror.leanConfidence === 'high' ? 'text-emerald-700 border-emerald-300' : selectedJuror.leanConfidence === 'moderate' ? 'text-amber-700 border-amber-300' : selectedJuror.leanConfidence === 'low' ? 'text-slate-500 border-slate-300' : 'text-slate-400 border-slate-200'}`}>
+                    className={`w-full px-3 py-2 rounded-lg border text-sm font-bold capitalize bg-white focus:ring-2 focus:ring-amber-500 outline-none ${!jurorAnalyzed ? 'opacity-50 cursor-not-allowed' : ''} ${selectedJuror.leanConfidence === 'high' ? 'text-emerald-700 border-emerald-300' : selectedJuror.leanConfidence === 'moderate' ? 'text-amber-700 border-amber-300' : selectedJuror.leanConfidence === 'low' ? 'text-slate-500 border-slate-300' : 'text-slate-400 border-slate-200'}`}>
                     <option value="none">Not Set</option>
                     <option value="high">High</option>
                     <option value="moderate">Moderate</option>
@@ -643,12 +651,13 @@ export function JurorReview({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase mb-2">
-                    Risk Tier {selectedJuror.aiRiskTier && selectedJuror.aiRiskTier !== 'unassessed' && selectedJuror.aiRiskTier !== selectedJuror.riskTier && (
+                    Risk Tier {jurorAnalyzed && selectedJuror.aiRiskTier && selectedJuror.aiRiskTier !== 'unassessed' && selectedJuror.aiRiskTier !== selectedJuror.riskTier && (
                       <span className="text-amber-500 normal-case font-normal">(AI: {selectedJuror.aiRiskTier})</span>
                     )}
                   </label>
                   <select
                   value={selectedJuror.riskTier}
+                  disabled={!jurorAnalyzed}
                   onChange={(e) => {
                     onUpdateJuror(selectedJuror.number, {
                       riskTier: e.target.value as any
@@ -658,7 +667,7 @@ export function JurorReview({
                       riskTier: e.target.value as any
                     });
                   }}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold capitalize bg-white focus:ring-2 focus:ring-amber-500 outline-none">
+                  className={`w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold capitalize bg-white focus:ring-2 focus:ring-amber-500 outline-none ${!jurorAnalyzed ? 'opacity-50 cursor-not-allowed' : ''}`}>
 
                     <option value="low">Low Risk</option>
                     <option value="medium">Medium Risk</option>
@@ -666,7 +675,10 @@ export function JurorReview({
                     <option value="unassessed">Unassessed</option>
                   </select>
                 </div>
+                </div>
               </div>
+                );
+              })()}
 
               {selectedJuror.riskScore > 0 && (
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm" data-testid={`risk-score-panel-${selectedJuror.number}`}>
