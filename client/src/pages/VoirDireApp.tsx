@@ -520,6 +520,9 @@ export default function VoirDireApp() {
             onRemoteResponse={handleRemoteResponse}
             onRemoteResponseDeleted={handleRemoteResponseDeleted}
             onRemoteFollowUp={handleRemoteFollowUp}
+            onRemoteNotesUpdated={(jurorNumber: number, notes: string) => {
+              setJurors(prev => prev.map(j => j.number === jurorNumber ? { ...j, notes } : j));
+            }}
             onAddFollowUp={handleAddFollowUp}
             onProceed={() => { setTriggerAutoAnalyze(true); proceedToPhase(5); }}
             onUpdateJuror={handleUpdateJuror}

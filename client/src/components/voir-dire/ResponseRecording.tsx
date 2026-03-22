@@ -59,6 +59,7 @@ interface ResponseRecordingProps {
   onRemoteResponse?: (response: JurorResponse) => void;
   onRemoteResponseDeleted?: (responseId: string) => void;
   onRemoteFollowUp?: (responseId: string, followUp: {question: string, answer: string}) => void;
+  onRemoteNotesUpdated?: (jurorNumber: number, notes: string) => void;
   onAddFollowUp: (responseId: string, followUp: {question: string, answer: string}) => void;
   onProceed: () => void;
   onUpdateJuror: (jurorNumber: number, updates: Partial<Juror>) => void;
@@ -79,6 +80,7 @@ export function ResponseRecording({
   onRemoteResponse,
   onRemoteResponseDeleted,
   onRemoteFollowUp,
+  onRemoteNotesUpdated,
   onAddFollowUp,
   onProceed,
   onUpdateJuror,
@@ -168,10 +170,10 @@ export function ResponseRecording({
       }
     }, []),
     onNotesUpdated: useCallback((data: any) => {
-      if (data.jurorNumber !== undefined) {
-        onUpdateJuror(data.jurorNumber, { notes: data.notes });
+      if (data.jurorNumber !== undefined && onRemoteNotesUpdated) {
+        onRemoteNotesUpdated(data.jurorNumber, data.notes);
       }
-    }, [onUpdateJuror]),
+    }, []),
     onParticipantJoined: useCallback((data: any) => {
       toast({ title: `${data.displayName} joined the session` });
       if (activeSession) {
