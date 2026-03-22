@@ -298,7 +298,7 @@ export function JurorReview({
             onClick={onProceed}
             className="inline-flex items-center px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors shadow-sm">
 
-            End & Report <ArrowRight className="w-4 h-4 ml-2" />
+            Proceed to Strikes & Challenges <ArrowRight className="w-4 h-4 ml-2" />
           </button>
         </div>
       </div>

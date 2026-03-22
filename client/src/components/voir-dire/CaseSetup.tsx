@@ -671,10 +671,10 @@ export function CaseSetup({
             </button>
             <button
               onClick={onProceed}
-              data-testid="button-proceed-strike-list"
+              data-testid="button-proceed-questions"
               className="inline-flex items-center px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-xl hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition-colors shadow-sm"
             >
-              Proceed to Strike List
+              Proceed to Voir Dire Questions
               <ArrowRight className="w-5 h-5 ml-2" />
             </button>
           </div>
