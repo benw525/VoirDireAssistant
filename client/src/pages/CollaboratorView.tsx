@@ -202,14 +202,19 @@ export default function CollaboratorView() {
     if (responseId) {
       try {
         await api.collabDeleteResponse(responseId);
-      } catch {}
-      setResponses(prev => prev.filter(r => r.id !== responseId));
+        setDuplicateAlerts(prev => prev.map(a => a.id === alertId ? { ...a, resolved: true, message: a.message + ' Discarded.' } : a));
+      } catch (err: any) {
+        const msg = err.message || 'Cannot delete';
+        toast({ title: 'Could not discard', description: msg, variant: 'destructive' });
+        setDuplicateAlerts(prev => prev.map(a => a.id === alertId ? { ...a, resolved: true, message: a.message + ' (Could not discard — not your response)' } : a));
+      }
+    } else {
+      setDuplicateAlerts(prev => prev.map(a => a.id === alertId ? { ...a, resolved: true, message: a.message + ' Dismissed.' } : a));
     }
-    setDuplicateAlerts(prev => prev.map(a => a.id === alertId ? { ...a, resolved: true, message: a.message + ' Discarded.' } : a));
     setTimeout(() => {
       setDuplicateAlerts(prev => prev.filter(a => a.id !== alertId));
     }, 3000);
-  }, []);
+  }, [toast]);
 
   const handleTypingStart = useCallback((data: any) => {
     if (data.jurorNumber && data.displayName) {
