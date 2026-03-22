@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getArchetypesAndBias } from "./strategyModules";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -227,6 +228,9 @@ export async function analyzeJuror(
     enrichmentSection = `\nENRICHED BACKGROUND DATA (from public records / data services):\n${enrichText}\n`;
   }
 
+  const side: 'plaintiff' | 'defense' = (caseContext.side?.toLowerCase() === 'defense') ? 'defense' : 'plaintiff';
+  const archetypesText = getArchetypesAndBias(caseContext.areaOfLaw, side);
+
   const userPrompt = `CASE CONTEXT:
 Case: ${caseContext.name}
 Area of Law: ${caseContext.areaOfLaw}
@@ -234,6 +238,8 @@ Summary: ${caseContext.summary}
 Representing: ${caseContext.side}
 Favorable Traits: ${caseContext.favorableTraits.join(', ') || 'None specified'}
 Risk Traits: ${caseContext.riskTraits.join(', ') || 'None specified'}
+
+${archetypesText}
 
 JUROR PROFILE:
 Juror #${juror.number}: ${juror.name}

@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getStrategyModule } from "./strategyModules";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -94,22 +95,7 @@ All questions must:
 • Avoid legal jargon
 Each strike trigger must be explored from multiple angles.
 
-DECISION RULES
-If representing Defendant in injury case:
-• Screen for sympathy bias
-• Screen for large verdict comfort
-• Reinforce burden of proof neutrally
-• Explore prior plaintiff-leaning experiences
-If representing Plaintiff:
-• Screen for tort reform attitudes
-• Screen for lawsuit skepticism
-• Screen for corporate favoritism
-If medical causation is central:
-• Screen for distrust of medical experts
-• Screen for strong preconceived causation beliefs
-If insurance is involved:
-• Screen for premium-impact bias
-Adapt tone to venue culture if known.
+{{STRATEGY_MODULE_INJECTION}}
 
 STYLE REQUIREMENTS
 • Conversational
@@ -241,10 +227,14 @@ export async function generateFullVoirDire(
 ): Promise<VoirDireDocument> {
   const context = buildCaseContext(caseInfo, jurors, enrichmentMap);
 
+  const normalizedSide: 'plaintiff' | 'defense' = (caseInfo.side === 'defense' || caseInfo.side === 'Defense') ? 'defense' : 'plaintiff';
+  const strategyModuleText = getStrategyModule(caseInfo.areaOfLaw, normalizedSide);
+  const systemPrompt = STRATEGY_SYSTEM_PROMPT.replace('{{STRATEGY_MODULE_INJECTION}}', strategyModuleText);
+
   const response = await openai.chat.completions.create({
     model: "gpt-5.4-2026-03-05",
     messages: [
-      { role: "system", content: STRATEGY_SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
       { role: "user", content: `Generate a complete, courtroom-ready voir dire for this case.\n\n${context}` },
     ],
     response_format: { type: "json_object" },

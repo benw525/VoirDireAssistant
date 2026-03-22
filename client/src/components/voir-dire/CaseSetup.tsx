@@ -24,26 +24,126 @@ interface CaseSetupProps {
   isMattrMindrConnected?: boolean;
 }
 
-const AREAS_OF_LAW = [
-  'Personal Injury',
-  'Criminal Defense',
-  'Medical Malpractice',
-  'Contract Dispute',
-  'Employment Law',
-  'Family Law',
-  'Civil Rights',
-  'Other',
+const AREAS_OF_LAW_GROUPED = [
+  {
+    category: 'Criminal Law',
+    options: [
+      'Criminal Defense', 'Criminal Prosecution', 'Capital Murder', 'Homicide', 'Manslaughter',
+      'DUI/DWI', 'Drug Offense', 'Drug Trafficking', 'Sex Offense', 'Sexual Assault',
+      'White Collar Crime', 'Federal Crime', 'Embezzlement', 'Domestic Violence',
+    ],
+  },
+  {
+    category: 'Personal Injury / Tort',
+    options: [
+      'Personal Injury', 'Negligence', 'Slip and Fall', 'Premises Liability',
+      'Medical Malpractice', 'Surgical Error', 'Misdiagnosis',
+      'Products Liability', 'Defective Product', 'Wrongful Death',
+      'Trucking Accident', 'Auto Accident', 'Motor Vehicle Accident',
+      'Nursing Home Abuse', 'Elder Abuse',
+      'Toxic Tort', 'Environmental Contamination', 'Mass Tort',
+    ],
+  },
+  {
+    category: 'Employment Law',
+    options: [
+      'Employment Law', 'Employment Discrimination', 'Wrongful Termination',
+      'Sexual Harassment', 'Hostile Work Environment', 'Whistleblower', 'Retaliation',
+    ],
+  },
+  {
+    category: 'Business / Commercial',
+    options: [
+      'Contract Dispute', 'Breach of Contract', 'Business Dispute', 'Commercial Litigation',
+      'Partnership Dispute', 'Fraud', 'Business Fraud',
+      'Trade Secret', 'Non-Compete', 'Construction Dispute', 'Construction Defect',
+    ],
+  },
+  {
+    category: 'Intellectual Property',
+    options: [
+      'Intellectual Property', 'Patent Infringement', 'Patent',
+      'Trademark', 'Trademark Infringement', 'Copyright', 'Copyright Infringement',
+    ],
+  },
+  {
+    category: 'Civil Rights',
+    options: [
+      'Civil Rights', 'Section 1983', 'Police Excessive Force', 'Police Brutality',
+      'Excessive Force', 'Prisoner Rights', 'Inmate Rights',
+    ],
+  },
+  {
+    category: 'Family Law',
+    options: [
+      'Family Law', 'Divorce', 'Custody', 'Child Custody',
+      'Custody Modification', 'Termination of Parental Rights',
+    ],
+  },
+  {
+    category: 'Probate / Estate',
+    options: [
+      'Probate', 'Estate Dispute', 'Will Contest', 'Trust Dispute',
+      'Undue Influence', 'Estate Litigation',
+    ],
+  },
+  {
+    category: 'Insurance',
+    options: [
+      'Insurance', 'Insurance Dispute', 'Insurance Coverage',
+      'Bad Faith Insurance', 'Insurance Bad Faith',
+      'UM/UIM', 'Uninsured Motorist', 'Underinsured Motorist', 'Coverage Dispute',
+    ],
+  },
+  {
+    category: 'Other',
+    options: ['Other'],
+  },
 ];
+
+const ALL_AREAS_OF_LAW = AREAS_OF_LAW_GROUPED.flatMap(g => g.options);
+
+const CRIMINAL_AREA_PATTERN = /criminal|felony|misdemeanor|prosecution|capital murder|homicide|manslaughter|dui|dwi|drug offense|drug trafficking|drug possession|sex offense|sexual assault|white collar|federal crime|embezzlement|domestic violence/i;
 
 function mapCaseTypeToAreaOfLaw(caseType: string): string {
   const lc = caseType.toLowerCase();
+  if (lc.includes('capital') && (lc.includes('murder') || lc.includes('homicide'))) return 'Capital Murder';
+  if (lc.includes('murder') || lc.includes('homicide')) return 'Homicide';
+  if (lc.includes('manslaughter')) return 'Manslaughter';
+  if (lc.includes('dui') || lc.includes('dwi') || lc.includes('drunk driv')) return 'DUI/DWI';
+  if (lc.includes('drug') || lc.includes('narcotic') || lc.includes('controlled substance')) return 'Drug Offense';
+  if (lc.includes('sexual assault') || lc.includes('rape') || lc.includes('sex offense')) return 'Sex Offense';
+  if (lc.includes('domestic violence') || lc.includes('family violence')) return 'Domestic Violence';
+  if (lc.includes('white collar') || lc.includes('embezzl') || lc.includes('money launder')) return 'White Collar Crime';
+  if (lc.includes('federal') && (lc.includes('crime') || lc.includes('offense'))) return 'Federal Crime';
   if (lc.includes('criminal') || lc.includes('felony') || lc.includes('misdemeanor')) return 'Criminal Defense';
-  if (lc.includes('personal injury') || lc.includes('tort')) return 'Personal Injury';
-  if (lc.includes('family') || lc.includes('divorce') || lc.includes('custody')) return 'Family Law';
   if (lc.includes('medical') || lc.includes('malpractice')) return 'Medical Malpractice';
+  if (lc.includes('wrongful death')) return 'Wrongful Death';
+  if (lc.includes('product') && (lc.includes('liab') || lc.includes('defect'))) return 'Products Liability';
+  if (lc.includes('truck')) return 'Trucking Accident';
+  if (lc.includes('auto') || lc.includes('car accident') || lc.includes('motor vehicle')) return 'Auto Accident';
+  if (lc.includes('nursing home') || lc.includes('elder abuse')) return 'Nursing Home Abuse';
+  if (lc.includes('toxic') || lc.includes('environmental') || lc.includes('asbestos')) return 'Toxic Tort';
+  if (lc.includes('personal injury') || lc.includes('tort') || lc.includes('negligence')) return 'Personal Injury';
+  if (lc.includes('sexual harassment') || lc.includes('hostile work')) return 'Sexual Harassment';
+  if (lc.includes('discriminat') || lc.includes('wrongful terminat')) return 'Employment Discrimination';
+  if (lc.includes('whistleblow') || lc.includes('retaliat')) return 'Whistleblower';
   if (lc.includes('employment') || lc.includes('labor')) return 'Employment Law';
-  if (lc.includes('civil rights')) return 'Civil Rights';
-  if (lc.includes('contract')) return 'Contract Dispute';
+  if (lc.includes('trade secret') || lc.includes('non-compete')) return 'Trade Secret';
+  if (lc.includes('fraud')) return 'Fraud';
+  if (lc.includes('construction')) return 'Construction Dispute';
+  if (lc.includes('contract') || lc.includes('breach')) return 'Contract Dispute';
+  if (lc.includes('patent')) return 'Patent Infringement';
+  if (lc.includes('trademark') || lc.includes('copyright')) return 'Trademark';
+  if (lc.includes('intellectual property')) return 'Intellectual Property';
+  if (lc.includes('excessive force') || lc.includes('police brut')) return 'Police Excessive Force';
+  if (lc.includes('prisoner') || lc.includes('inmate')) return 'Prisoner Rights';
+  if (lc.includes('civil rights') || lc.includes('section 1983')) return 'Civil Rights';
+  if (lc.includes('custody')) return 'Child Custody';
+  if (lc.includes('family') || lc.includes('divorce')) return 'Family Law';
+  if (lc.includes('probate') || lc.includes('estate') || lc.includes('will contest') || lc.includes('trust')) return 'Probate';
+  if (lc.includes('bad faith') && lc.includes('insurance')) return 'Bad Faith Insurance';
+  if (lc.includes('insurance')) return 'Insurance';
   return caseType || 'Other';
 }
 
@@ -379,8 +479,12 @@ export function CaseSetup({
               required
             />
             <datalist id="areas-of-law-options">
-              {AREAS_OF_LAW.map((area) => (
-                <option key={area} value={area} />
+              {AREAS_OF_LAW_GROUPED.map((group) => (
+                <React.Fragment key={group.category}>
+                  {group.options.map((area) => (
+                    <option key={area} value={area} label={`${group.category}: ${area}`} />
+                  ))}
+                </React.Fragment>
               ))}
             </datalist>
           </div>
@@ -459,10 +563,10 @@ export function CaseSetup({
                 }`}
               >
                 <div className="font-bold text-slate-900 text-lg">
-                  {/criminal|felony|misdemeanor/i.test(areaOfLaw) ? 'Prosecution' : 'Plaintiff'}
+                  {CRIMINAL_AREA_PATTERN.test(areaOfLaw) ? 'Prosecution' : 'Plaintiff'}
                 </div>
                 <div className="text-sm text-slate-500 mt-1">
-                  {/criminal|felony|misdemeanor/i.test(areaOfLaw) ? 'Prosecuting the charges' : 'Bringing the claims'}
+                  {CRIMINAL_AREA_PATTERN.test(areaOfLaw) ? 'Prosecuting the charges' : 'Bringing the claims'}
                 </div>
               </button>
               <button
