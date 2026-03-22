@@ -1325,12 +1325,15 @@ export async function registerRoutes(
         caseId: session.caseId,
       });
 
+      const caseRecord = await storage.getCase(session.caseId);
+
       res.json({
         token,
         sessionId: session.id,
         caseId: session.caseId,
         participantId: participant.id,
         displayName: participant.displayName,
+        caseName: caseRecord?.name || "Unknown Case",
       });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to join session" });

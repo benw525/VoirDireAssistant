@@ -850,6 +850,9 @@ export function EndReport({
                                   </div>
                                   <p className="text-xs text-slate-500 mb-1 font-medium">{getQuestionText(r)}</p>
                                   <p className="text-sm text-slate-800"><ReactionText text={r.responseText} /></p>
+                                  {r.recordedBy && (
+                                    <p className="text-xs text-slate-400 mt-0.5">by {r.recordedBy}</p>
+                                  )}
                                   {r.followUps && r.followUps.length > 0 && (
                                     <div className="mt-2 pl-3 border-l-2 border-violet-200 space-y-1">
                                       {r.followUps.map((fu, fi) => (

@@ -18,6 +18,8 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `/` — Public landing page (LandingPage.tsx) — product info, features, pricing, footer with legal links
 - `/auth` — Login/registration page (redirects to `/app` if authenticated)
 - `/app` — Authenticated dashboard (VoirDireApp.tsx, protected route)
+- `/team` — Team join page (TeamJoinPage.tsx) — collaborators enter session code + name to join
+- `/team/session` — Collaborator view (CollaboratorView.tsx) — scoped recording + read-only report
 - `/terms` — Terms of Service (public)
 - `/privacy` — Privacy Policy (public)
 
@@ -43,8 +45,12 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `client/src/pages/PrivacyPage.tsx` — Privacy Policy page
 - `client/src/pages/VoirDireApp.tsx` — Main application component with phase-based workflow
 - `client/src/lib/auth.ts` — AuthProvider context, useAuth hook, token management
-- `client/src/lib/api.ts` — Frontend API client with auth headers and type conversions
-- `client/src/types/index.ts` — Frontend TypeScript types
+- `client/src/lib/api.ts` — Frontend API client with auth headers and type conversions; includes collaborative session API helpers (join, create, end, collab record/followup/report)
+- `client/src/lib/collabAuth.ts` — Collaborator session token storage (sessionStorage-based); stores/retrieves/clears collab JWT + session metadata
+- `client/src/hooks/useCollaborativeSession.ts` — WebSocket hook for real-time collab; manages connect/reconnect with exponential backoff, event routing, typing indicators, offline write queue with FIFO flush
+- `client/src/pages/TeamJoinPage.tsx` — Team join page (`/team`); 6-char session code input with URL pre-fill (`?code=`), display name, join API call, redirect to collaborator view
+- `client/src/pages/CollaboratorView.tsx` — Scoped collaborator view (`/team/session`); juror grid (number+name only), response recording, read-only report, typing indicators, phase change handling
+- `client/src/types/index.ts` — Frontend TypeScript types (JurorResponse includes optional `recordedBy` for attribution)
 - `client/src/components/voir-dire/` — UI components for each phase
 - `client/src/components/voir-dire/JurySeatingGrid.tsx` — Visual courtroom seating chart with configurable rows/direction, quick-reaction buttons (Raised Hand, Head Nod, Head Shake, Note), active question awareness, visual feedback animations
 - `client/src/components/voir-dire/SettingsPanel.tsx` — Settings page (profile, AI toggle, MattrMindr, password, logout)

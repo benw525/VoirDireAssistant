@@ -18,6 +18,7 @@ export interface JurorResponse {
   questionSummary?: string;
   followUps?: Array<{question: string, answer: string}>;
   timestamp: number;
+  recordedBy?: string;
 }
 
 export interface Juror {

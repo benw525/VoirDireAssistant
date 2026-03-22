@@ -100,6 +100,7 @@ interface DbResponse {
   questionSummary: string | null;
   followUps: Array<{question: string, answer: string}>;
   timestamp: number;
+  recordedBy: string | null;
 }
 
 interface DbFullCase extends DbCase {
@@ -182,6 +183,7 @@ function dbResponseToResponse(r: DbResponse): JurorResponse {
     questionSummary: r.questionSummary || undefined,
     followUps: r.followUps && r.followUps.length > 0 ? r.followUps : undefined,
     timestamp: r.timestamp,
+    recordedBy: r.recordedBy || undefined,
   };
 }
 
@@ -780,3 +782,123 @@ export async function getEnrichmentData(caseId: string): Promise<Record<string, 
   const result = await fetchJson<{ enrichments: Record<string, Record<string, any>> }>(`${API_BASE}/cases/${caseId}/enrichment-data`);
   return result.enrichments;
 }
+
+async function collabFetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const { getCollabToken } = await import('./collabAuth');
+  const token = getCollabToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+  const res = await fetch(url, {
+    ...options,
+    headers: { ...headers, ...(options?.headers as Record<string, string> || {}) },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new ApiError(err.message || 'Request failed', res.status, err.code);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+export async function validateSessionCode(code: string): Promise<{ valid: boolean; caseName?: string }> {
+  return fetchJson(`${API_BASE}/sessions/validate/${code}`);
+}
+
+export async function joinSession(code: string, displayName: string): Promise<{
+  token: string;
+  sessionId: string;
+  participantId: string;
+  caseId: string;
+  caseName: string;
+}> {
+  return fetch(`${API_BASE}/sessions/join`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, displayName }),
+  }).then(async res => {
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }));
+      throw new ApiError(err.message || 'Failed to join', res.status);
+    }
+    return res.json();
+  });
+}
+
+export async function createSession(caseId: string): Promise<{ id: string; sessionCode: string }> {
+  return fetchJson(`${API_BASE}/sessions`, {
+    method: 'POST',
+    body: JSON.stringify({ caseId }),
+  });
+}
+
+export async function getSessionForCase(caseId: string): Promise<any | null> {
+  try {
+    return await fetchJson(`${API_BASE}/sessions/case/${caseId}`);
+  } catch (e: any) {
+    if (e.status === 404) return null;
+    throw e;
+  }
+}
+
+export async function revokeSession(sessionId: string): Promise<void> {
+  return fetchJson(`${API_BASE}/sessions/${sessionId}`, { method: 'DELETE' });
+}
+
+export async function getActiveParticipants(sessionId: string): Promise<Array<{
+  id: string;
+  displayName: string;
+  joinedAt: number;
+  lastActiveAt: number;
+}>> {
+  return fetchJson(`${API_BASE}/sessions/${sessionId}/participants/active`);
+}
+
+export async function collabGetJurors(): Promise<Array<{ number: number; name: string }>> {
+  return collabFetchJson(`${API_BASE}/collab/jurors`);
+}
+
+export async function collabGetQuestions(): Promise<any[]> {
+  return collabFetchJson(`${API_BASE}/collab/questions`);
+}
+
+export async function collabGetResponses(): Promise<any[]> {
+  return collabFetchJson(`${API_BASE}/collab/responses`);
+}
+
+export async function collabGetCaseInfo(): Promise<{ id: string; name: string; lastPhase: number; seatingConfig: any }> {
+  return collabFetchJson(`${API_BASE}/collab/case-info`);
+}
+
+export async function collabGetReportData(): Promise<any> {
+  return collabFetchJson(`${API_BASE}/collab/report-data`);
+}
+
+export async function collabRecordResponse(data: {
+  jurorNumber: number;
+  questionId?: number | null;
+  responseText: string;
+  side: string;
+  questionSummary?: string;
+}): Promise<any> {
+  return collabFetchJson(`${API_BASE}/collab/responses`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function collabAddFollowUp(responseId: string, followUp: { question: string; answer: string }): Promise<any> {
+  return collabFetchJson(`${API_BASE}/collab/responses/${responseId}/follow-ups`, {
+    method: 'POST',
+    body: JSON.stringify(followUp),
+  });
+}
+
+export async function collabUpdateJurorNotes(jurorNumber: number, notes: string): Promise<any> {
+  return collabFetchJson(`${API_BASE}/collab/jurors/${jurorNumber}/notes`, {
+    method: 'PATCH',
+    body: JSON.stringify({ notes }),
+  });
+}
+

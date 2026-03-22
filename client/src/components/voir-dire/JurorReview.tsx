@@ -836,6 +836,9 @@ export function JurorReview({
                           <p className="text-sm text-slate-800 mt-2">
                             &ldquo;<ReactionText text={response.responseText} />&rdquo;
                           </p>
+                          {response.recordedBy && (
+                            <p className="text-xs text-slate-400 mt-1">by {response.recordedBy}</p>
+                          )}
                           {response.followUps && response.followUps.length > 0 && (
                             <div className="mt-2 space-y-2">
                               {response.followUps.map((fu: {question: string, answer: string}, idx: number) => (

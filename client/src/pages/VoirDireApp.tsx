@@ -333,8 +333,6 @@ export default function VoirDireApp() {
     };
     setResponses(prev => [...prev, newResponse]);
 
-    
-
     if (activeCaseId) {
       try {
         const saved = await api.saveResponse(activeCaseId, newResponse);
@@ -346,6 +344,13 @@ export default function VoirDireApp() {
       }
     }
   };
+
+  const handleRemoteResponse = useCallback((response: JurorResponse) => {
+    setResponses(prev => {
+      if (prev.some(r => r.id === response.id)) return prev;
+      return [...prev, response];
+    });
+  }, []);
 
   const handleAddFollowUp = async (responseId: string, followUp: { question: string; answer: string }) => {
     setResponses(prev =>
@@ -485,10 +490,12 @@ export default function VoirDireApp() {
             questions={questions}
             responses={responses}
             onRecordResponse={handleRecordResponse}
+            onRemoteResponse={handleRemoteResponse}
             onAddFollowUp={handleAddFollowUp}
             onProceed={() => { setTriggerAutoAnalyze(true); proceedToPhase(5); }}
             onUpdateJuror={handleUpdateJuror}
             caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
+            caseId={activeCaseId}
             seatingConfig={seatingConfig}
             onSeatingConfigChange={handleSeatingConfigChange}
             courtDismissed={savedCourtDismissed}

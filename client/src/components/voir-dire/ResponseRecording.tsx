@@ -29,6 +29,9 @@ import { Juror, VoirDireQuestion, JurorResponse, CaseInfo, SeatingConfig } from 
 import { JurySeatingGrid } from './JurySeatingGrid';
 import { ReactionText } from './ReactionText';
 import * as api from '../../lib/api';
+import { useCollaborativeSession } from '../../hooks/useCollaborativeSession';
+import { useToast } from '@/hooks/use-toast';
+import { Users, Copy, Link2Off, Wifi, WifiOff } from 'lucide-react';
 
 interface MarkedFollowUp {
   id: string;
@@ -49,10 +52,12 @@ interface ResponseRecordingProps {
   questions: VoirDireQuestion[];
   responses: JurorResponse[];
   onRecordResponse: (response: Omit<JurorResponse, 'id' | 'timestamp'>) => void;
+  onRemoteResponse?: (response: JurorResponse) => void;
   onAddFollowUp: (responseId: string, followUp: {question: string, answer: string}) => void;
   onProceed: () => void;
   onUpdateJuror: (jurorNumber: number, updates: Partial<Juror>) => void;
   caseInfo: CaseInfo;
+  caseId?: string | null;
   seatingConfig: SeatingConfig | null;
   onSeatingConfigChange: (config: SeatingConfig) => void;
   courtDismissed: number[];
@@ -65,10 +70,12 @@ export function ResponseRecording({
   questions,
   responses,
   onRecordResponse,
+  onRemoteResponse,
   onAddFollowUp,
   onProceed,
   onUpdateJuror,
   caseInfo,
+  caseId,
   seatingConfig,
   onSeatingConfigChange,
   courtDismissed,
@@ -99,6 +106,106 @@ export function ResponseRecording({
   const [notesWalkthroughIdx, setNotesWalkthroughIdx] = useState(0);
   const [walkthroughNotes, setWalkthroughNotes] = useState<Record<number, string>>({});
   const [walkthroughTags, setWalkthroughTags] = useState<Record<number, string[]>>({});
+
+  const [showSharePanel, setShowSharePanel] = useState(false);
+  const [activeSession, setActiveSession] = useState<{ id: string; sessionCode: string } | null>(null);
+  const [sessionParticipants, setSessionParticipants] = useState<Array<{ id: string; displayName: string }>>([]);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (caseInfo) {
+      api.getSessionForCase(caseId || '').then(s => {
+        if (s && s.isActive) setActiveSession({ id: s.id, sessionCode: s.sessionCode });
+      }).catch(() => {});
+    }
+  }, [caseInfo]);
+
+  useEffect(() => {
+    if (activeSession) {
+      const poll = () => api.getActiveParticipants(activeSession.id).then(setSessionParticipants).catch(() => {});
+      poll();
+      const interval = setInterval(poll, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [activeSession?.id]);
+
+  const collabHandlers = {
+    onResponseNew: useCallback((data: any) => {
+      if (data.response && data.response.recordedBy) {
+        const r = data.response;
+        const mapped: JurorResponse = {
+          id: r.id,
+          jurorNumber: r.jurorNumber,
+          questionId: r.questionId ?? null,
+          responseText: r.responseText,
+          side: r.side || 'yours',
+          questionSummary: r.questionSummary,
+          followUps: r.followUps,
+          timestamp: r.timestamp || Date.now(),
+          recordedBy: r.recordedBy,
+        };
+        onRemoteResponse(mapped);
+      }
+    }, []),
+    onFollowUpNew: useCallback((data: any) => {
+      if (data.responseId && data.followUp) {
+        onAddFollowUp(data.responseId, data.followUp);
+      }
+    }, [onAddFollowUp]),
+    onParticipantJoined: useCallback((data: any) => {
+      toast({ title: `${data.displayName} joined the session` });
+      if (activeSession) {
+        api.getActiveParticipants(activeSession.id).then(setSessionParticipants).catch(() => {});
+      }
+    }, [toast, activeSession]),
+    onParticipantLeft: useCallback((data: any) => {
+      toast({ title: `${data.displayName} left the session`, variant: 'destructive' as const });
+      if (activeSession) {
+        api.getActiveParticipants(activeSession.id).then(setSessionParticipants).catch(() => {});
+      }
+    }, [toast, activeSession]),
+  };
+
+  const { status: wsStatus } = useCollaborativeSession({
+    sessionId: activeSession?.id || null,
+    isOwner: true,
+    ...collabHandlers,
+  });
+
+  const handleCreateSession = async () => {
+    setSessionLoading(true);
+    try {
+      const result = await api.createSession(caseId || '');
+      setActiveSession(result);
+      setShowSharePanel(true);
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSessionLoading(false);
+    }
+  };
+
+  const handleRevokeSession = async () => {
+    if (!activeSession) return;
+    try {
+      await api.revokeSession(activeSession.id);
+      setActiveSession(null);
+      setSessionParticipants([]);
+      toast({ title: 'Session ended', description: 'All collaborators have been disconnected.' });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const handleCopyCode = () => {
+    if (activeSession) {
+      const link = `${window.location.origin}/team?code=${activeSession.sessionCode}`;
+      navigator.clipboard.writeText(link).then(() => {
+        toast({ title: 'Link copied to clipboard' });
+      });
+    }
+  };
 
   const stableKey = (r: JurorResponse) => `${r.jurorNumber}-${r.timestamp}`;
 
@@ -356,14 +463,103 @@ export function ResponseRecording({
             High-speed courtroom data entry. Press Enter to record.
           </p>
         </div>
-        <button
-          onClick={() => setShowNotesPrompt(true)}
-          data-testid="button-proceed-review"
-          className="inline-flex items-center px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors"
-        >
-          Review Board <ArrowRight className="w-4 h-4 ml-2" />
-        </button>
+        <div className="flex items-center gap-2">
+          {activeSession ? (
+            <button
+              onClick={() => setShowSharePanel(!showSharePanel)}
+              data-testid="button-toggle-share-panel"
+              className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm font-medium rounded-lg hover:bg-emerald-100 transition-colors"
+            >
+              <Users className="w-4 h-4" />
+              Team ({sessionParticipants.length})
+              <span className={`w-2 h-2 rounded-full ${wsStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            </button>
+          ) : (
+            <button
+              onClick={handleCreateSession}
+              disabled={sessionLoading}
+              data-testid="button-share-session"
+              className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 text-slate-700 border border-slate-200 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
+            >
+              {sessionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+              Share Session
+            </button>
+          )}
+          <button
+            onClick={() => setShowNotesPrompt(true)}
+            data-testid="button-proceed-review"
+            className="inline-flex items-center px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors"
+          >
+            Review Board <ArrowRight className="w-4 h-4 ml-2" />
+          </button>
+        </div>
       </div>
+
+      {showSharePanel && activeSession && (
+        <div className="mb-4 bg-white rounded-xl border border-slate-200 shadow-sm p-5" data-testid="panel-share-session">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2">
+              <Users className="w-5 h-5 text-amber-500" />
+              Team Session
+            </h3>
+            <button
+              onClick={() => setShowSharePanel(false)}
+              className="text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Session Code</label>
+              <div className="flex items-center gap-2">
+                <span className="text-3xl font-mono font-bold tracking-[0.3em] text-slate-900" data-testid="text-session-code">
+                  {activeSession.sessionCode}
+                </span>
+                <button
+                  onClick={handleCopyCode}
+                  data-testid="button-copy-code"
+                  className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+                  title="Copy shareable link"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">Share this code or link with your team</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">
+                Active Participants ({sessionParticipants.length})
+              </label>
+              {sessionParticipants.length === 0 ? (
+                <p className="text-sm text-slate-400 italic">No one has joined yet</p>
+              ) : (
+                <div className="space-y-1 max-h-24 overflow-y-auto">
+                  {sessionParticipants.map(p => (
+                    <div key={p.id} className="flex items-center gap-2 text-sm" data-testid={`text-participant-${p.id}`}>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <span className="text-slate-700">{p.displayName}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
+            <button
+              onClick={handleRevokeSession}
+              data-testid="button-revoke-session"
+              className="inline-flex items-center gap-2 px-4 py-2 text-red-600 bg-red-50 border border-red-200 text-sm font-medium rounded-lg hover:bg-red-100 transition-colors"
+            >
+              <Link2Off className="w-4 h-4" />
+              End Session
+            </button>
+          </div>
+        </div>
+      )}
 
       <JurySeatingGrid
         jurors={jurors}
@@ -920,6 +1116,12 @@ export function ResponseRecording({
                           <p className="text-sm text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-100">
                             &ldquo;<ReactionText text={response.responseText} />&rdquo;
                           </p>
+                          {response.recordedBy && (
+                            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1" data-testid={`text-recorded-by-${response.id}`}>
+                              <User className="w-3 h-3" />
+                              by {response.recordedBy}
+                            </p>
+                          )}
 
                           {response.followUps && response.followUps.length > 0 && (
                             <div className="mt-2 space-y-2">
