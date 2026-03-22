@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getCollabToken, getCollabSession } from '../lib/collabAuth';
+import { getCollabToken } from '../lib/collabAuth';
 import { getAuthToken } from '../lib/auth';
-import type { JurorResponse } from '../types';
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
@@ -173,12 +172,6 @@ export function useCollaborativeSession(options: UseCollaborativeSessionOptions)
       setStatus('disconnected');
     };
   }, [sessionId, connect]);
-
-  const sendEvent = useCallback((type: string, data?: any) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type, data }));
-    }
-  }, []);
 
   const sendTypingStart = useCallback((jurorNumber: number) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
