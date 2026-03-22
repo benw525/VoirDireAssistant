@@ -214,7 +214,7 @@ export function JurorReview({
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-end shrink-0 gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">
-            Phase 5: Review & Strategy
+            Phase 5: Review Risks
           </h2>
           <p className="text-slate-600 mt-1">
             Analyze psychological profiles, leans, and risk tiers to form strike

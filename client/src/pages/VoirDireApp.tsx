@@ -444,8 +444,8 @@ export default function VoirDireApp() {
     2: 'Voir Dire Questions',
     3: 'Strike List',
     4: 'Record Responses',
-    5: 'Review & Strategy',
-    6: 'Final Report',
+    5: 'Review Risks',
+    6: 'Strikes & Challenges',
   };
 
   const renderPhase = () => {

@@ -72,11 +72,11 @@ function buildContextBlock(caseInfo?: CaseInfo | null, jurors?: Juror[], current
     const phaseNames: Record<number, string> = {
       0: 'Welcome Screen',
       1: 'Case Setup',
-      2: 'Strike List / Juror Entry',
-      3: 'Voir Dire Questions',
+      2: 'Voir Dire Questions',
+      3: 'Strike List / Juror Entry',
       4: 'Recording Responses',
-      5: 'Review & Strategy',
-      6: 'Final Report',
+      5: 'Review Risks',
+      6: 'Strikes & Challenges',
     };
     parts.push(`The user is currently on: ${phaseNames[currentPhase] || 'Unknown'} (Phase ${currentPhase})`);
   }

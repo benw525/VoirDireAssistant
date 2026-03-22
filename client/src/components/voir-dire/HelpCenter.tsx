@@ -42,15 +42,15 @@ const TUTORIALS: AccordionItem[] = [
 
 1. **Case Setup** — Enter your case details: name, area of law, case summary, and which side you represent. You can also import cases from MattrMindr if connected.
 
-2. **Strike List** — Upload or paste your juror strike list. The AI will automatically parse juror demographics from PDF, TXT, CSV files, or pasted text. You can also manually add jurors.
+2. **Voir Dire Questions** — Generate AI-powered voir dire questions tailored to your case and juror panel, or enter your own questions. Lock them when ready.
 
-3. **Voir Dire Questions** — Generate AI-powered voir dire questions tailored to your case and juror panel, or enter your own questions. Lock them when ready.
+3. **Strike List** — Upload or paste your juror strike list. The AI will automatically parse juror demographics from PDF, TXT, CSV files, or pasted text. You can also manually add jurors.
 
 4. **Record Responses** — During voir dire, record each juror's responses to your questions and opposing counsel's questions. Add follow-up Q&A as needed.
 
-5. **Review & Strategy** — Assess each juror's lean (favorable/neutral/unfavorable) and risk tier. Get AI-powered analysis for individual jurors.
+5. **Review Risks** — Assess each juror's lean (favorable/neutral/unfavorable) and risk tier. Get AI-powered analysis for individual jurors.
 
-6. **Final Report** — View the complete analysis, juror recommendations, and strike strategy. Export or push results to MattrMindr.
+6. **Strikes & Challenges** — View the complete analysis, juror recommendations, and strike strategy. Export or push results to MattrMindr.
 
 To start, click "New Case" on the welcome screen. You can save and resume cases at any time.`,
   },
@@ -111,7 +111,7 @@ After recording a response, you can add follow-up questions and answers. These p
   },
   {
     icon: <BarChart3 className="w-5 h-5" />,
-    title: 'Review & Strategy',
+    title: 'Review Risks',
     content: `**Juror Assessment**
 Review each juror and set their:
 - **Lean**: Favorable, Neutral, Unfavorable, or Unknown
@@ -132,7 +132,7 @@ Add notes to any juror to track impressions, concerns, or strategic consideratio
   },
   {
     icon: <FileText className="w-5 h-5" />,
-    title: 'Final Report',
+    title: 'Strikes & Challenges',
     content: `**Report Contents**
 The final report includes:
 - Case overview and voir dire summary

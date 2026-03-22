@@ -34,8 +34,8 @@ const PHASES = [
   { id: 2, label: 'Voir Dire Questions', short: 'Questions' },
   { id: 3, label: 'Strike List', short: 'Jurors' },
   { id: 4, label: 'Record Responses', short: 'Record' },
-  { id: 5, label: 'Review & Strategy', short: 'Review' },
-  { id: 6, label: 'End Voir Dire', short: 'Report' },
+  { id: 5, label: 'Review Risks', short: 'Review' },
+  { id: 6, label: 'Strikes & Challenges', short: 'Strikes' },
 ] as const;
 
 export function Sidebar({

@@ -28,11 +28,11 @@ interface WelcomeScreenProps {
 }
 const PHASE_LABELS: Record<number, string> = {
   1: 'Case Setup',
-  2: 'Strike List',
-  3: 'Voir Dire Questions',
+  2: 'Voir Dire Questions',
+  3: 'Strike List',
   4: 'Recording Responses',
-  5: 'Review & Strategy',
-  6: 'Final Report'
+  5: 'Review Risks',
+  6: 'Strikes & Challenges'
 };
 export function WelcomeScreen({
   onNewCase,
