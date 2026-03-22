@@ -59,7 +59,7 @@ export default function CollaboratorView() {
   const [expandedResponseId, setExpandedResponseId] = useState<string | null>(null);
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [followUpAnswer, setFollowUpAnswer] = useState('');
-  const [duplicateAlerts, setDuplicateAlerts] = useState<Array<{ id: string; jurorNumber: number; message: string }>>([]);
+  const [duplicateAlerts, setDuplicateAlerts] = useState<Array<{ id: string; jurorNumber: number; message: string; responseId?: string; resolved: boolean }>>([]);
   const [activeQuestionId, setActiveQuestionId] = useState<number | null>(null);
   const jurorInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,7 +84,10 @@ export default function CollaboratorView() {
       setResponses(r.map(mapResponse));
       setCaseInfo(ci);
       if (ci.lastPhase >= 5) setRecordingDisabled(true);
-      if (ci.lastPhase >= 6) setPhase('report');
+      if (ci.lastPhase >= 6) {
+        setPhase('report');
+        loadReportData();
+      }
     } catch (err: any) {
       toast({ title: 'Error loading session data', description: err.message, variant: 'destructive' });
     } finally {
@@ -159,11 +162,27 @@ export default function CollaboratorView() {
     setDuplicateAlerts(prev => [...prev, {
       id: alertId,
       jurorNumber: data.jurorNumber,
-      message: `Duplicate response for Juror #${data.jurorNumber} — your entry was saved as a supplemental note.`,
+      responseId: data.responseId,
+      message: `A similar response was already recorded for Juror #${data.jurorNumber}.`,
+      resolved: false,
     }]);
+  }, []);
+
+  const handleDuplicateKeep = useCallback((alertId: string) => {
+    setDuplicateAlerts(prev => prev.map(a => a.id === alertId ? { ...a, resolved: true, message: a.message + ' Kept as supplemental note.' } : a));
     setTimeout(() => {
       setDuplicateAlerts(prev => prev.filter(a => a.id !== alertId));
-    }, 8000);
+    }, 3000);
+  }, []);
+
+  const handleDuplicateDiscard = useCallback(async (alertId: string, responseId?: string) => {
+    if (responseId) {
+      setResponses(prev => prev.filter(r => r.id !== responseId));
+    }
+    setDuplicateAlerts(prev => prev.map(a => a.id === alertId ? { ...a, resolved: true, message: a.message + ' Discarded.' } : a));
+    setTimeout(() => {
+      setDuplicateAlerts(prev => prev.filter(a => a.id !== alertId));
+    }, 3000);
   }, []);
 
   const handleTypingStart = useCallback((data: any) => {
@@ -415,7 +434,8 @@ export default function CollaboratorView() {
             displayName={session.displayName}
             onQuickReaction={handleQuickReaction}
             duplicateAlerts={duplicateAlerts}
-            onDismissDuplicate={(id) => setDuplicateAlerts(prev => prev.filter(a => a.id !== id))}
+            onDuplicateKeep={handleDuplicateKeep}
+            onDuplicateDiscard={handleDuplicateDiscard}
             activeQuestionId={activeQuestionId}
             setActiveQuestionId={setActiveQuestionId}
           />
@@ -461,8 +481,9 @@ interface CollabRecordingProps {
   opposingSideLabel: string;
   displayName: string;
   onQuickReaction: (jurorNumber: number, reaction: string) => void;
-  duplicateAlerts: Array<{ id: string; jurorNumber: number; message: string }>;
-  onDismissDuplicate: (id: string) => void;
+  duplicateAlerts: Array<{ id: string; jurorNumber: number; message: string; responseId?: string; resolved: boolean }>;
+  onDuplicateKeep: (id: string) => void;
+  onDuplicateDiscard: (id: string, responseId?: string) => void;
   activeQuestionId: number | null;
   setActiveQuestionId: (id: number | null) => void;
 }
@@ -475,7 +496,7 @@ function CollabRecordingView({
   followUpQuestion, setFollowUpQuestion, followUpAnswer, setFollowUpAnswer,
   handleAddFollowUp, formatTime, jurorInputRef, sendTypingStart, sendTypingStop,
   yourSideLabel, opposingSideLabel, displayName,
-  onQuickReaction, duplicateAlerts, onDismissDuplicate, activeQuestionId, setActiveQuestionId,
+  onQuickReaction, duplicateAlerts, onDuplicateKeep, onDuplicateDiscard, activeQuestionId, setActiveQuestionId,
 }: CollabRecordingProps) {
   const stageConfig = {
     yours: { label: yourSideLabel, icon: Scale, color: 'bg-amber-500', borderColor: 'border-amber-200', bgColor: 'bg-amber-50/30' },
@@ -575,13 +596,24 @@ function CollabRecordingView({
                 <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
                 {alert.message}
               </div>
-              <button
-                onClick={() => onDismissDuplicate(alert.id)}
-                className="text-amber-500 hover:text-amber-700 text-xs font-medium ml-4"
-                data-testid={`button-dismiss-duplicate-${alert.id}`}
-              >
-                Dismiss
-              </button>
+              {!alert.resolved && (
+                <div className="flex gap-2 ml-4">
+                  <button
+                    onClick={() => onDuplicateKeep(alert.id)}
+                    className="px-3 py-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded text-xs font-medium transition-colors"
+                    data-testid={`button-keep-duplicate-${alert.id}`}
+                  >
+                    Keep as note
+                  </button>
+                  <button
+                    onClick={() => onDuplicateDiscard(alert.id, alert.responseId)}
+                    className="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-xs font-medium transition-colors"
+                    data-testid={`button-discard-duplicate-${alert.id}`}
+                  >
+                    Discard
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
