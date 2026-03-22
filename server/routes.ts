@@ -1481,17 +1481,33 @@ export async function registerRoutes(
     const c = await storage.getCase(caseId);
     if (!c) return res.status(404).json({ message: "Case not found" });
     const allJurors = await storage.getJurorsByCase(caseId);
+    const allResponses = await storage.getResponsesByCase(caseId);
     res.json({
       caseName: c.name,
+      side: c.side,
       strikesForCause: c.strikesForCause,
       courtDismissed: c.courtDismissed,
+      batsonAnalysis: c.batsonAnalysis,
+      seatingConfig: c.seatingConfig,
       jurors: allJurors.map((j) => ({
         number: j.number,
         name: j.name,
         lean: j.lean,
+        leanConfidence: j.leanConfidence,
         riskTier: j.riskTier,
+        riskScore: j.riskScore,
         notes: j.notes,
-        analysisSummary: j.aiAnalysis ? (j.aiAnalysis.length > 200 ? j.aiAnalysis.substring(0, 200) + '...' : j.aiAnalysis) : null,
+        aiAnalysis: j.aiAnalysis || null,
+        aiSummary: j.aiSummary || null,
+      })),
+      responses: allResponses.map((r) => ({
+        id: r.id,
+        jurorNumber: r.jurorNumber,
+        responseText: r.responseText,
+        side: r.side,
+        questionSummary: r.questionSummary,
+        followUps: r.followUps,
+        recordedBy: r.recordedBy,
       })),
     });
   });
@@ -1527,6 +1543,7 @@ export async function registerRoutes(
         followUps: [],
         timestamp: Date.now(),
         recordedBy: displayName,
+        recordedByParticipantId: req.collab!.participantId,
       });
 
       broadcastToSession(req.collab!.sessionId, {
@@ -1558,7 +1575,7 @@ export async function registerRoutes(
     if (!existing || existing.caseId !== req.collab!.caseId) {
       return res.status(404).json({ message: "Response not found" });
     }
-    if (existing.recordedBy !== req.collab!.displayName) {
+    if (existing.recordedByParticipantId !== req.collab!.participantId) {
       return res.status(403).json({ message: "You can only delete your own responses" });
     }
     await storage.deleteResponse(req.params.id);

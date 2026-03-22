@@ -95,6 +95,7 @@ export const responses = pgTable("responses", {
   followUps: jsonb("follow_ups").$type<Array<{question: string, answer: string}>>().notNull().default([]),
   timestamp: bigint("timestamp", { mode: "number" }).notNull(),
   recordedBy: text("recorded_by"),
+  recordedByParticipantId: text("recorded_by_participant_id"),
 });
 
 export const conversations = pgTable("conversations", {

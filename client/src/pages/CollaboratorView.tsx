@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import { useLocation } from 'wouter';
 import {
   Scale, Users, Wifi, WifiOff, Loader2, LogOut,
@@ -322,13 +322,6 @@ export default function CollaboratorView() {
         question: followUpQuestion,
         answer: followUpAnswer.trim(),
       });
-      setResponses(prev =>
-        prev.map(r =>
-          r.id === responseId
-            ? { ...r, followUps: [...(r.followUps || []), { question: followUpQuestion, answer: followUpAnswer.trim() }] }
-            : r
-        )
-      );
       setFollowUpQuestion('');
       setFollowUpAnswer('');
       setExpandedResponseId(null);
@@ -842,6 +835,8 @@ function CollabRecordingView({
 }
 
 function CollabReportView({ reportData, isLoading }: { reportData: any; isLoading: boolean }) {
+  const [expandedJuror, setExpandedJuror] = useState<number | null>(null);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -862,30 +857,48 @@ function CollabReportView({ reportData, isLoading }: { reportData: any; isLoadin
     );
   }
 
+  const jurors = reportData.jurors || [];
+  const responses = reportData.responses || [];
+  const causeStruckNums = (reportData.strikesForCause || []).map((s: any) => s.jurorNumber);
+  const courtDismissedNums = reportData.courtDismissed || [];
+  const activeJurors = jurors.filter((j: any) => !causeStruckNums.includes(j.number) && !courtDismissedNums.includes(j.number));
+  const batson = reportData.batsonAnalysis;
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Strikes & Challenges</h1>
+        <h1 className="text-2xl font-bold text-slate-900" data-testid="text-report-title">Strikes & Challenges</h1>
         <span className="text-xs bg-slate-100 text-slate-500 px-3 py-1 rounded-full font-medium">Read-only</span>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <h2 className="text-lg font-bold text-slate-900 mb-4">Case: {reportData.caseName}</h2>
-
-        {reportData.strikesForCause && reportData.strikesForCause.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-slate-700 mb-2">Strikes for Cause</h3>
-            <div className="space-y-2">
-              {reportData.strikesForCause.map((s: any, i: number) => (
-                <div key={i} className="bg-red-50 border border-red-100 rounded-lg p-3 text-sm">
-                  <span className="font-medium text-red-800">Juror #{s.jurorNumber}</span>
-                  <span className="text-red-600 ml-2">— {s.basis}</span>
+      <section className="bg-white rounded-xl border border-slate-200 p-6" data-testid="section-strikes-for-cause">
+        <h2 className="text-lg font-bold text-slate-900 mb-4">Strikes for Cause</h2>
+        {reportData.strikesForCause && reportData.strikesForCause.length > 0 ? (
+          <div className="space-y-2">
+            {reportData.strikesForCause.map((s: any, i: number) => (
+              <div key={i} className="bg-red-50 border border-red-100 rounded-lg p-4 text-sm" data-testid={`strike-cause-${s.jurorNumber}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-bold text-red-800">Juror #{s.jurorNumber}</span>
+                  <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded-full">{s.category}</span>
                 </div>
-              ))}
-            </div>
+                <p className="text-red-700 font-medium">{s.basis}</p>
+                {s.reasoning && <p className="text-red-600 text-xs mt-1">{s.reasoning}</p>}
+                {s.argument && <p className="text-red-500 text-xs mt-1 italic">Argument: {s.argument}</p>}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-400 italic">No strikes for cause recorded.</p>
+        )}
+        {courtDismissedNums.length > 0 && (
+          <div className="mt-3 text-sm text-slate-500">
+            Court dismissed: {courtDismissedNums.map((n: number) => `#${n}`).join(', ')}
           </div>
         )}
+      </section>
 
+      <section className="bg-white rounded-xl border border-slate-200 p-6" data-testid="section-juror-grid">
+        <h2 className="text-lg font-bold text-slate-900 mb-4">Remaining Jurors ({activeJurors.length})</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm" data-testid="table-report-jurors">
             <thead>
@@ -894,48 +907,151 @@ function CollabReportView({ reportData, isLoading }: { reportData: any; isLoadin
                 <th className="text-left py-2 px-3 text-slate-500 font-medium">Name</th>
                 <th className="text-left py-2 px-3 text-slate-500 font-medium">Lean</th>
                 <th className="text-left py-2 px-3 text-slate-500 font-medium">Risk</th>
+                <th className="text-left py-2 px-3 text-slate-500 font-medium">Score</th>
                 <th className="text-left py-2 px-3 text-slate-500 font-medium">Notes</th>
-                <th className="text-left py-2 px-3 text-slate-500 font-medium">Analysis</th>
               </tr>
             </thead>
             <tbody>
-              {(reportData.jurors || []).map((j: any) => (
-                <tr key={j.number} className="border-b border-slate-100 hover:bg-slate-50" data-testid={`row-report-juror-${j.number}`}>
-                  <td className="py-2 px-3 font-mono font-bold">#{j.number}</td>
-                  <td className="py-2 px-3">{j.name}</td>
-                  <td className="py-2 px-3">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                      j.lean === 'favorable' ? 'bg-emerald-100 text-emerald-700' :
-                      j.lean === 'unfavorable' ? 'bg-red-100 text-red-700' :
-                      'bg-slate-100 text-slate-600'
-                    }`}>
-                      {j.lean || 'unknown'}
-                    </span>
-                  </td>
-                  <td className="py-2 px-3">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                      j.riskTier === 'high' ? 'bg-red-100 text-red-700' :
-                      j.riskTier === 'medium' ? 'bg-amber-100 text-amber-700' :
-                      j.riskTier === 'low' ? 'bg-emerald-100 text-emerald-700' :
-                      'bg-slate-100 text-slate-500'
-                    }`}>
-                      {j.riskTier || 'unassessed'}
-                    </span>
-                  </td>
-                  <td className="py-2 px-3 text-slate-500 max-w-[200px] truncate">{j.notes || '—'}</td>
-                  <td className="py-2 px-3 text-slate-500 max-w-[300px] text-xs">{j.analysisSummary || '—'}</td>
-                </tr>
-              ))}
+              {activeJurors.map((j: any) => {
+                const jurorResponses = responses.filter((r: any) => r.jurorNumber === j.number);
+                return (
+                  <Fragment key={j.number}>
+                    <tr
+                      className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+                      data-testid={`row-report-juror-${j.number}`}
+                      onClick={() => setExpandedJuror(expandedJuror === j.number ? null : j.number)}
+                    >
+                      <td className="py-2 px-3 font-mono font-bold">#{j.number}</td>
+                      <td className="py-2 px-3">{j.name}</td>
+                      <td className="py-2 px-3">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                          j.lean === 'favorable' ? 'bg-emerald-100 text-emerald-700' :
+                          j.lean === 'unfavorable' ? 'bg-red-100 text-red-700' :
+                          j.lean === 'neutral' ? 'bg-amber-100 text-amber-700' :
+                          'bg-slate-100 text-slate-600'
+                        }`}>
+                          {j.lean || 'unknown'}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                          j.riskTier === 'high' ? 'bg-red-100 text-red-700' :
+                          j.riskTier === 'medium' ? 'bg-amber-100 text-amber-700' :
+                          j.riskTier === 'low' ? 'bg-emerald-100 text-emerald-700' :
+                          'bg-slate-100 text-slate-500'
+                        }`}>
+                          {j.riskTier || 'unassessed'}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 font-mono text-sm">{j.riskScore ?? '—'}</td>
+                      <td className="py-2 px-3 text-slate-500 max-w-[200px] truncate">{j.notes || '—'}</td>
+                    </tr>
+                    {expandedJuror === j.number && (
+                      <tr>
+                        <td colSpan={6} className="bg-slate-50 px-6 py-4">
+                          <div className="space-y-3">
+                            {j.aiSummary && (
+                              <div>
+                                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">AI Summary</p>
+                                <p className="text-sm text-slate-700">{j.aiSummary}</p>
+                              </div>
+                            )}
+                            {j.aiAnalysis && (
+                              <div>
+                                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">AI Analysis</p>
+                                <p className="text-sm text-slate-600 whitespace-pre-wrap">{j.aiAnalysis}</p>
+                              </div>
+                            )}
+                            {jurorResponses.length > 0 && (
+                              <div>
+                                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Responses ({jurorResponses.length})</p>
+                                <div className="space-y-2">
+                                  {jurorResponses.map((r: any) => (
+                                    <div key={r.id} className="bg-white border border-slate-200 rounded-lg p-3 text-sm">
+                                      <p className="text-slate-800">{r.responseText}</p>
+                                      {r.questionSummary && <p className="text-xs text-slate-400 mt-1">Q: {r.questionSummary}</p>}
+                                      {r.recordedBy && <p className="text-xs text-violet-500 mt-1">by {r.recordedBy}</p>}
+                                      {r.followUps && r.followUps.length > 0 && (
+                                        <div className="mt-2 pl-3 border-l-2 border-slate-200 space-y-1">
+                                          {r.followUps.map((fu: any, fi: number) => (
+                                            <div key={fi} className="text-xs text-slate-600">
+                                              {fu.question && <span className="font-medium">Q: {fu.question} — </span>}
+                                              <span>A: {fu.answer}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {!j.aiSummary && !j.aiAnalysis && jurorResponses.length === 0 && (
+                              <p className="text-sm text-slate-400 italic">No additional details available.</p>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
+      </section>
 
-        {reportData.courtDismissed && reportData.courtDismissed.length > 0 && (
-          <div className="mt-4 text-sm text-slate-500">
-            Court dismissed: {reportData.courtDismissed.map((n: number) => `#${n}`).join(', ')}
+      {batson && (
+        <section className="bg-white rounded-xl border border-slate-200 p-6" data-testid="section-batson">
+          <h2 className="text-lg font-bold text-slate-900 mb-2">Batson Challenge Analysis</h2>
+          <div className="flex items-center gap-3 mb-4">
+            <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+              batson.overallRisk === 'high' ? 'bg-red-100 text-red-700' :
+              batson.overallRisk === 'medium' ? 'bg-amber-100 text-amber-700' :
+              'bg-emerald-100 text-emerald-700'
+            }`}>
+              Overall Risk: {batson.overallRisk}
+            </span>
           </div>
-        )}
-      </div>
+          <p className="text-sm text-slate-700 mb-4">{batson.summary}</p>
+
+          {batson.defensive && batson.defensive.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-slate-700 mb-2">Defensive Concerns (Protect Your Strikes)</h3>
+              <div className="space-y-2">
+                {batson.defensive.map((d: any, i: number) => (
+                  <div key={i} className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-amber-800">Juror #{d.jurorNumber} ({d.jurorName})</span>
+                      <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">{d.riskLevel}</span>
+                      <span className="text-xs text-slate-500">{d.protectedClass}</span>
+                    </div>
+                    <p className="text-amber-700 text-xs">{d.recommendedArticulation}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {batson.offensive && batson.offensive.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 mb-2">Offensive Opportunities (Challenge Their Strikes)</h3>
+              <div className="space-y-2">
+                {batson.offensive.map((o: any, i: number) => (
+                  <div key={i} className="bg-violet-50 border border-violet-100 rounded-lg p-3 text-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-violet-800">Juror #{o.jurorNumber} ({o.jurorName})</span>
+                      <span className="text-xs bg-violet-200 text-violet-800 px-2 py-0.5 rounded-full">{o.strengthOfChallenge}</span>
+                      <span className="text-xs text-slate-500">{o.protectedClass}</span>
+                    </div>
+                    <p className="text-violet-700 text-xs">{o.suggestedArgument}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
