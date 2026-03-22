@@ -261,6 +261,7 @@ export class DatabaseStorage implements IStorage {
 
   async createSessionParticipantAtomic(data: InsertSessionParticipant, maxParticipants: number): Promise<SessionParticipant> {
     return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM collaborative_sessions WHERE id = ${data.sessionId} FOR UPDATE`);
       const countResult = await tx.select({ count: sql<number>`count(*)::int` })
         .from(sessionParticipants)
         .where(eq(sessionParticipants.sessionId, data.sessionId));

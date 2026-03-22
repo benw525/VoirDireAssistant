@@ -1430,9 +1430,6 @@ export async function registerRoutes(
     const limited = allJurors.map((j) => ({
       number: j.number,
       name: j.name,
-      lean: j.lean,
-      riskTier: j.riskTier,
-      notes: j.notes,
     }));
     res.json(limited);
   });
@@ -1458,9 +1455,6 @@ export async function registerRoutes(
       name: c.name,
       lastPhase: c.lastPhase,
       seatingConfig: c.seatingConfig,
-      strikesForCause: c.strikesForCause,
-      courtDismissed: c.courtDismissed,
-      batsonAnalysis: c.batsonAnalysis,
     });
   });
 
@@ -1471,21 +1465,13 @@ export async function registerRoutes(
     const allJurors = await storage.getJurorsByCase(caseId);
     res.json({
       caseName: c.name,
-      areaOfLaw: c.areaOfLaw,
-      side: c.side,
       strikesForCause: c.strikesForCause,
       courtDismissed: c.courtDismissed,
-      batsonAnalysis: c.batsonAnalysis,
       jurors: allJurors.map((j) => ({
         number: j.number,
         name: j.name,
         lean: j.lean,
-        leanConfidence: j.leanConfidence,
         riskTier: j.riskTier,
-        aiRiskTier: j.aiRiskTier,
-        riskScore: j.riskScore,
-        aiSummary: j.aiSummary,
-        aiAnalysis: j.aiAnalysis,
         notes: j.notes,
       })),
     });
