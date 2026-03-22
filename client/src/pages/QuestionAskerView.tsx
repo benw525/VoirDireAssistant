@@ -136,7 +136,7 @@ export default function QuestionAskerView() {
   const handleTapQuestion = async (question: CollabQuestion) => {
     const text = question.rephrase || question.originalText;
     try {
-      await api.collabSetActiveQuestion(parseInt(question.id), text, false);
+      await api.collabSetActiveQuestion(question.questionNumber, text, false);
       setSentQuestion(text);
       if (sentTimeoutRef.current) clearTimeout(sentTimeoutRef.current);
       sentTimeoutRef.current = setTimeout(() => setSentQuestion(null), 2000);
@@ -146,9 +146,9 @@ export default function QuestionAskerView() {
     }
   };
 
-  const handleTapFollowUp = async (text: string, parentQuestionId: string) => {
+  const handleTapFollowUp = async (text: string, parentQuestionNumber: number) => {
     try {
-      await api.collabSetActiveQuestion(parseInt(parentQuestionId), text, true);
+      await api.collabSetActiveQuestion(parentQuestionNumber, text, true);
       setSentQuestion(text);
       if (sentTimeoutRef.current) clearTimeout(sentTimeoutRef.current);
       sentTimeoutRef.current = setTimeout(() => setSentQuestion(null), 2000);
@@ -220,7 +220,7 @@ export default function QuestionAskerView() {
 
           {questions.map((q) => {
             const isExpanded = expandedQuestionId === q.id;
-            const qSuggestions = aiSuggestions[q.id] || [];
+            const qSuggestions = aiSuggestions[q.questionNumber.toString()] || [];
             const hasFollowUps = q.followUps.length > 0 || qSuggestions.length > 0;
 
             return (
@@ -273,7 +273,7 @@ export default function QuestionAskerView() {
                         {q.followUps.map((fu, idx) => (
                           <button
                             key={`prepared-${idx}`}
-                            onClick={() => handleTapFollowUp(fu, q.id)}
+                            onClick={() => handleTapFollowUp(fu, q.questionNumber)}
                             className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 active:bg-amber-50 transition-colors flex items-start gap-3"
                             data-testid={`button-followup-prepared-${q.id}-${idx}`}
                           >
@@ -288,7 +288,7 @@ export default function QuestionAskerView() {
                         {qSuggestions.map((s, idx) => (
                           <button
                             key={`ai-${idx}-${s.timestamp}`}
-                            onClick={() => handleTapFollowUp(s.text, q.id)}
+                            onClick={() => handleTapFollowUp(s.text, q.questionNumber)}
                             className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 active:bg-amber-50 transition-colors flex items-start gap-3 bg-amber-50/30"
                             data-testid={`button-followup-ai-${q.id}-${idx}`}
                           >
