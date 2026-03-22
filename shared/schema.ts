@@ -142,6 +142,7 @@ export const sessionParticipants = pgTable("session_participants", {
   displayName: text("display_name").notNull(),
   joinedAt: bigint("joined_at", { mode: "number" }).notNull(),
   lastActiveAt: bigint("last_active_at", { mode: "number" }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const insertJurorEnrichmentSchema = createInsertSchema(jurorEnrichments).omit({ id: true });

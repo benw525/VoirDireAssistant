@@ -137,6 +137,8 @@ export function setupCollabWebSocket(httpServer: HttpServer) {
       ws.sessionId = collabPayload.sessionId;
       ws.participantId = collabPayload.participantId;
 
+      await storage.setParticipantActive(collabPayload.participantId, true);
+
       addToRoom(ws, collabPayload.sessionId);
 
       broadcastToSession(collabPayload.sessionId, {
@@ -247,6 +249,10 @@ function handleDisconnect(ws: AuthenticatedSocket) {
         type: "participant:left",
         data: { displayName: ws.collabPayload.displayName, participantId: ws.collabPayload.participantId },
       });
+
+      if (ws.participantId) {
+        storage.setParticipantActive(ws.participantId, false).catch(() => {});
+      }
     }
   }
 }

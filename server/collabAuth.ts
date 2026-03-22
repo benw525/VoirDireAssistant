@@ -57,10 +57,10 @@ export async function collabAuthMiddleware(req: Request, res: Response, next: Ne
     return res.status(403).json({ message: "Session has been revoked or is no longer active" });
   }
 
-  const participants = await storage.getSessionParticipants(payload.sessionId);
+  const participants = await storage.getActiveSessionParticipants(payload.sessionId);
   const participantExists = participants.some(p => p.id === payload.participantId);
   if (!participantExists) {
-    return res.status(403).json({ message: "Participant no longer in session" });
+    return res.status(403).json({ message: "Participant no longer active in session" });
   }
 
   req.collab = payload;

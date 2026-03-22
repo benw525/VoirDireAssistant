@@ -264,7 +264,7 @@ export class DatabaseStorage implements IStorage {
       await tx.execute(sql`SELECT id FROM collaborative_sessions WHERE id = ${data.sessionId} FOR UPDATE`);
       const countResult = await tx.select({ count: sql<number>`count(*)::int` })
         .from(sessionParticipants)
-        .where(eq(sessionParticipants.sessionId, data.sessionId));
+        .where(and(eq(sessionParticipants.sessionId, data.sessionId), eq(sessionParticipants.isActive, true)));
       const currentCount = countResult[0]?.count ?? 0;
       if (currentCount >= maxParticipants) {
         throw new Error(`Session is full (max ${maxParticipants} participants)`);
@@ -272,6 +272,18 @@ export class DatabaseStorage implements IStorage {
       const [result] = await tx.insert(sessionParticipants).values(data).returning();
       return result;
     });
+  }
+
+  async setParticipantActive(participantId: string, isActive: boolean): Promise<void> {
+    await db.update(sessionParticipants)
+      .set({ isActive, lastActiveAt: Date.now() })
+      .where(eq(sessionParticipants.id, participantId));
+  }
+
+  async getActiveSessionParticipants(sessionId: string): Promise<SessionParticipant[]> {
+    return db.select().from(sessionParticipants)
+      .where(and(eq(sessionParticipants.sessionId, sessionId), eq(sessionParticipants.isActive, true)))
+      .orderBy(sessionParticipants.joinedAt);
   }
 
   async getSessionParticipants(sessionId: string): Promise<SessionParticipant[]> {
