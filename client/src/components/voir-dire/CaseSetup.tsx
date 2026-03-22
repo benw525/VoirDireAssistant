@@ -101,8 +101,6 @@ const AREAS_OF_LAW_GROUPED = [
   },
 ];
 
-const ALL_AREAS_OF_LAW = AREAS_OF_LAW_GROUPED.flatMap(g => g.options);
-
 const CRIMINAL_AREA_PATTERN = /criminal|felony|misdemeanor|prosecution|capital murder|homicide|manslaughter|dui|dwi|drug offense|drug trafficking|drug possession|sex offense|sexual assault|white collar|federal crime|embezzlement|domestic violence/i;
 
 function mapCaseTypeToAreaOfLaw(caseType: string): string {
@@ -468,25 +466,22 @@ export function CaseSetup({
               <Briefcase className="w-4 h-4 mr-2 text-slate-500" />
               Area of Law
             </label>
-            <input
-              type="text"
-              list="areas-of-law-options"
+            <select
               value={areaOfLaw}
               onChange={(e) => setAreaOfLaw(e.target.value)}
-              placeholder="Enter or select Area of Law..."
               className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-slate-50 transition-colors"
               data-testid="input-area-of-law"
               required
-            />
-            <datalist id="areas-of-law-options">
+            >
+              <option value="">Select Area of Law...</option>
               {AREAS_OF_LAW_GROUPED.map((group) => (
-                <React.Fragment key={group.category}>
+                <optgroup key={group.category} label={group.category}>
                   {group.options.map((area) => (
-                    <option key={area} value={area} label={`${group.category}: ${area}`} />
+                    <option key={area} value={area}>{area}</option>
                   ))}
-                </React.Fragment>
+                </optgroup>
               ))}
-            </datalist>
+            </select>
           </div>
 
           <div>
