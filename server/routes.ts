@@ -1553,6 +1553,18 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/collab/responses/:id", async (req, res) => {
+    const existing = await storage.getResponseById(req.params.id);
+    if (!existing || existing.caseId !== req.collab!.caseId) {
+      return res.status(404).json({ message: "Response not found" });
+    }
+    if (existing.recordedBy !== req.collab!.displayName) {
+      return res.status(403).json({ message: "You can only delete your own responses" });
+    }
+    await storage.deleteResponse(req.params.id);
+    res.json({ success: true });
+  });
+
   app.post("/api/collab/responses/:id/follow-ups", async (req, res) => {
     const { question, answer } = req.body;
     if (!answer) return res.status(400).json({ message: "answer is required" });

@@ -888,6 +888,12 @@ export async function collabRecordResponse(data: {
   });
 }
 
+export async function collabDeleteResponse(responseId: string): Promise<any> {
+  return collabFetchJson(`${API_BASE}/collab/responses/${responseId}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function collabAddFollowUp(responseId: string, followUp: { question: string; answer: string }): Promise<any> {
   return collabFetchJson(`${API_BASE}/collab/responses/${responseId}/follow-ups`, {
     method: 'POST',

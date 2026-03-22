@@ -17,6 +17,7 @@ type CollabPhase = 'recording' | 'report';
 interface CollabJuror {
   number: number;
   name: string;
+  notes?: string;
 }
 
 function ConnectionIndicator({ status }: { status: ConnectionStatus }) {
@@ -128,6 +129,11 @@ export default function CollaboratorView() {
   }, []);
 
   const handleNotesUpdated = useCallback((data: any) => {
+    if (data.jurorNumber !== undefined) {
+      setJurors(prev => prev.map(j =>
+        j.number === data.jurorNumber ? { ...j, notes: data.notes ?? j.notes } : j
+      ));
+    }
     toast({ title: `Notes updated`, description: `Juror #${data.jurorNumber} notes updated by ${data.updatedBy}` });
   }, [toast]);
 
@@ -178,6 +184,9 @@ export default function CollaboratorView() {
 
   const handleDuplicateDiscard = useCallback(async (alertId: string, responseId?: string) => {
     if (responseId) {
+      try {
+        await api.collabDeleteResponse(responseId);
+      } catch {}
       setResponses(prev => prev.filter(r => r.id !== responseId));
     }
     setDuplicateAlerts(prev => prev.map(a => a.id === alertId ? { ...a, resolved: true, message: a.message + ' Discarded.' } : a));
@@ -253,8 +262,7 @@ export default function CollaboratorView() {
       if (status !== 'connected') {
         addToWriteQueue({ type: 'response', payload, id: `qr-${Date.now()}` });
       } else {
-        const result = await api.collabRecordResponse(payload);
-        setResponses(prev => [...prev, mapResponse(result)]);
+        await api.collabRecordResponse(payload);
       }
     } catch (err: any) {
       toast({ title: 'Reaction failed', description: err.message, variant: 'destructive' });
@@ -294,8 +302,7 @@ export default function CollaboratorView() {
         addToWriteQueue({ type: 'response', payload, id: `r-${Date.now()}` });
         toast({ title: 'Response queued', description: 'Will be sent when connection is restored.' });
       } else {
-        const result = await api.collabRecordResponse(payload);
-        setResponses(prev => [...prev, mapResponse(result)]);
+        await api.collabRecordResponse(payload);
       }
       setResponseText('');
       setJurorNum('');

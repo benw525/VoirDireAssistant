@@ -49,6 +49,7 @@ export interface IStorage {
   getResponseById(id: string): Promise<JurorResponse | undefined>;
   createResponse(data: InsertResponse): Promise<JurorResponse>;
   addFollowUpToResponse(responseId: string, followUp: {question: string, answer: string}): Promise<JurorResponse | undefined>;
+  deleteResponse(id: string): Promise<void>;
   deleteResponsesByCase(caseId: string): Promise<void>;
 
   createJurorEnrichment(data: InsertJurorEnrichment): Promise<JurorEnrichment>;
@@ -195,6 +196,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(responses.id, responseId))
       .returning();
     return result;
+  }
+
+  async deleteResponse(id: string): Promise<void> {
+    await db.delete(responses).where(eq(responses.id, id));
   }
 
   async deleteResponsesByCase(caseId: string): Promise<void> {
