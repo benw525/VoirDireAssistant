@@ -56,6 +56,7 @@ export default function CollaboratorView() {
   const [responses, setResponses] = useState<JurorResponse[]>([]);
   const [caseInfo, setCaseInfo] = useState<{ id: string; name: string; lastPhase: number; seatingConfig: any } | null>(null);
   const [reportData, setReportData] = useState<any>(null);
+  const [reportLoading, setReportLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [recordingDisabled, setRecordingDisabled] = useState(false);
   const [typingIndicators, setTypingIndicators] = useState<Record<number, string>>({});
@@ -243,10 +244,15 @@ export default function CollaboratorView() {
   });
 
   const loadReportData = async () => {
+    setReportLoading(true);
     try {
       const data = await api.collabGetReportData();
       setReportData(data);
-    } catch {}
+    } catch {
+      setReportData(null);
+    } finally {
+      setReportLoading(false);
+    }
   };
 
   const handleLeave = () => {
@@ -457,7 +463,7 @@ export default function CollaboratorView() {
             setActiveQuestionId={setActiveQuestionId}
           />
         ) : (
-          <CollabReportView reportData={reportData} isLoading={!reportData} />
+          <CollabReportView reportData={reportData} isLoading={reportLoading} />
         )}
       </div>
     </div>
