@@ -1,0 +1,1 @@
+ALTER TABLE "responses" ADD COLUMN "recorded_by_participant_id" text;
