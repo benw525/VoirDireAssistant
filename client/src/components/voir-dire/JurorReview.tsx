@@ -58,8 +58,8 @@ export function JurorReview({
     jurors.forEach(j => { if (j.aiAnalysis) initial[j.number] = j.aiAnalysis; });
     return initial;
   });
-  const [analyzingJuror, setAnalyzingJuror] = useState<number | null>(null);
-  const [batchAnalyzing, setBatchAnalyzing] = useState<{ current: number; total: number; jurorNum: number } | null>(null);
+  const [analyzingJurors, setAnalyzingJurors] = useState<Set<number>>(new Set());
+  const [batchAnalyzing, setBatchAnalyzing] = useState<{ completed: number; total: number } | null>(null);
   const batchCancelRef = React.useRef(false);
   const pendingLeanAnalysis = React.useRef<Juror | null>(null);
   const [failedAnalyses, setFailedAnalyses] = useState<Set<number>>(new Set());
@@ -99,7 +99,7 @@ export function JurorReview({
   }, [fetchEnrichmentStatus]);
 
   const runAnalysis = async (juror: Juror) => {
-    setAnalyzingJuror(juror.number);
+    setAnalyzingJurors(prev => new Set(prev).add(juror.number));
     try {
       const jurorResponses = responses.filter(r => r.jurorNumber === juror.number);
       const result = await api.analyzeJuror(caseInfo, juror, jurorResponses, questions, activeCaseId);
@@ -120,12 +120,12 @@ export function JurorReview({
       setFailedAnalyses(prev => new Set(prev).add(juror.number));
       return false;
     } finally {
-      setAnalyzingJuror(null);
+      setAnalyzingJurors(prev => { const n = new Set(prev); n.delete(juror.number); return n; });
     }
   };
 
   const handleAnalyzeJuror = async (juror: Juror) => {
-    if (analyzingJuror !== null) return;
+    if (analyzingJurors.has(juror.number)) return;
     await runAnalysis(juror);
     if (pendingLeanAnalysis.current) {
       const queued = pendingLeanAnalysis.current;
@@ -134,18 +134,32 @@ export function JurorReview({
     }
   };
 
+  const PARALLEL_CONCURRENCY = 5;
+
   const handleAnalyzeAll = async () => {
-    if (analyzingJuror !== null || batchAnalyzing !== null) return;
+    if (batchAnalyzing !== null) return;
     const jurorsNeedingAnalysis = jurors.filter(j => !aiAnalysis[j.number] || failedAnalyses.has(j.number));
     if (jurorsNeedingAnalysis.length === 0) return;
     batchCancelRef.current = false;
     const total = jurorsNeedingAnalysis.length;
-    for (let i = 0; i < jurorsNeedingAnalysis.length; i++) {
-      if (batchCancelRef.current) break;
-      const juror = jurorsNeedingAnalysis[i];
-      setBatchAnalyzing({ current: i + 1, total, jurorNum: juror.number });
-      await runAnalysis(juror);
-    }
+    let completed = 0;
+    setBatchAnalyzing({ completed: 0, total });
+
+    const queue = [...jurorsNeedingAnalysis];
+    const runNext = async (): Promise<void> => {
+      while (queue.length > 0 && !batchCancelRef.current) {
+        const juror = queue.shift()!;
+        await runAnalysis(juror);
+        completed++;
+        setBatchAnalyzing(prev => prev ? { ...prev, completed } : null);
+      }
+    };
+
+    const workers = Array.from(
+      { length: Math.min(PARALLEL_CONCURRENCY, total) },
+      () => runNext()
+    );
+    await Promise.all(workers);
     setBatchAnalyzing(null);
   };
 
@@ -155,7 +169,7 @@ export function JurorReview({
 
   const autoAnalyzeTriggered = React.useRef(false);
   useEffect(() => {
-    if (autoAnalyze && !autoAnalyzeTriggered.current && jurors.length > 0 && analyzingJuror === null && batchAnalyzing === null) {
+    if (autoAnalyze && !autoAnalyzeTriggered.current && jurors.length > 0 && analyzingJurors.size === 0 && batchAnalyzing === null) {
       const needsAnalysis = jurors.some(j => !aiAnalysis[j.number]);
       if (needsAnalysis) {
         autoAnalyzeTriggered.current = true;
@@ -169,7 +183,7 @@ export function JurorReview({
     setSelectedJuror({ ...juror, lean: newLean as any });
     if (newLean !== 'unknown' && !hasRealAnalysis(juror.number)) {
       const updatedJuror = { ...juror, lean: newLean as any };
-      if (analyzingJuror !== null) {
+      if (analyzingJurors.size > 0) {
         pendingLeanAnalysis.current = updatedJuror;
       } else {
         handleAnalyzeJuror(updatedJuror);
@@ -263,20 +277,20 @@ export function JurorReview({
             <div className="flex items-center gap-2 px-4 py-2 bg-violet-50 border border-violet-200 rounded-lg text-sm" data-testid="batch-analysis-progress">
               <Loader2 className="w-4 h-4 animate-spin text-violet-500" />
               <span className="font-medium text-violet-700">
-                Analyzing juror {batchAnalyzing.current} of {batchAnalyzing.total}...
+                Analyzed {batchAnalyzing.completed} of {batchAnalyzing.total}...
               </span>
               <button
                 onClick={() => { batchCancelRef.current = true; }}
                 className="ml-1 text-xs text-violet-500 hover:text-violet-700 underline"
                 data-testid="button-cancel-batch"
               >
-                {batchCancelRef.current ? 'Stopping after current...' : 'Cancel'}
+                {batchCancelRef.current ? 'Stopping...' : 'Cancel'}
               </button>
             </div>
           ) : (
             <button
               onClick={handleAnalyzeAll}
-              disabled={analyzingJuror !== null || allAnalyzed}
+              disabled={analyzingJurors.size > 0 || allAnalyzed}
               data-testid="button-analyze-all"
               className="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-colors bg-violet-100 text-violet-700 border border-violet-200 hover:bg-violet-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -728,11 +742,11 @@ export function JurorReview({
                     )}
                     <button
                       onClick={() => handleAnalyzeJuror(selectedJuror)}
-                      disabled={analyzingJuror !== null}
+                      disabled={analyzingJurors.has(selectedJuror.number)}
                       data-testid={`button-analyze-juror-${selectedJuror.number}`}
                       className="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-violet-100 text-violet-700 border border-violet-200 hover:bg-violet-200 disabled:opacity-50"
                     >
-                      {analyzingJuror === selectedJuror.number ? (
+                      {analyzingJurors.has(selectedJuror.number) ? (
                         <>
                           <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
                           Analyzing...
@@ -762,7 +776,7 @@ export function JurorReview({
                       {aiAnalysis[selectedJuror.number]}
                     </div>
                   </div>
-                ) : analyzingJuror === selectedJuror.number ? (
+                ) : analyzingJurors.has(selectedJuror.number) ? (
                   <div className="bg-violet-50 border border-violet-200 rounded-xl p-6 flex items-center justify-center">
                     <Loader2 className="w-5 h-5 animate-spin text-violet-500 mr-3" />
                     <span className="text-sm text-violet-600 font-medium">Generating risk analysis...</span>
