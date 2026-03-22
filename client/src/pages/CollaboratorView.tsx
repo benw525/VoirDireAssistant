@@ -108,10 +108,11 @@ export default function CollaboratorView() {
   });
 
   const handleResponseNew = useCallback((data: any) => {
-    if (data.response) {
+    const r = data?.response || data;
+    if (r && r.id && r.jurorNumber !== undefined) {
       setResponses(prev => {
-        if (prev.some(r => r.id === data.response.id)) return prev;
-        return [...prev, mapResponse(data.response)];
+        if (prev.some(existing => existing.id === r.id)) return prev;
+        return [...prev, mapResponse(r)];
       });
     }
   }, []);

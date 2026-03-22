@@ -134,8 +134,8 @@ export function ResponseRecording({
 
   const collabHandlers = {
     onResponseNew: useCallback((data: any) => {
-      if (data.response) {
-        const r = data.response;
+      const r = data?.response || data;
+      if (r && r.id && r.jurorNumber !== undefined) {
         const mapped: JurorResponse = {
           id: r.id,
           jurorNumber: r.jurorNumber,
@@ -528,7 +528,9 @@ export function ResponseRecording({
                   <Copy className="w-4 h-4" />
                 </button>
               </div>
-              <p className="text-xs text-slate-400 mt-1">Share this code or link with your team</p>
+              <p className="text-xs text-slate-400 mt-1 break-all" data-testid="text-share-link">
+                {`${window.location.origin}/team?code=${activeSession.sessionCode}`}
+              </p>
             </div>
 
             <div>
