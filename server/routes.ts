@@ -1421,6 +1421,21 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  app.get("/api/sessions/:id/participants/active", async (req, res) => {
+    const session = await storage.getCollaborativeSessionById(req.params.id);
+    if (!session || session.createdBy !== req.user!.id) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+
+    const active = await storage.getActiveSessionParticipants(session.id);
+    res.json(active.map(p => ({
+      id: p.id,
+      displayName: p.displayName,
+      joinedAt: p.joinedAt,
+      lastActiveAt: p.lastActiveAt,
+    })));
+  });
+
   // --- Collaborator-scoped API routes ---
   app.use("/api/collab", collabAuthMiddleware);
 

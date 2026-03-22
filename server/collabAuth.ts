@@ -4,7 +4,12 @@ import { storage } from "./storage";
 
 const COLLAB_JWT_SECRET = process.env.JWT_SECRET
   ? process.env.JWT_SECRET + "-collab"
-  : "voir-dire-collab-jwt-secret";
+  : (() => {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("JWT_SECRET must be set in production");
+      }
+      return "voir-dire-collab-jwt-secret";
+    })();
 
 const COLLAB_TOKEN_EXPIRY = "12h";
 
