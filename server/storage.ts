@@ -322,6 +322,8 @@ export class DatabaseStorage implements IStorage {
     ];
     if (questionId !== null && questionId !== undefined) {
       conditions.push(eq(responses.questionId, questionId));
+    } else {
+      conditions.push(sql`${responses.questionId} IS NULL`);
     }
     const [result] = await db.select().from(responses)
       .where(and(...conditions))
