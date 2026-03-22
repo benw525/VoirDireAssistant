@@ -53,6 +53,7 @@ interface ResponseRecordingProps {
   responses: JurorResponse[];
   onRecordResponse: (response: Omit<JurorResponse, 'id' | 'timestamp'>) => void;
   onRemoteResponse?: (response: JurorResponse) => void;
+  onRemoteFollowUp?: (responseId: string, followUp: {question: string, answer: string}) => void;
   onAddFollowUp: (responseId: string, followUp: {question: string, answer: string}) => void;
   onProceed: () => void;
   onUpdateJuror: (jurorNumber: number, updates: Partial<Juror>) => void;
@@ -71,6 +72,7 @@ export function ResponseRecording({
   responses,
   onRecordResponse,
   onRemoteResponse,
+  onRemoteFollowUp,
   onAddFollowUp,
   onProceed,
   onUpdateJuror,
@@ -132,7 +134,7 @@ export function ResponseRecording({
 
   const collabHandlers = {
     onResponseNew: useCallback((data: any) => {
-      if (data.response && data.response.recordedBy) {
+      if (data.response) {
         const r = data.response;
         const mapped: JurorResponse = {
           id: r.id,
@@ -150,9 +152,9 @@ export function ResponseRecording({
     }, []),
     onFollowUpNew: useCallback((data: any) => {
       if (data.responseId && data.followUp) {
-        onAddFollowUp(data.responseId, data.followUp);
+        onRemoteFollowUp?.(data.responseId, data.followUp);
       }
-    }, [onAddFollowUp]),
+    }, []),
     onParticipantJoined: useCallback((data: any) => {
       toast({ title: `${data.displayName} joined the session` });
       if (activeSession) {

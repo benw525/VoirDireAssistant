@@ -348,8 +348,31 @@ export default function VoirDireApp() {
   const handleRemoteResponse = useCallback((response: JurorResponse) => {
     setResponses(prev => {
       if (prev.some(r => r.id === response.id)) return prev;
+      const pendingMatch = prev.findIndex(r =>
+        r.jurorNumber === response.jurorNumber &&
+        r.responseText === response.responseText &&
+        r.side === response.side &&
+        Math.abs((r.timestamp || 0) - (response.timestamp || 0)) < 10000
+      );
+      if (pendingMatch >= 0) {
+        const updated = [...prev];
+        updated[pendingMatch] = { ...updated[pendingMatch], id: response.id, recordedBy: response.recordedBy };
+        return updated;
+      }
       return [...prev, response];
     });
+  }, []);
+
+  const handleRemoteFollowUp = useCallback((responseId: string, followUp: { question: string; answer: string }) => {
+    setResponses(prev =>
+      prev.map(r => {
+        if (r.id !== responseId) return r;
+        const existing = r.followUps || [];
+        const isDup = existing.some(f => f.question === followUp.question && f.answer === followUp.answer);
+        if (isDup) return r;
+        return { ...r, followUps: [...existing, followUp] };
+      })
+    );
   }, []);
 
   const handleAddFollowUp = async (responseId: string, followUp: { question: string; answer: string }) => {
@@ -491,6 +514,7 @@ export default function VoirDireApp() {
             responses={responses}
             onRecordResponse={handleRecordResponse}
             onRemoteResponse={handleRemoteResponse}
+            onRemoteFollowUp={handleRemoteFollowUp}
             onAddFollowUp={handleAddFollowUp}
             onProceed={() => { setTriggerAutoAnalyze(true); proceedToPhase(5); }}
             onUpdateJuror={handleUpdateJuror}
