@@ -7,7 +7,8 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - **Frontend**: React + TypeScript with Tailwind CSS, wouter routing, framer-motion animations
 - **Backend**: Express.js server with REST API
 - **Database**: PostgreSQL with Drizzle ORM
-- **Auth**: JWT-based authentication with bcrypt password hashing, per-user data isolation
+- **Auth**: JWT-based authentication with bcrypt password hashing, per-user data isolation; lightweight collab session tokens (JWT) for unauthenticated collaborators
+- **Real-time**: WebSocket server (ws) on `/ws/collab` for collaborative live response recording; room-per-session broadcast, heartbeat/ping, reconnection-aware sync with event sequence numbers
 - **AI**: OpenAI for voir dire generation (gpt-5.4-2026-03-05), juror analysis (gpt-5.4-2026-03-05), AI chat assistant (gpt-4o-mini), voice transcription (whisper-1); Google Gemini (gemini-3.1-pro-preview) for strike list OCR/parsing with image support via sharp conversion
 - **Juror Enrichment**: Perplexity Sonar Pro API for automated background research on jurors (replaces FluxPrompt). Triggered on juror upload, sequential per-juror processing with status tracking
 - **MattrMindr**: Optional integration to import cases from MattrMindr (filtered to Trial Center only) and push jury analysis back
@@ -21,12 +22,14 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `/privacy` — Privacy Policy (public)
 
 ## Key Files
-- `shared/schema.ts` — Drizzle database schema (users, cases, jurors, questions, responses, conversations, messages)
+- `shared/schema.ts` — Drizzle database schema (users, cases, jurors, questions, responses, conversations, messages, collaborativeSessions, sessionParticipants)
 - `server/routes.ts` — API routes (all prefixed with `/api`), auth middleware applied
 - `server/billing.ts` — Billing logic (canCreateCase, getUserBillingInfo, Stripe checkout/portal stubs)
 - `server/storage.ts` — Database storage layer implementing IStorage interface
 - `server/db.ts` — Drizzle database instance export (shared by storage and chat modules)
 - `server/auth.ts` — JWT authentication middleware, password hashing, token management
+- `server/collabAuth.ts` — Collaborative session JWT tokens (separate secret), collab auth middleware, session code generation (6-char alphanumeric, excludes ambiguous chars)
+- `server/collabWebSocket.ts` — WebSocket server for real-time collab; room-per-session broadcast, heartbeat/ping (30s), event buffering (500 events), reconnection replay, typing indicators
 - `server/mattrmindr.ts` — MattrMindr external API proxy functions
 - `server/replit_integrations/chat/routes.ts` — AI Assistant chat routes (conversations, messages, streaming)
 - `server/replit_integrations/chat/storage.ts` — Chat-specific DB operations for conversations/messages

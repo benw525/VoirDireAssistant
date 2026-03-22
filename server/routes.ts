@@ -8,6 +8,8 @@ import { extractTextFromPdf, parseStrikeListWithAI, parseStrikeListFromImage, pa
 import { generateFullVoirDire, refineUserQuestions } from "./generateVoirDire";
 import { analyzeJuror, generateBriefSummary, analyzeStrikesForCause, analyzeBatson } from "./analyzeJuror";
 import { authMiddleware, hashPassword, comparePassword, createToken } from "./auth";
+import { collabAuthMiddleware, createCollabToken, generateSessionCode } from "./collabAuth";
+import { broadcastToSession, disconnectAllInSession, getConnectedParticipants } from "./collabWebSocket";
 import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMattrMindrCase, pushJuryAnalysis } from "./mattrmindr";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession, handleWebhook } from "./billing";
@@ -360,6 +362,17 @@ export async function registerRoutes(
     const existing = await storage.getCase(req.params.id);
     if (!existing || existing.userId !== req.user!.id) return res.status(404).json({ message: "Case not found" });
     const c = await storage.updateCase(req.params.id, req.body);
+
+    if (req.body.lastPhase !== undefined && req.body.lastPhase !== existing.lastPhase) {
+      const activeSession = await storage.getActiveSessionByCase(req.params.id);
+      if (activeSession) {
+        broadcastToSession(activeSession.id, {
+          type: "phase:changed",
+          data: { previousPhase: existing.lastPhase, currentPhase: req.body.lastPhase },
+        });
+      }
+    }
+
     res.json(c);
   });
 
@@ -456,6 +469,16 @@ export async function registerRoutes(
       }
     }
 
+    if (req.body.notes !== undefined) {
+      const activeSession = await storage.getActiveSessionByCase(juror.caseId);
+      if (activeSession) {
+        broadcastToSession(activeSession.id, {
+          type: "juror:notes-updated",
+          data: { jurorNumber: juror.number, notes: juror.notes, updatedBy: req.user!.name },
+        });
+      }
+    }
+
     res.json(juror);
   });
 
@@ -516,20 +539,46 @@ export async function registerRoutes(
 
   app.post("/api/cases/:caseId/responses", async (req, res) => {
     if (!(await verifyCaseOwnership(req, res))) return;
-    const data = { ...req.body, caseId: req.params.caseId };
+    const data = {
+      ...req.body,
+      caseId: req.params.caseId,
+      recordedBy: req.user!.name,
+    };
     const parsed = insertResponseSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const response = await storage.createResponse(parsed.data);
+
+    const activeSession = await storage.getActiveSessionByCase(req.params.caseId);
+    if (activeSession) {
+      broadcastToSession(activeSession.id, {
+        type: "response:new",
+        data: response,
+      });
+    }
+
     res.status(201).json(response);
   });
 
   app.post("/api/responses/:id/follow-ups", async (req, res) => {
     const { question, answer } = req.body;
     if (!answer) return res.status(400).json({ message: "answer is required" });
+
+    const existing = await storage.getResponseById(req.params.id);
+    if (!existing) return res.status(404).json({ message: "Response not found" });
+    const c = await storage.getCase(existing.caseId);
+    if (!c || c.userId !== req.user!.id) return res.status(404).json({ message: "Response not found" });
+
     const updated = await storage.addFollowUpToResponse(req.params.id, { question: question || '', answer });
     if (!updated) return res.status(404).json({ message: "Response not found" });
-    const c = await storage.getCase(updated.caseId);
-    if (!c || c.userId !== req.user!.id) return res.status(404).json({ message: "Response not found" });
+
+    const activeSession = await storage.getActiveSessionByCase(updated.caseId);
+    if (activeSession) {
+      broadcastToSession(activeSession.id, {
+        type: "followup:new",
+        data: { responseId: updated.id, followUp: { question: question || '', answer }, recordedBy: req.user!.name },
+      });
+    }
+
     res.json(updated);
   });
 
@@ -1236,6 +1285,308 @@ export async function registerRoutes(
       storage.getResponsesByCase(c.id),
     ]);
     res.json({ ...c, jurors, questions, responses });
+  });
+
+  // --- Collaborative Session Join (public, no auth required) ---
+  app.post("/api/sessions/join", async (req, res) => {
+    try {
+      const { code, displayName } = req.body;
+      if (!code || !displayName) {
+        return res.status(400).json({ message: "code and displayName are required" });
+      }
+      if (displayName.length > 50) {
+        return res.status(400).json({ message: "Display name must be 50 characters or less" });
+      }
+
+      const session = await storage.getCollaborativeSessionByCode(code.toUpperCase());
+      if (!session) {
+        return res.status(404).json({ message: "Invalid session code or session is no longer active" });
+      }
+
+      let participant;
+      try {
+        participant = await storage.createSessionParticipantAtomic({
+          sessionId: session.id,
+          displayName: displayName.trim(),
+          joinedAt: Date.now(),
+          lastActiveAt: Date.now(),
+        }, session.maxParticipants);
+      } catch (err: any) {
+        if (err.message?.includes("full")) {
+          return res.status(409).json({ message: err.message });
+        }
+        throw err;
+      }
+
+      const token = createCollabToken({
+        sessionId: session.id,
+        participantId: participant.id,
+        displayName: participant.displayName,
+        caseId: session.caseId,
+      });
+
+      res.json({
+        token,
+        sessionId: session.id,
+        caseId: session.caseId,
+        participantId: participant.id,
+        displayName: participant.displayName,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to join session" });
+    }
+  });
+
+  app.get("/api/sessions/validate/:code", async (req, res) => {
+    const session = await storage.getCollaborativeSessionByCode(req.params.code.toUpperCase());
+    if (!session) {
+      return res.status(404).json({ message: "Invalid session code" });
+    }
+    const c = await storage.getCase(session.caseId);
+    res.json({ valid: true, caseName: c?.name || "Unknown Case" });
+  });
+
+  // --- Collaborative Session Management (auth-protected) ---
+  app.use("/api/sessions", authMiddleware);
+
+  app.post("/api/sessions", async (req, res) => {
+    try {
+      const { caseId } = req.body;
+      if (!caseId) return res.status(400).json({ message: "caseId is required" });
+
+      const c = await storage.getCase(caseId);
+      if (!c || c.userId !== req.user!.id) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
+      const existing = await storage.getActiveSessionByCase(caseId);
+      if (existing) {
+        const participants = await storage.getSessionParticipants(existing.id);
+        const connected = getConnectedParticipants(existing.id);
+        return res.json({ ...existing, participants, connectedNames: connected });
+      }
+
+      let sessionCode: string;
+      let attempts = 0;
+      do {
+        sessionCode = generateSessionCode();
+        const dup = await storage.getCollaborativeSessionByCode(sessionCode);
+        if (!dup) break;
+        attempts++;
+      } while (attempts < 10);
+
+      if (attempts >= 10) {
+        return res.status(500).json({ message: "Failed to generate unique session code" });
+      }
+
+      const session = await storage.createCollaborativeSession({
+        caseId,
+        sessionCode,
+        createdBy: req.user!.id,
+        isActive: true,
+        maxParticipants: 10,
+        createdAt: Date.now(),
+      });
+
+      res.status(201).json({ ...session, participants: [], connectedNames: [] });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to create session" });
+    }
+  });
+
+  app.get("/api/sessions/case/:caseId", async (req, res) => {
+    const c = await storage.getCase(req.params.caseId);
+    if (!c || c.userId !== req.user!.id) {
+      return res.status(404).json({ message: "Case not found" });
+    }
+
+    const session = await storage.getActiveSessionByCase(req.params.caseId);
+    if (!session) return res.json(null);
+
+    const participants = await storage.getSessionParticipants(session.id);
+    const connected = getConnectedParticipants(session.id);
+    res.json({ ...session, participants, connectedNames: connected });
+  });
+
+  app.delete("/api/sessions/:id", async (req, res) => {
+    const session = await storage.getCollaborativeSessionById(req.params.id);
+    if (!session || session.createdBy !== req.user!.id) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+
+    disconnectAllInSession(session.id);
+    await storage.removeAllSessionParticipants(session.id);
+    await storage.deactivateSession(session.id);
+
+    res.status(204).send();
+  });
+
+  // --- Collaborator-scoped API routes ---
+  app.use("/api/collab", collabAuthMiddleware);
+
+  app.get("/api/collab/jurors", async (req, res) => {
+    const caseId = req.collab!.caseId;
+    const allJurors = await storage.getJurorsByCase(caseId);
+    const limited = allJurors.map((j) => ({
+      number: j.number,
+      name: j.name,
+      lean: j.lean,
+      riskTier: j.riskTier,
+      notes: j.notes,
+    }));
+    res.json(limited);
+  });
+
+  app.get("/api/collab/questions", async (req, res) => {
+    const caseId = req.collab!.caseId;
+    const allQuestions = await storage.getQuestionsByCase(caseId);
+    res.json(allQuestions);
+  });
+
+  app.get("/api/collab/responses", async (req, res) => {
+    const caseId = req.collab!.caseId;
+    const allResponses = await storage.getResponsesByCase(caseId);
+    res.json(allResponses);
+  });
+
+  app.get("/api/collab/case-info", async (req, res) => {
+    const caseId = req.collab!.caseId;
+    const c = await storage.getCase(caseId);
+    if (!c) return res.status(404).json({ message: "Case not found" });
+    res.json({
+      id: c.id,
+      name: c.name,
+      lastPhase: c.lastPhase,
+      seatingConfig: c.seatingConfig,
+      strikesForCause: c.strikesForCause,
+      courtDismissed: c.courtDismissed,
+      batsonAnalysis: c.batsonAnalysis,
+    });
+  });
+
+  app.get("/api/collab/report-data", async (req, res) => {
+    const caseId = req.collab!.caseId;
+    const c = await storage.getCase(caseId);
+    if (!c) return res.status(404).json({ message: "Case not found" });
+    const allJurors = await storage.getJurorsByCase(caseId);
+    res.json({
+      caseName: c.name,
+      areaOfLaw: c.areaOfLaw,
+      side: c.side,
+      strikesForCause: c.strikesForCause,
+      courtDismissed: c.courtDismissed,
+      batsonAnalysis: c.batsonAnalysis,
+      jurors: allJurors.map((j) => ({
+        number: j.number,
+        name: j.name,
+        lean: j.lean,
+        leanConfidence: j.leanConfidence,
+        riskTier: j.riskTier,
+        aiRiskTier: j.aiRiskTier,
+        riskScore: j.riskScore,
+        aiSummary: j.aiSummary,
+        aiAnalysis: j.aiAnalysis,
+        notes: j.notes,
+      })),
+    });
+  });
+
+  const DUPLICATE_WINDOW_MS = 5000;
+
+  app.post("/api/collab/responses", async (req, res) => {
+    try {
+      const caseId = req.collab!.caseId;
+      const displayName = req.collab!.displayName;
+      const { jurorNumber, questionId, responseText, side, questionSummary } = req.body;
+
+      if (!responseText || jurorNumber === undefined) {
+        return res.status(400).json({ message: "jurorNumber and responseText are required" });
+      }
+
+      const duplicate = await storage.getRecentResponseForDuplicate(
+        caseId, jurorNumber, questionId || null, DUPLICATE_WINDOW_MS
+      );
+
+      let isDuplicate = false;
+      if (duplicate && duplicate.recordedBy !== displayName) {
+        isDuplicate = true;
+      }
+
+      const response = await storage.createResponse({
+        caseId,
+        jurorNumber,
+        questionId: questionId || null,
+        responseText,
+        side: side || "yours",
+        questionSummary: questionSummary || null,
+        followUps: [],
+        timestamp: Date.now(),
+        recordedBy: displayName,
+      });
+
+      broadcastToSession(req.collab!.sessionId, {
+        type: "response:new",
+        data: response,
+      });
+
+      if (isDuplicate) {
+        broadcastToSession(req.collab!.sessionId, {
+          type: "response:duplicate",
+          data: {
+            responseId: response.id,
+            jurorNumber,
+            questionId,
+            recordedBy: displayName,
+            previousRecordedBy: duplicate!.recordedBy,
+          },
+        });
+      }
+
+      res.status(201).json({ ...response, isDuplicate });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to record response" });
+    }
+  });
+
+  app.post("/api/collab/responses/:id/follow-ups", async (req, res) => {
+    const { question, answer } = req.body;
+    if (!answer) return res.status(400).json({ message: "answer is required" });
+
+    const existing = await storage.getResponseById(req.params.id);
+    if (!existing || existing.caseId !== req.collab!.caseId) {
+      return res.status(404).json({ message: "Response not found" });
+    }
+
+    const updated = await storage.addFollowUpToResponse(req.params.id, { question: question || "", answer });
+    if (!updated) return res.status(404).json({ message: "Response not found" });
+
+    broadcastToSession(req.collab!.sessionId, {
+      type: "followup:new",
+      data: { responseId: updated.id, followUp: { question: question || "", answer }, recordedBy: req.collab!.displayName },
+    });
+
+    res.json(updated);
+  });
+
+  app.patch("/api/collab/jurors/:jurorNumber/notes", async (req, res) => {
+    const caseId = req.collab!.caseId;
+    const jurorNumber = parseInt(req.params.jurorNumber, 10);
+    const { notes } = req.body;
+    if (notes === undefined) return res.status(400).json({ message: "notes is required" });
+
+    const allJurors = await storage.getJurorsByCase(caseId);
+    const juror = allJurors.find((j) => j.number === jurorNumber);
+    if (!juror) return res.status(404).json({ message: "Juror not found" });
+
+    const updated = await storage.updateJuror(juror.id, { notes });
+    if (!updated) return res.status(500).json({ message: "Failed to update juror notes" });
+
+    broadcastToSession(req.collab!.sessionId, {
+      type: "juror:notes-updated",
+      data: { jurorNumber, notes, updatedBy: req.collab!.displayName },
+    });
+
+    res.json({ number: updated.number, name: updated.name, notes: updated.notes });
   });
 
   // --- AI Assistant Chat ---

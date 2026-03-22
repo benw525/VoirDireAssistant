@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, jsonb, bigint, serial, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, jsonb, bigint, serial, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -94,6 +94,7 @@ export const responses = pgTable("responses", {
   questionSummary: text("question_summary"),
   followUps: jsonb("follow_ups").$type<Array<{question: string, answer: string}>>().notNull().default([]),
   timestamp: bigint("timestamp", { mode: "number" }).notNull(),
+  recordedBy: text("recorded_by"),
 });
 
 export const conversations = pgTable("conversations", {
@@ -125,9 +126,35 @@ export const jurorEnrichments = pgTable("juror_enrichments", {
   completedAt: bigint("completed_at", { mode: "number" }),
 });
 
+export const collaborativeSessions = pgTable("collaborative_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+  sessionCode: text("session_code").notNull().unique(),
+  createdBy: varchar("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  isActive: boolean("is_active").notNull().default(true),
+  maxParticipants: integer("max_participants").notNull().default(10),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
+export const sessionParticipants = pgTable("session_participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => collaborativeSessions.id, { onDelete: "cascade" }),
+  displayName: text("display_name").notNull(),
+  joinedAt: bigint("joined_at", { mode: "number" }).notNull(),
+  lastActiveAt: bigint("last_active_at", { mode: "number" }).notNull(),
+});
+
 export const insertJurorEnrichmentSchema = createInsertSchema(jurorEnrichments).omit({ id: true });
 export type JurorEnrichment = typeof jurorEnrichments.$inferSelect;
 export type InsertJurorEnrichment = z.infer<typeof insertJurorEnrichmentSchema>;
+
+export const insertCollaborativeSessionSchema = createInsertSchema(collaborativeSessions).omit({ id: true });
+export type CollaborativeSession = typeof collaborativeSessions.$inferSelect;
+export type InsertCollaborativeSession = z.infer<typeof insertCollaborativeSessionSchema>;
+
+export const insertSessionParticipantSchema = createInsertSchema(sessionParticipants).omit({ id: true });
+export type SessionParticipant = typeof sessionParticipants.$inferSelect;
+export type InsertSessionParticipant = z.infer<typeof insertSessionParticipantSchema>;
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertCaseSchema = createInsertSchema(cases).omit({ id: true });

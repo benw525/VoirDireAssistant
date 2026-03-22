@@ -2,12 +2,15 @@ import { eq, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import {
   users, cases, jurors, questions, responses, jurorEnrichments,
+  collaborativeSessions, sessionParticipants,
   type User, type InsertUser,
   type Case, type InsertCase,
   type Juror, type InsertJuror,
   type Question, type InsertQuestion,
   type JurorResponse, type InsertResponse,
   type JurorEnrichment, type InsertJurorEnrichment,
+  type CollaborativeSession, type InsertCollaborativeSession,
+  type SessionParticipant, type InsertSessionParticipant,
 } from "@shared/schema";
 
 if (!process.env.DATABASE_URL) {
@@ -43,6 +46,7 @@ export interface IStorage {
   deleteQuestionsByCase(caseId: string): Promise<void>;
 
   getResponsesByCase(caseId: string): Promise<JurorResponse[]>;
+  getResponseById(id: string): Promise<JurorResponse | undefined>;
   createResponse(data: InsertResponse): Promise<JurorResponse>;
   addFollowUpToResponse(responseId: string, followUp: {question: string, answer: string}): Promise<JurorResponse | undefined>;
   deleteResponsesByCase(caseId: string): Promise<void>;
@@ -52,6 +56,21 @@ export interface IStorage {
   getJurorEnrichmentsByCase(caseId: string): Promise<JurorEnrichment[]>;
   updateJurorEnrichment(enrichmentId: string, data: Partial<InsertJurorEnrichment>): Promise<JurorEnrichment | undefined>;
   deleteJurorEnrichmentsByCase(caseId: string): Promise<void>;
+
+  createCollaborativeSession(data: InsertCollaborativeSession): Promise<CollaborativeSession>;
+  getCollaborativeSessionById(id: string): Promise<CollaborativeSession | undefined>;
+  getCollaborativeSessionByCode(code: string): Promise<CollaborativeSession | undefined>;
+  getActiveSessionByCase(caseId: string): Promise<CollaborativeSession | undefined>;
+  deactivateSession(id: string): Promise<CollaborativeSession | undefined>;
+
+  createSessionParticipant(data: InsertSessionParticipant): Promise<SessionParticipant>;
+  getSessionParticipants(sessionId: string): Promise<SessionParticipant[]>;
+  getSessionParticipantCount(sessionId: string): Promise<number>;
+  updateParticipantActivity(id: string): Promise<void>;
+  removeSessionParticipant(id: string): Promise<void>;
+  removeAllSessionParticipants(sessionId: string): Promise<void>;
+
+  getRecentResponseForDuplicate(caseId: string, jurorNumber: number, questionId: number | null, windowMs: number): Promise<JurorResponse | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -157,6 +176,11 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(responses).where(eq(responses.caseId, caseId)).orderBy(responses.timestamp);
   }
 
+  async getResponseById(id: string): Promise<JurorResponse | undefined> {
+    const [result] = await db.select().from(responses).where(eq(responses.id, id));
+    return result;
+  }
+
   async createResponse(data: InsertResponse): Promise<JurorResponse> {
     const [result] = await db.insert(responses).values(data).returning();
     return result;
@@ -198,6 +222,99 @@ export class DatabaseStorage implements IStorage {
 
   async deleteJurorEnrichmentsByCase(caseId: string): Promise<void> {
     await db.delete(jurorEnrichments).where(eq(jurorEnrichments.caseId, caseId));
+  }
+
+  async createCollaborativeSession(data: InsertCollaborativeSession): Promise<CollaborativeSession> {
+    const [result] = await db.insert(collaborativeSessions).values(data).returning();
+    return result;
+  }
+
+  async getCollaborativeSessionById(id: string): Promise<CollaborativeSession | undefined> {
+    const [result] = await db.select().from(collaborativeSessions).where(eq(collaborativeSessions.id, id));
+    return result;
+  }
+
+  async getCollaborativeSessionByCode(code: string): Promise<CollaborativeSession | undefined> {
+    const [result] = await db.select().from(collaborativeSessions)
+      .where(and(eq(collaborativeSessions.sessionCode, code), eq(collaborativeSessions.isActive, true)));
+    return result;
+  }
+
+  async getActiveSessionByCase(caseId: string): Promise<CollaborativeSession | undefined> {
+    const [result] = await db.select().from(collaborativeSessions)
+      .where(and(eq(collaborativeSessions.caseId, caseId), eq(collaborativeSessions.isActive, true)));
+    return result;
+  }
+
+  async deactivateSession(id: string): Promise<CollaborativeSession | undefined> {
+    const [result] = await db.update(collaborativeSessions)
+      .set({ isActive: false })
+      .where(eq(collaborativeSessions.id, id))
+      .returning();
+    return result;
+  }
+
+  async createSessionParticipant(data: InsertSessionParticipant): Promise<SessionParticipant> {
+    const [result] = await db.insert(sessionParticipants).values(data).returning();
+    return result;
+  }
+
+  async createSessionParticipantAtomic(data: InsertSessionParticipant, maxParticipants: number): Promise<SessionParticipant> {
+    return db.transaction(async (tx) => {
+      const countResult = await tx.select({ count: sql<number>`count(*)::int` })
+        .from(sessionParticipants)
+        .where(eq(sessionParticipants.sessionId, data.sessionId));
+      const currentCount = countResult[0]?.count ?? 0;
+      if (currentCount >= maxParticipants) {
+        throw new Error(`Session is full (max ${maxParticipants} participants)`);
+      }
+      const [result] = await tx.insert(sessionParticipants).values(data).returning();
+      return result;
+    });
+  }
+
+  async getSessionParticipants(sessionId: string): Promise<SessionParticipant[]> {
+    return db.select().from(sessionParticipants)
+      .where(eq(sessionParticipants.sessionId, sessionId))
+      .orderBy(sessionParticipants.joinedAt);
+  }
+
+  async getSessionParticipantCount(sessionId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)::int` })
+      .from(sessionParticipants)
+      .where(eq(sessionParticipants.sessionId, sessionId));
+    return result[0]?.count ?? 0;
+  }
+
+  async updateParticipantActivity(id: string): Promise<void> {
+    await db.update(sessionParticipants)
+      .set({ lastActiveAt: Date.now() })
+      .where(eq(sessionParticipants.id, id));
+  }
+
+  async removeSessionParticipant(id: string): Promise<void> {
+    await db.delete(sessionParticipants).where(eq(sessionParticipants.id, id));
+  }
+
+  async removeAllSessionParticipants(sessionId: string): Promise<void> {
+    await db.delete(sessionParticipants).where(eq(sessionParticipants.sessionId, sessionId));
+  }
+
+  async getRecentResponseForDuplicate(caseId: string, jurorNumber: number, questionId: number | null, windowMs: number): Promise<JurorResponse | undefined> {
+    const cutoff = Date.now() - windowMs;
+    const conditions = [
+      eq(responses.caseId, caseId),
+      eq(responses.jurorNumber, jurorNumber),
+      sql`${responses.timestamp} > ${cutoff}`,
+    ];
+    if (questionId !== null && questionId !== undefined) {
+      conditions.push(eq(responses.questionId, questionId));
+    }
+    const [result] = await db.select().from(responses)
+      .where(and(...conditions))
+      .orderBy(sql`${responses.timestamp} DESC`)
+      .limit(1);
+    return result;
   }
 
   async createCaseWithBilling(data: InsertCase, userId: string): Promise<Case> {

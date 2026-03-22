@@ -2,9 +2,11 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { setupCollabWebSocket } from "./collabWebSocket";
 
 const app = express();
 const httpServer = createServer(app);
+setupCollabWebSocket(httpServer);
 
 declare module "http" {
   interface IncomingMessage {
