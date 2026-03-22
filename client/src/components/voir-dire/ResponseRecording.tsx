@@ -24,6 +24,11 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Users,
+  Copy,
+  Link2Off,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { Juror, VoirDireQuestion, JurorResponse, CaseInfo, SeatingConfig } from '../../types';
 import { JurySeatingGrid } from './JurySeatingGrid';
@@ -31,7 +36,6 @@ import { ReactionText } from './ReactionText';
 import * as api from '../../lib/api';
 import { useCollaborativeSession } from '../../hooks/useCollaborativeSession';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Copy, Link2Off, Wifi, WifiOff } from 'lucide-react';
 
 interface MarkedFollowUp {
   id: string;
