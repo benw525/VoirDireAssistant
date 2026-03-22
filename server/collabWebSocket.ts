@@ -247,10 +247,6 @@ function handleDisconnect(ws: AuthenticatedSocket) {
         type: "participant:left",
         data: { displayName: ws.collabPayload.displayName, participantId: ws.collabPayload.participantId },
       });
-
-      if (ws.participantId) {
-        storage.removeSessionParticipant(ws.participantId).catch(() => {});
-      }
     }
   }
 }
