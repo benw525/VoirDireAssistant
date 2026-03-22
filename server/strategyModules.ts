@@ -1406,3 +1406,463 @@ export function isCriminalArea(areaOfLaw: string): boolean {
   const lc = areaOfLaw.toLowerCase();
   return /criminal|felony|misdemeanor|prosecution|capital murder|homicide|manslaughter|dui|dwi|drug offense|drug trafficking|drug possession|sex offense|sexual assault|white collar|federal crime|embezzlement|domestic violence/.test(lc);
 }
+
+interface AnalysisTraits {
+  favorableTraits: string[];
+  riskTraits: string[];
+}
+
+interface SidedTraits {
+  plaintiff: AnalysisTraits;
+  defense: AnalysisTraits;
+}
+
+const CATEGORY_TRAITS: Record<string, SidedTraits> = {
+  'Criminal Law': {
+    plaintiff: {
+      favorableTraits: [
+        'Respects law enforcement',
+        'Prior jury service resulting in conviction',
+        'Comfortable rendering guilty verdict',
+        'Believes the system generally works',
+      ],
+      riskTraits: [
+        'Deep distrust of law enforcement',
+        'Jury nullification risk',
+        'Over-identifies with defendant',
+        'Extreme skepticism of witness testimony',
+        'Refuses to convict on circumstantial evidence',
+      ],
+    },
+    defense: {
+      favorableTraits: [
+        'Questions authority',
+        'Values presumption of innocence',
+        'Experience evaluating evidence critically',
+        'Believes system sometimes gets it wrong',
+        'Prior acquittal experience',
+      ],
+      riskTraits: [
+        'Equates accusation with guilt',
+        'Defers to authority and police',
+        'Would expect defendant to testify',
+        'Pro-law enforcement bias',
+        'Punishment-oriented',
+      ],
+    },
+  },
+  'Personal Injury / Tort': {
+    plaintiff: {
+      favorableTraits: [
+        'Prior experience wronged by institution',
+        'Empathetic without sentimentality',
+        'Comfortable awarding full compensation',
+        'Believes in accountability',
+        'Caregiver or helping profession',
+      ],
+      riskTraits: [
+        'Tort reform advocate',
+        'Would cap damages regardless of evidence',
+        'Corporate favoritism',
+        'Dismissive of non-economic damages',
+        'Believes plaintiffs exaggerate injuries',
+      ],
+    },
+    defense: {
+      favorableTraits: [
+        'Business or management experience',
+        'Analytical profession',
+        'Understands comparative fault',
+        'Values personal responsibility',
+        'Comfort that bad outcomes do not equal negligence',
+      ],
+      riskTraits: [
+        'Anti-corporate bias',
+        'Automatic sympathy for injured plaintiff',
+        'Distrusts defendant industry',
+        'Presumes liability from injury alone',
+        'Would award damages on sympathy not causation',
+      ],
+    },
+  },
+  'Employment Law': {
+    plaintiff: {
+      favorableTraits: [
+        'Has witnessed unfair treatment at work',
+        'Non-management role',
+        'Understands power dynamics',
+        'Empathy for vulnerable positions',
+        'Recognizes discrimination can be subtle',
+      ],
+      riskTraits: [
+        'Management identifier who sides with employer',
+        'Believes discrimination no longer exists',
+        'Requires direct evidence smoking gun',
+        'Views employment lawsuits as opportunistic',
+        'Silent sufferer who resents plaintiff for suing',
+      ],
+    },
+    defense: {
+      favorableTraits: [
+        'Management or HR experience',
+        'Business ownership background',
+        'Understands operational pressures',
+        'Comfort that termination can be legitimate',
+        'Analytical decision-maker',
+      ],
+      riskTraits: [
+        'Personal grievance against employers',
+        'Believes all employers are exploitative',
+        'Would use punitive damages to send a message',
+        'Projects own workplace resentment',
+        'Anti-management bias',
+      ],
+    },
+  },
+  'Business / Commercial': {
+    plaintiff: {
+      favorableTraits: [
+        'Experience with broken agreements',
+        'Values accountability',
+        'Analytical profession',
+        'Respects contract enforcement',
+        'Comfortable with large commercial damages',
+      ],
+      riskTraits: [
+        'Views commercial litigation as frivolous',
+        'Would reduce damages because both parties are businesses',
+        'Would split the difference rather than decide',
+        'Numbers phobic',
+        'Anti-litigation bias',
+      ],
+    },
+    defense: {
+      favorableTraits: [
+        'Business experience',
+        'Management role',
+        'Comfort with complexity',
+        'Understands good-faith disagreements',
+        'Understands contract ambiguity',
+      ],
+      riskTraits: [
+        'Anti-corporate bias toward larger party',
+        'Believes bigger party is always wrong',
+        'Substitutes own business judgment for evidence',
+        'Zero-sum thinker who picks side early',
+        'Anti-business sentiment',
+      ],
+    },
+  },
+  'Intellectual Property': {
+    plaintiff: {
+      favorableTraits: [
+        'Creative or inventive background',
+        'Respects hard work and research',
+        'Experience with having work copied',
+        'Believes inventors deserve protection',
+        'Comfortable with IP damages calculations',
+      ],
+      riskTraits: [
+        'Patent skeptic who sees all IP suits as trolling',
+        'Believes ideas should be free',
+        'Would refuse to enforce valid patent on principle',
+        'Sympathizes with accused infringer automatically',
+        'Complexity surrenderer who disengages from evidence',
+      ],
+    },
+    defense: {
+      favorableTraits: [
+        'Engineering or technical background',
+        'Understands independent development',
+        'Comfort with iterative innovation',
+        'Knows patents have specific boundaries',
+        'Analytical and evidence-focused',
+      ],
+      riskTraits: [
+        'IP absolutist who equates any similarity with theft',
+        'Predisposed to view patent holder as underdog',
+        'Substitutes personal technical knowledge for evidence',
+        'Would find infringement on surface similarity alone',
+        'Anchors on large damages numbers without analysis',
+      ],
+    },
+  },
+  'Civil Rights': {
+    plaintiff: {
+      favorableTraits: [
+        'Values accountability for government actors',
+        'Believes everyone deserves constitutional protection',
+        'Personal experience with unfair authority treatment',
+        'Community activism background',
+        'Civil liberties education or experience',
+      ],
+      riskTraits: [
+        'Automatic law enforcement deference',
+        'Discounts claims based on plaintiff background',
+        'Believes criminal record forfeits constitutional rights',
+        'Government apologist',
+        'Cannot award emotional distress without physical injury',
+      ],
+    },
+    defense: {
+      favorableTraits: [
+        'Respects public servants',
+        'Understands operational constraints',
+        'Military or first-responder experience',
+        'Analytical mindset',
+        'Understands split-second decision-making',
+      ],
+      riskTraits: [
+        'Anti-police bias',
+        'Would use verdict to punish institution',
+        'ACAB mentality regardless of evidence',
+        'Runaway damages juror motivated by outrage',
+        'Cannot evaluate case individually',
+      ],
+    },
+  },
+  'Family Law': {
+    plaintiff: {
+      favorableTraits: [
+        'Co-parenting experience',
+        'Understands economic imbalance in marriages',
+        'Analytical approach to family issues',
+        'Prioritizes children welfare',
+        'Can follow legal standard over personal values',
+      ],
+      riskTraits: [
+        'Gender bias favoring other parent',
+        'Traditional values juror who judges lifestyle',
+        'Would punish for infidelity in property division',
+        'Reconciliation advocate who resents the lawsuit',
+        'Bitter divorcee who projects own experience',
+      ],
+    },
+    defense: {
+      favorableTraits: [
+        'Positive co-parenting experience',
+        'Understands both parents can be fit',
+        'Follows legal instructions over personal values',
+        'Objective evaluator of best interest standard',
+        'Emotionally measured and analytical',
+      ],
+      riskTraits: [
+        'Bitter divorcee projecting own experience',
+        'Would punish based on marital conduct not law',
+        'Child savior who decides on emotion not evidence',
+        'Wealth punisher motivated by redistribution',
+        'Fixed gender role views about parenting',
+      ],
+    },
+  },
+  'Probate / Estate': {
+    plaintiff: {
+      favorableTraits: [
+        'Experience caring for elderly relatives',
+        'Understands cognitive decline',
+        'Skeptical of sudden estate plan changes',
+        'Understands vulnerability and power dynamics',
+        'Recognizes caregiver influence patterns',
+      ],
+      riskTraits: [
+        'Views will contests as greedy',
+        'Testamentary absolutist who never questions a will',
+        'Identifies with caregiver and views inheritance as earned',
+        'Family loyalist who punishes the challenger',
+        'Believes signed documents are always final',
+      ],
+    },
+    defense: {
+      favorableTraits: [
+        'Experience with estate planning',
+        'Respects individual autonomy',
+        'Understands complicated family relationships',
+        'Comfort with non-family beneficiary choices',
+        'Values testamentary freedom',
+      ],
+      riskTraits: [
+        'Believes family always entitled to inherit',
+        'Assumes unusual estate plan equals manipulation',
+        'Elder protector who sees undue influence everywhere',
+        'Inheritance entitlement mentality',
+        'Would override decedent wishes for perceived fairness',
+      ],
+    },
+  },
+  'Insurance': {
+    plaintiff: {
+      favorableTraits: [
+        'Personal experience with unfair claim handling',
+        'Understands insurance is a product you pay for',
+        'Skepticism of large corporations',
+        'Comfortable awarding punitive damages',
+        'Holds companies to contractual obligations',
+      ],
+      riskTraits: [
+        'Insurance industry connections',
+        'Premium-impact bias',
+        'Assumes all claims are exaggerated',
+        'Contract literalist who ignores adhesion context',
+        'Fraud assumer who starts from skepticism',
+      ],
+    },
+    defense: {
+      favorableTraits: [
+        'Business experience',
+        'Understands contractual obligations on both sides',
+        'Analytical mindset',
+        'Comfort that not every denial is bad faith',
+        'Understands claim investigation is legitimate',
+      ],
+      riskTraits: [
+        'Strong negative insurance experience',
+        'Would use verdict to punish industry generally',
+        'Insurance hater who projects own experience',
+        'Cannot evaluate claim objectively',
+        'Predisposed to find bad faith in any denial',
+      ],
+    },
+  },
+  'General / Fallback': {
+    plaintiff: {
+      favorableTraits: [
+        'Values accountability and fairness',
+        'Respects the court system',
+        'Open-minded evaluator of evidence',
+        'Comfortable with applicable damages',
+        'Follows burden of proof instructions',
+      ],
+      riskTraits: [
+        'Anti-litigation bias',
+        'Extreme skepticism of all claims',
+        'Status quo defender who resists remedy',
+        'Anchors on first impression',
+        'Authority-deferential regardless of evidence',
+      ],
+    },
+    defense: {
+      favorableTraits: [
+        'Analytical thinker',
+        'Focuses on evidence and instructions',
+        'Values precision and fairness',
+        'Can separate sympathy from evidence',
+        'Evaluates each claim on its merits',
+      ],
+      riskTraits: [
+        'Sympathy voter driven by emotion',
+        'Underdog champion regardless of merits',
+        'Would use verdict to send a message',
+        'Strong identification with opposing party',
+        'Narrative-driven rather than evidence-driven',
+      ],
+    },
+  },
+};
+
+const OVERLAY_TRAITS: Record<string, { favorableTraits?: string[]; riskTraits?: string[] }> = {
+  'Capital/Homicide': {
+    riskTraits: ['Death penalty absolutist', 'Life-means-life doubter'],
+  },
+  'DUI/DWI': {
+    riskTraits: ['Personal connection to drunk driving tragedy', 'Social drinker in denial'],
+  },
+  'Drug Offenses': {
+    riskTraits: ['Zero-tolerance on all drug offenses', 'Believes addiction is a character flaw'],
+  },
+  'Sex Offenses': {
+    riskTraits: ['Views any sexual accusation as automatically credible', 'Stigma voter who prejudges on charge alone'],
+  },
+  'White Collar/Federal': {
+    riskTraits: ['Anti-corporate populist', 'Overwhelmed by financial complexity'],
+  },
+  'Domestic Violence': {
+    riskTraits: ['Survivor advocate who projects own experience', 'Reconciliation skeptic who doubts ongoing contact'],
+  },
+  'Medical Malpractice': {
+    riskTraits: ['Doctor worshipper who views physicians as infallible', 'System blamer who finds liability in any bad outcome'],
+  },
+  'Products Liability': {
+    riskTraits: ['User-error default who blames the plaintiff', 'Anti-regulation libertarian'],
+  },
+  'Wrongful Death': {
+    riskTraits: ['Grief projector who cannot evaluate analytically', 'Uncomfortable placing dollar value on life'],
+  },
+  'Trucking/Auto Accident': {
+    favorableTraits: ['Understands trucking regulatory obligations'],
+  },
+  'Nursing Home/Elder Abuse': {
+    riskTraits: ['Guilt deflector minimizing institutional failures', 'Industry insider normalizing staffing problems'],
+  },
+  'Toxic Tort/Environmental': {
+    riskTraits: ['Causation skeptic demanding certainty', 'Jobs-vs-environment voter protecting industry'],
+  },
+  'Discrimination': {
+    riskTraits: ['Believes workplace discrimination is a thing of the past'],
+  },
+  'Sexual Harassment': {
+    riskTraits: ['High threshold setter who dismisses workplace banter', 'Blame shifter toward victim'],
+  },
+  'Whistleblower/Retaliation': {
+    riskTraits: ['Views whistleblowers as disloyal traitors'],
+  },
+  'Fraud': {
+    riskTraits: ['Believes any business loss means someone lied'],
+  },
+  'Trade Secret': {
+    riskTraits: ['Believes employees should use any knowledge from prior jobs'],
+  },
+  'Construction': {
+    riskTraits: ['Substitutes personal construction experience for evidence'],
+  },
+  'Patent': {
+    riskTraits: ['Strong feelings about patent trolls'],
+  },
+  'Trademark/Copyright': {
+    riskTraits: ['Believes parody and fair use are just loopholes'],
+  },
+  'Police Excessive Force': {
+    riskTraits: ['Shaped by media use-of-force incidents', 'Strong views on specific policing techniques'],
+  },
+  'Prisoner Rights': {
+    riskTraits: ['Forfeiture believer who denies prisoner rights', 'Conditions denier who thinks prison should be harsh'],
+  },
+  'Custody': {
+    riskTraits: ['Fixed belief children always belong with one gender', 'Substitutes own parenting values for legal standard'],
+  },
+  'Termination of Parental Rights': {
+    riskTraits: ['Believes government intervenes too little in families', 'Cannot hold State to clear and convincing standard'],
+  },
+  'Bad Faith': {
+    riskTraits: ['Cannot distinguish coverage dispute from bad faith'],
+  },
+  'Coverage Disputes/UM-UIM': {
+    riskTraits: ['Confused or troubled by suing own insurer'],
+  },
+};
+
+export function getAnalysisTraits(areaOfLaw: string, side: 'plaintiff' | 'defense'): AnalysisTraits {
+  const { categoryModule, subSpecOverlay } = resolveRouting(areaOfLaw);
+  const categoryName = categoryModule.category;
+
+  const catTraits = CATEGORY_TRAITS[categoryName] || CATEGORY_TRAITS['General / Fallback'];
+  const base = catTraits[side];
+
+  const result: AnalysisTraits = {
+    favorableTraits: [...base.favorableTraits],
+    riskTraits: [...base.riskTraits],
+  };
+
+  if (subSpecOverlay) {
+    const overlayData = OVERLAY_TRAITS[subSpecOverlay.name];
+    if (overlayData) {
+      if (overlayData.favorableTraits) {
+        result.favorableTraits.push(...overlayData.favorableTraits);
+      }
+      if (overlayData.riskTraits) {
+        result.riskTraits.push(...overlayData.riskTraits);
+      }
+    }
+  }
+
+  return result;
+}

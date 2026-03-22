@@ -278,25 +278,29 @@ export function CaseSetup({
     }
   }, [showMmPicker, mmLoading, mmCases.length]);
 
-  const handleInitialize = (e: React.FormEvent) => {
+  const [isLoadingTraits, setIsLoadingTraits] = useState(false);
+
+  const handleInitialize = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !areaOfLaw || !summary || !side) return;
 
-    const favorableTraits =
-      side === 'plaintiff'
-        ? ['Empathetic', 'Believes in corporate accountability', 'Open to non-economic damages']
-        : ['Skeptical of claims', 'Respects personal responsibility', 'Detail-oriented'];
-
-    const riskTraits =
-      side === 'plaintiff'
-        ? ['Tort reform advocate', 'Strict rule-follower', 'Skeptical of emotional distress']
-        : ['Anti-corporate bias', 'Highly emotional', 'Prior negative experience with similar defendants'];
-
-    onCaseSetup(
-      { name, areaOfLaw, summary, side, favorableTraits, riskTraits },
-      selectedMattrMindrId || undefined
-    );
-    setIsInitialized(true);
+    setIsLoadingTraits(true);
+    try {
+      const traits = await api.fetchAnalysisTraits(areaOfLaw, side);
+      onCaseSetup(
+        { name, areaOfLaw, summary, side, favorableTraits: traits.favorableTraits, riskTraits: traits.riskTraits },
+        selectedMattrMindrId || undefined
+      );
+      setIsInitialized(true);
+    } catch {
+      onCaseSetup(
+        { name, areaOfLaw, summary, side, favorableTraits: ['Evidence-focused', 'Fair-minded', 'Analytical'], riskTraits: ['Strong bias', 'Cannot be impartial', 'Fixed opinion'] },
+        selectedMattrMindrId || undefined
+      );
+      setIsInitialized(true);
+    } finally {
+      setIsLoadingTraits(false);
+    }
   };
 
   const handleLoadFromMattrMindr = async () => {
@@ -583,11 +587,18 @@ export function CaseSetup({
           <div className="pt-4 border-t border-slate-100 flex justify-end">
             <button
               type="submit"
-              disabled={!areaOfLaw || !summary || !side}
+              disabled={!areaOfLaw || !summary || !side || isLoadingTraits}
               data-testid="button-initialize-case"
               className="inline-flex items-center px-6 py-3 bg-slate-900 text-white font-medium rounded-xl hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              Initialize Case
+              {isLoadingTraits ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Initializing...
+                </>
+              ) : (
+                'Initialize Case'
+              )}
             </button>
           </div>
         </motion.form>

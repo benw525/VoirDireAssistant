@@ -12,6 +12,7 @@ import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMa
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession, handleWebhook } from "./billing";
 import { triggerEnrichmentForJurors, getEnrichedDataForCase, cancelEnrichmentForCase } from "./perplexityEnrichment";
+import { getAnalysisTraits } from "./strategyModules";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
@@ -317,6 +318,16 @@ export async function registerRoutes(
   app.use("/api/analyze-strikes-for-cause", authMiddleware);
   app.use("/api/mattrmindr", authMiddleware);
   app.use("/api/conversations", authMiddleware);
+
+  app.get("/api/analysis-traits", authMiddleware, async (req, res) => {
+    const areaOfLaw = req.query.areaOfLaw as string;
+    const side = req.query.side as string;
+    if (!areaOfLaw || !side || (side !== 'plaintiff' && side !== 'defense')) {
+      return res.status(400).json({ message: "areaOfLaw and side (plaintiff|defense) are required" });
+    }
+    const traits = getAnalysisTraits(areaOfLaw, side);
+    res.json(traits);
+  });
 
   // --- Cases ---
   app.get("/api/cases", async (req, res) => {

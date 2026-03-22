@@ -185,6 +185,10 @@ function dbResponseToResponse(r: DbResponse): JurorResponse {
   };
 }
 
+export async function fetchAnalysisTraits(areaOfLaw: string, side: string): Promise<{ favorableTraits: string[]; riskTraits: string[] }> {
+  return fetchJson(`${API_BASE}/analysis-traits?areaOfLaw=${encodeURIComponent(areaOfLaw)}&side=${encodeURIComponent(side)}`);
+}
+
 export async function fetchCases(): Promise<SavedCase[]> {
   const cases = await fetchJson<DbCase[]>(`${API_BASE}/cases`);
   return cases.map(c => dbCaseToSavedCase(c));
