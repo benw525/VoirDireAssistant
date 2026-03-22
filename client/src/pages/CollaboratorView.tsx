@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getCollabSession, clearCollabSession } from '../lib/collabAuth';
 import { useCollaborativeSession, ConnectionStatus } from '../hooks/useCollaborativeSession';
 import * as api from '../lib/api';
-import type { JurorResponse, VoirDireQuestion } from '../types';
+import type { JurorResponse } from '../types';
 
 type CollabPhase = 'recording' | 'report';
 
@@ -18,6 +18,15 @@ interface CollabJuror {
   number: number;
   name: string;
   notes?: string;
+}
+
+interface CollabQuestion {
+  id: string;
+  questionNumber: number;
+  originalText: string;
+  rephrase: string;
+  followUps: string[];
+  locked: boolean;
 }
 
 function ConnectionIndicator({ status }: { status: ConnectionStatus }) {
@@ -43,7 +52,7 @@ export default function CollaboratorView() {
 
   const [phase, setPhase] = useState<CollabPhase>('recording');
   const [jurors, setJurors] = useState<CollabJuror[]>([]);
-  const [questions, setQuestions] = useState<VoirDireQuestion[]>([]);
+  const [questions, setQuestions] = useState<CollabQuestion[]>([]);
   const [responses, setResponses] = useState<JurorResponse[]>([]);
   const [caseInfo, setCaseInfo] = useState<{ id: string; name: string; lastPhase: number; seatingConfig: any } | null>(null);
   const [reportData, setReportData] = useState<any>(null);
@@ -298,12 +307,8 @@ export default function CollaboratorView() {
 
     if (stage === 'yours' && questionNum) {
       const qNum = parseInt(questionNum, 10);
-      const q = questions.find(q => q.id === qNum || (q as any).questionNumber === qNum);
-      if (q) {
-        payload.questionId = q.id;
-      } else {
-        payload.questionId = qNum;
-      }
+      const q = questions.find(q => q.questionNumber === qNum);
+      payload.questionId = q ? q.questionNumber : qNum;
     } else if (questionSummary.trim()) {
       payload.questionSummary = questionSummary.trim();
     }
@@ -461,7 +466,7 @@ export default function CollaboratorView() {
 
 interface CollabRecordingProps {
   jurors: CollabJuror[];
-  questions: VoirDireQuestion[];
+  questions: CollabQuestion[];
   responses: JurorResponse[];
   caseInfo: any;
   recordingDisabled: boolean;
