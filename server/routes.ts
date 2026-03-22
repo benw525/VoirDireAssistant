@@ -1480,6 +1480,7 @@ export async function registerRoutes(
     const caseId = req.collab!.caseId;
     const c = await storage.getCase(caseId);
     if (!c) return res.status(404).json({ message: "Case not found" });
+    if (c.lastPhase < 6) return res.status(403).json({ message: "Report not yet available" });
     const allJurors = await storage.getJurorsByCase(caseId);
     const allResponses = await storage.getResponsesByCase(caseId);
     res.json({

@@ -94,6 +94,7 @@ export function useCollaborativeSession(options: UseCollaborativeSessionOptions)
           cb.onResponseDeleted?.(msg.data);
           break;
         case 'response:duplicate':
+        case 'response:conflict':
           cb.onDuplicate?.(msg.data);
           break;
         case 'session:revoked':

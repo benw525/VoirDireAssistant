@@ -162,6 +162,11 @@ export function ResponseRecording({
         onRemoteFollowUp?.(data.responseId, data.followUp);
       }
     }, []),
+    onNotesUpdated: useCallback((data: any) => {
+      if (data.jurorNumber !== undefined) {
+        onUpdateJuror(data.jurorNumber, { notes: data.notes });
+      }
+    }, [onUpdateJuror]),
     onParticipantJoined: useCallback((data: any) => {
       toast({ title: `${data.displayName} joined the session` });
       if (activeSession) {
