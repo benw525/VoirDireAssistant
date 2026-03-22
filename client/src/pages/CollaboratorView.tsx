@@ -72,6 +72,8 @@ export default function CollaboratorView() {
   const [followUpAnswer, setFollowUpAnswer] = useState('');
   const [duplicateAlerts, setDuplicateAlerts] = useState<Array<{ id: string; jurorNumber: number; message: string; responseId?: string; resolved: boolean }>>([]);
   const [activeQuestionId, setActiveQuestionId] = useState<number | null>(null);
+  const [noteJurorNumber, setNoteJurorNumber] = useState<number | null>(null);
+  const [noteText, setNoteText] = useState('');
   const jurorInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -260,6 +262,18 @@ export default function CollaboratorView() {
     }
   };
 
+  const handleSaveNote = async (jurorNumber: number, note: string) => {
+    try {
+      await api.collabUpdateJurorNotes(jurorNumber, note);
+      setJurors(prev => prev.map(j => j.number === jurorNumber ? { ...j, notes: note } : j));
+      setNoteJurorNumber(null);
+      setNoteText('');
+      toast({ title: 'Note saved' });
+    } catch (err: any) {
+      toast({ title: 'Error saving note', description: err.message, variant: 'destructive' });
+    }
+  };
+
   const handleLeave = () => {
     clearCollabSession();
     setLocation('/team');
@@ -320,7 +334,8 @@ export default function CollaboratorView() {
       const qNum = parseInt(questionNum, 10);
       const q = questions.find(q => q.questionNumber === qNum);
       payload.questionId = q ? q.questionNumber : qNum;
-    } else if (questionSummary.trim()) {
+    }
+    if (questionSummary.trim()) {
       payload.questionSummary = questionSummary.trim();
     }
 
@@ -402,8 +417,8 @@ export default function CollaboratorView() {
               phase === 'report' ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-white hover:bg-slate-800'
             }`}
           >
-            <Shield className="w-4 h-4" />
-            Strikes & Challenges
+            <Users className="w-4 h-4" />
+            Jury Panel Review
           </button>
         </nav>
 
@@ -466,6 +481,11 @@ export default function CollaboratorView() {
             onDuplicateDiscard={handleDuplicateDiscard}
             activeQuestionId={activeQuestionId}
             setActiveQuestionId={setActiveQuestionId}
+            noteJurorNumber={noteJurorNumber}
+            setNoteJurorNumber={setNoteJurorNumber}
+            noteText={noteText}
+            setNoteText={setNoteText}
+            onSaveNote={handleSaveNote}
           />
         ) : (
           <CollabReportView reportData={reportData} isLoading={reportLoading} />
@@ -514,6 +534,11 @@ interface CollabRecordingProps {
   onDuplicateDiscard: (id: string, responseId?: string) => void;
   activeQuestionId: number | null;
   setActiveQuestionId: (id: number | null) => void;
+  noteJurorNumber: number | null;
+  setNoteJurorNumber: (n: number | null) => void;
+  noteText: string;
+  setNoteText: (v: string) => void;
+  onSaveNote: (jurorNumber: number, note: string) => void;
 }
 
 function CollabRecordingView({
@@ -525,6 +550,7 @@ function CollabRecordingView({
   handleAddFollowUp, formatTime, jurorInputRef, sendTypingStart, sendTypingStop,
   yourSideLabel, opposingSideLabel, displayName,
   onQuickReaction, duplicateAlerts, onDuplicateKeep, onDuplicateDiscard, activeQuestionId, setActiveQuestionId,
+  noteJurorNumber, setNoteJurorNumber, noteText, setNoteText, onSaveNote,
 }: CollabRecordingProps) {
   const stageConfig = {
     yours: { label: yourSideLabel, icon: Scale, color: 'bg-amber-500', borderColor: 'border-amber-200', bgColor: 'bg-amber-50/30' },
@@ -596,13 +622,44 @@ function CollabRecordingView({
                       <ThumbsDown className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => onQuickReaction(j.number, 'note')}
+                      onClick={() => {
+                        setNoteJurorNumber(noteJurorNumber === j.number ? null : j.number);
+                        setNoteText(j.notes || '');
+                      }}
                       data-testid={`button-reaction-note-${j.number}`}
-                      title="Note"
-                      className="p-1 rounded hover:bg-blue-100 text-blue-700 active:bg-blue-200 transition-colors"
+                      title="Add/Edit Note"
+                      className={`p-1 rounded transition-colors ${noteJurorNumber === j.number ? 'bg-blue-200 text-blue-800' : 'hover:bg-blue-100 text-blue-700 active:bg-blue-200'}`}
                     >
                       <StickyNote className="w-3.5 h-3.5" />
                     </button>
+                  </div>
+                )}
+                {noteJurorNumber === j.number && (
+                  <div className="absolute top-full left-0 right-0 mt-1 z-10 bg-white border border-blue-200 rounded-lg shadow-lg p-2" data-testid={`note-editor-${j.number}`}>
+                    <textarea
+                      value={noteText}
+                      onChange={e => setNoteText(e.target.value)}
+                      placeholder="Add a note about this juror..."
+                      rows={2}
+                      className="w-full px-2 py-1.5 text-xs rounded border border-slate-200 focus:ring-1 focus:ring-blue-400 outline-none resize-none"
+                      autoFocus
+                    />
+                    <div className="flex justify-end gap-1 mt-1">
+                      <button
+                        onClick={() => { setNoteJurorNumber(null); setNoteText(''); }}
+                        className="px-2 py-0.5 text-xs text-slate-500 hover:text-slate-700"
+                        data-testid={`button-cancel-note-${j.number}`}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => onSaveNote(j.number, noteText)}
+                        className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                        data-testid={`button-save-note-${j.number}`}
+                      >
+                        Save
+                      </button>
+                    </div>
                   </div>
                 )}
                 {isTyping && (
@@ -686,21 +743,47 @@ function CollabRecordingView({
                   autoFocus
                 />
               </div>
-              {stage === 'yours' ? (
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Question #</label>
-                  <input
-                    type="number"
-                    data-testid="input-collab-question-num"
-                    value={questionNum}
-                    onChange={e => setQuestionNum(e.target.value)}
-                    placeholder="#"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none text-lg font-mono"
-                  />
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Question Summary</label>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  {stage === 'yours' ? 'Question # (or type custom below)' : 'Question Summary'}
+                </label>
+                {stage === 'yours' ? (
+                  <>
+                    <input
+                      type="number"
+                      data-testid="input-collab-question-num"
+                      value={questionNum}
+                      onChange={e => {
+                        setQuestionNum(e.target.value);
+                        if (e.target.value) setQuestionSummary('');
+                      }}
+                      placeholder="#"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none text-lg font-mono"
+                    />
+                    {(() => {
+                      const qNum = parseInt(questionNum, 10);
+                      const matchedQ = !isNaN(qNum) ? questions.find(q => q.questionNumber === qNum) : null;
+                      if (matchedQ) {
+                        return (
+                          <div className="mt-1.5 p-2 bg-amber-50 border border-amber-100 rounded-lg" data-testid="text-matched-question">
+                            <p className="text-xs text-amber-800 font-medium">{matchedQ.rephrase || matchedQ.originalText}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                    {!questionNum && (
+                      <input
+                        type="text"
+                        data-testid="input-collab-custom-question"
+                        value={questionSummary}
+                        onChange={e => setQuestionSummary(e.target.value)}
+                        placeholder="Or type a custom question..."
+                        className="w-full mt-2 px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none text-sm"
+                      />
+                    )}
+                  </>
+                ) : (
                   <input
                     type="text"
                     data-testid="input-collab-question-summary"
@@ -709,8 +792,8 @@ function CollabRecordingView({
                     placeholder="Brief summary"
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none"
                   />
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             <div>
@@ -890,46 +973,16 @@ function CollabReportView({ reportData, isLoading }: { reportData: any; isLoadin
 
   const jurors = reportData.jurors || [];
   const responses = reportData.responses || [];
-  const causeStruckNums = (reportData.strikesForCause || []).map((s: any) => s.jurorNumber);
-  const courtDismissedNums = reportData.courtDismissed || [];
-  const activeJurors = jurors.filter((j: any) => !causeStruckNums.includes(j.number) && !courtDismissedNums.includes(j.number));
-  const batson = reportData.batsonAnalysis;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900" data-testid="text-report-title">Strikes & Challenges</h1>
+        <h1 className="text-2xl font-bold text-slate-900" data-testid="text-report-title">Jury Panel Review</h1>
         <span className="text-xs bg-slate-100 text-slate-500 px-3 py-1 rounded-full font-medium">Read-only</span>
       </div>
 
-      <section className="bg-white rounded-xl border border-slate-200 p-6" data-testid="section-strikes-for-cause">
-        <h2 className="text-lg font-bold text-slate-900 mb-4">Strikes for Cause</h2>
-        {reportData.strikesForCause && reportData.strikesForCause.length > 0 ? (
-          <div className="space-y-2">
-            {reportData.strikesForCause.map((s: any, i: number) => (
-              <div key={i} className="bg-red-50 border border-red-100 rounded-lg p-4 text-sm" data-testid={`strike-cause-${s.jurorNumber}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-bold text-red-800">Juror #{s.jurorNumber}</span>
-                  <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded-full">{s.category}</span>
-                </div>
-                <p className="text-red-700 font-medium">{s.basis}</p>
-                {s.reasoning && <p className="text-red-600 text-xs mt-1">{s.reasoning}</p>}
-                {s.argument && <p className="text-red-500 text-xs mt-1 italic">Argument: {s.argument}</p>}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-slate-400 italic">No strikes for cause recorded.</p>
-        )}
-        {courtDismissedNums.length > 0 && (
-          <div className="mt-3 text-sm text-slate-500">
-            Court dismissed: {courtDismissedNums.map((n: number) => `#${n}`).join(', ')}
-          </div>
-        )}
-      </section>
-
       <section className="bg-white rounded-xl border border-slate-200 p-6" data-testid="section-juror-grid">
-        <h2 className="text-lg font-bold text-slate-900 mb-4">Remaining Jurors ({activeJurors.length})</h2>
+        <h2 className="text-lg font-bold text-slate-900 mb-4">Complete Jury Panel ({jurors.length})</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm" data-testid="table-report-jurors">
             <thead>
@@ -943,7 +996,7 @@ function CollabReportView({ reportData, isLoading }: { reportData: any; isLoadin
               </tr>
             </thead>
             <tbody>
-              {activeJurors.map((j: any) => {
+              {jurors.map((j: any) => {
                 const jurorResponses = responses.filter((r: any) => r.jurorNumber === j.number);
                 return (
                   <Fragment key={j.number}>
@@ -1032,57 +1085,6 @@ function CollabReportView({ reportData, isLoading }: { reportData: any; isLoadin
         </div>
       </section>
 
-      {batson && (
-        <section className="bg-white rounded-xl border border-slate-200 p-6" data-testid="section-batson">
-          <h2 className="text-lg font-bold text-slate-900 mb-2">Batson Challenge Analysis</h2>
-          <div className="flex items-center gap-3 mb-4">
-            <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
-              batson.overallRisk === 'high' ? 'bg-red-100 text-red-700' :
-              batson.overallRisk === 'medium' ? 'bg-amber-100 text-amber-700' :
-              'bg-emerald-100 text-emerald-700'
-            }`}>
-              Overall Risk: {batson.overallRisk}
-            </span>
-          </div>
-          <p className="text-sm text-slate-700 mb-4">{batson.summary}</p>
-
-          {batson.defensive && batson.defensive.length > 0 && (
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold text-slate-700 mb-2">Defensive Concerns (Protect Your Strikes)</h3>
-              <div className="space-y-2">
-                {batson.defensive.map((d: any, i: number) => (
-                  <div key={i} className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-amber-800">Juror #{d.jurorNumber} ({d.jurorName})</span>
-                      <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">{d.riskLevel}</span>
-                      <span className="text-xs text-slate-500">{d.protectedClass}</span>
-                    </div>
-                    <p className="text-amber-700 text-xs">{d.recommendedArticulation}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {batson.offensive && batson.offensive.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-slate-700 mb-2">Offensive Opportunities (Challenge Their Strikes)</h3>
-              <div className="space-y-2">
-                {batson.offensive.map((o: any, i: number) => (
-                  <div key={i} className="bg-violet-50 border border-violet-100 rounded-lg p-3 text-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-violet-800">Juror #{o.jurorNumber} ({o.jurorName})</span>
-                      <span className="text-xs bg-violet-200 text-violet-800 px-2 py-0.5 rounded-full">{o.strengthOfChallenge}</span>
-                      <span className="text-xs text-slate-500">{o.protectedClass}</span>
-                    </div>
-                    <p className="text-violet-700 text-xs">{o.suggestedArgument}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-      )}
     </div>
   );
 }
