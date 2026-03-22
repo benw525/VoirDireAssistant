@@ -565,7 +565,7 @@ export function EndReport({
           <FileText className="w-8 h-8" />
         </div>
         <h2 className="text-3xl font-bold text-slate-900" data-testid="text-report-title">
-          Final Voir Dire Report
+          Strikes & Challenges
         </h2>
         <p className="text-slate-600 mt-2 max-w-2xl mx-auto" data-testid="text-report-subtitle">
           Complete jury panel analysis for {caseInfo.name}

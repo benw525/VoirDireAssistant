@@ -38,6 +38,7 @@ interface JurorReviewProps {
   onUpdateJuror: (jurorNumber: number, updates: Partial<Juror>) => void;
   onProceed: () => void;
   activeCaseId?: string | null;
+  autoAnalyze?: boolean;
 }
 export function JurorReview({
   jurors,
@@ -46,7 +47,8 @@ export function JurorReview({
   caseInfo,
   onUpdateJuror,
   onProceed,
-  activeCaseId
+  activeCaseId,
+  autoAnalyze = false,
 }: JurorReviewProps) {
   const [viewMode, setViewMode] = useState<'board' | 'table'>('board');
   const [filterLean, setFilterLean] = useState<string>('all');
@@ -154,6 +156,17 @@ export function JurorReview({
   const hasRealAnalysis = (jurorNumber: number) => aiAnalysis[jurorNumber] && !failedAnalyses.has(jurorNumber);
   const allAnalyzed = jurors.every(j => hasRealAnalysis(j.number));
   const unanalyzedCount = jurors.filter(j => !hasRealAnalysis(j.number)).length;
+
+  const autoAnalyzeTriggered = React.useRef(false);
+  useEffect(() => {
+    if (autoAnalyze && !autoAnalyzeTriggered.current && jurors.length > 0 && analyzingJuror === null && batchAnalyzing === null) {
+      const needsAnalysis = jurors.some(j => !aiAnalysis[j.number]);
+      if (needsAnalysis) {
+        autoAnalyzeTriggered.current = true;
+        handleAnalyzeAll();
+      }
+    }
+  }, [autoAnalyze, jurors.length]);
 
   const handleLeanChangeWithAutoAnalysis = (juror: Juror, newLean: string) => {
     onUpdateJuror(juror.number, { lean: newLean as any });

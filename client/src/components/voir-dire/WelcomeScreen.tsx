@@ -143,11 +143,11 @@ export function WelcomeScreen({
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-900 mb-1">
-                    1. Ingest Strike List
+                    1. Generate Voir Dire Questions
                   </h3>
                   <p className="text-slate-600 text-sm">
-                    Instantly parse court-provided juror data into a sortable,
-                    searchable database.
+                    AI-powered voir dire questions tailored to your case, with
+                    strategic follow-ups and rephrases.
                   </p>
                 </div>
               </motion.div>
@@ -161,11 +161,11 @@ export function WelcomeScreen({
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-900 mb-1">
-                    2. Process Questions
+                    2. Ingest Strike List
                   </h3>
                   <p className="text-slate-600 text-sm">
-                    Input your voir dire questions to generate rephrases and
-                    strategic follow-ups.
+                    Instantly parse court-provided juror data into a sortable,
+                    searchable database.
                   </p>
                 </div>
               </motion.div>

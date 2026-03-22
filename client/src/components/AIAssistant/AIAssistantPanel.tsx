@@ -32,14 +32,14 @@ const PHASE_SUGGESTIONS: Record<number, string[]> = {
     "What risk factors should I flag?",
   ],
   2: [
-    "What should I look for on a strike list?",
-    "How do demographics affect jury selection?",
-    "Red flags in juror backgrounds",
-  ],
-  3: [
     "What are the best voir dire questions?",
     "How do I uncover juror bias?",
     "Tips for follow-up questions",
+  ],
+  3: [
+    "What should I look for on a strike list?",
+    "How do demographics affect jury selection?",
+    "Red flags in juror backgrounds",
   ],
   4: [
     "What juror responses are concerning?",

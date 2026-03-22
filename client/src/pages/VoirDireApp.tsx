@@ -95,6 +95,7 @@ export default function VoirDireApp() {
   const { user, logout } = useAuth();
   const [currentPhase, setCurrentPhase] = useState<AppPhase>(0);
   const [completedPhases, setCompletedPhases] = useState<Set<AppPhase>>(new Set<AppPhase>([0]));
+  const [triggerAutoAnalyze, setTriggerAutoAnalyze] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [caseInfo, setCaseInfo] = useState<CaseInfo | null>(null);
   const [jurors, setJurors] = useState<Juror[]>([]);
@@ -190,6 +191,7 @@ export default function VoirDireApp() {
       setBatsonAnalyzedAt(fullCase.batsonAnalyzedAt || null);
       setCauseAnalyzedAt(fullCase.causeAnalyzedAt || null);
       setSeatingConfig(fullCase.seatingConfig || null);
+      setTriggerAutoAnalyze(false);
     } catch (err) {
       console.error('Failed to load case:', err);
     }
@@ -220,6 +222,7 @@ export default function VoirDireApp() {
     setMattrmindrCaseId(null);
     setSavedCourtDismissed([]);
     setSeatingConfig(null);
+    setTriggerAutoAnalyze(false);
     setCurrentPhase(1);
   };
 
@@ -330,27 +333,7 @@ export default function VoirDireApp() {
     };
     setResponses(prev => [...prev, newResponse]);
 
-    setJurors(prev =>
-      prev.map(j => {
-        if (j.number === response.jurorNumber) {
-          const jResponses = [
-            ...responses.filter(r => r.jurorNumber === j.number),
-            newResponse,
-          ];
-          let newRisk = j.riskTier;
-          if (newRisk === 'unassessed') {
-            if (jResponses.length > 2) newRisk = 'medium';
-            else if (jResponses.length > 0) newRisk = 'medium';
-          }
-          const updated = { ...j, riskTier: newRisk };
-          if (activeCaseId) {
-            api.updateJurorOnServer(activeCaseId, j.number, { riskTier: newRisk }).catch(console.error);
-          }
-          return updated;
-        }
-        return j;
-      })
-    );
+    
 
     if (activeCaseId) {
       try {
@@ -503,7 +486,7 @@ export default function VoirDireApp() {
             responses={responses}
             onRecordResponse={handleRecordResponse}
             onAddFollowUp={handleAddFollowUp}
-            onProceed={() => proceedToPhase(5)}
+            onProceed={() => { setTriggerAutoAnalyze(true); proceedToPhase(5); }}
             onUpdateJuror={handleUpdateJuror}
             caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
             seatingConfig={seatingConfig}
@@ -521,6 +504,7 @@ export default function VoirDireApp() {
             onUpdateJuror={handleUpdateJuror}
             onProceed={() => proceedToPhase(6)}
             activeCaseId={activeCaseId}
+            autoAnalyze={triggerAutoAnalyze}
           />
         );
       case 6:
