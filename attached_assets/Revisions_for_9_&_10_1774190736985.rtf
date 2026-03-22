@@ -1,0 +1,70 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2868
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 ArialMT;\f1\froman\fcharset0 TimesNewRomanPSMT;\f2\fswiss\fcharset0 Arial-BoldMT;
+\f3\froman\fcharset0 Times-Roman;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\li960\fi-480\sa106\partightenfactor0
+
+\f0\fs29\fsmilli14667 \cf2 \expnd0\expndtw0\kerning0
+\'95
+\f1\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\b\fs29\fsmilli14667 Plan 9, Task 4: 
+\f0\b0 Add server-side logic to detect duplicate response entries for the same juror + question combination within a short window (e.g., 5 seconds). Either reject the second write with a conflict status or append it as a separate attributed entry, but define the behavior explicitly.\
+\'95
+\f1\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\b\fs29\fsmilli14667 Plan 10, Task 5: 
+\f0\b0 The useCollaborativeSession hook should handle a response:conflict or response:duplicate event. Display an inline indicator when someone else has already recorded on the same juror/question and let the user decide whether to add a supplemental note or discard.\
+\pard\pardeftab720\partightenfactor0
+\cf2 Consider adding a lightweight \'93recording in progress\'94 indicator per juror cell so collaborators can see when someone else is actively typing a response for that juror
+\f3\fs24  \
+\
+\pard\pardeftab720\li960\fi-480\sa106\partightenfactor0
+
+\f0\fs29\fsmilli14667 \cf2 \'95
+\f1\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\b\fs29\fsmilli14667 Plan 9, Task 3: 
+\f0\b0 Add a reconnection-aware sync mechanism. When a client reconnects, it should send a last_event_timestamp or sequence number so the server can replay missed events, or the client should do a full state refresh via the REST API on reconnect.\
+\'95
+\f1\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\b\fs29\fsmilli14667 Plan 10, Task 5: 
+\f0\b0 Build automatic reconnection with exponential backoff into the hook. Show a visible connection-status indicator (connected / reconnecting / disconnected) in the collaborator UI. Queue local writes made while disconnected and flush them on reconnect.\
+Consider a lightweight local write buffer (even just in-memory state) so that if a collaborator records a response while disconnected, it is not silently lost.\
+\
+\pard\pardeftab720\li960\fi-480\sa106\partightenfactor0
+\cf2 \'95
+\f1\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\b\fs29\fsmilli14667 Plan 9, Task 3: 
+\f0\b0 Add a phase:changed broadcast event so collaborators are notified when the primary user advances the workflow.\
+\'95
+\f1\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\b\fs29\fsmilli14667 Plan 10, Task 3: 
+\f0\b0 Define collaborator behavior on phase change. Recommended approach: when the case moves to Phase 5, disable further response recording in the collaborator UI but keep existing data visible. When the case reaches Phase 6, automatically transition collaborators to the read-only report view.\
+\
+\'95
+\f1\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\b\fs29\fsmilli14667 Plan 9, Task 2: 
+\f0\b0 Set a max_participants limit per session (recommend 10). Reject joins beyond the limit with a clear error.\
+\pard\pardeftab720\li960\fi-480\sa266\partightenfactor0
+\cf2 \'95
+\f1\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\b\fs29\fsmilli14667 Plan 9, Task 3: 
+\f0\b0 Add a heartbeat/ping mechanism to detect stale connections and clean up participants who disconnected without a proper close event.\
+\pard\pardeftab720\li960\fi-480\sa106\partightenfactor0
+\cf2 \'95
+\f1\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\b\fs29\fsmilli14667 Plan 9: 
+\f0\b0 \'93Two simultaneous collaborator writes to the same juror/question are handled without data loss or corruption.\'94\
+\'95
+\f1\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\b\fs29\fsmilli14667 Plan 9: 
+\f0\b0 \'93Revoking a session immediately disconnects all collaborators and invalidates their tokens.\'94\
+\'95
+\f1\fs18\fsmilli9333 \'a0\'a0\'a0\'a0\'a0\'a0 
+\f2\b\fs29\fsmilli14667 Plan 10: 
+\f0\b0 \'93When a collaborator\'92s connection drops and reconnects, their view reflects the current state without requiring a page refresh.\'94\
+\
+\pard\pardeftab720\li960\fi-480\sa106\partightenfactor0
+\cf2 \
+}
