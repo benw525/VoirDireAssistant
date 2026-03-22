@@ -1518,6 +1518,10 @@ export async function registerRoutes(
   app.post("/api/collab/responses", async (req, res) => {
     try {
       const caseId = req.collab!.caseId;
+      const caseRecord = await storage.getCase(caseId);
+      if (caseRecord && caseRecord.lastPhase >= 5) {
+        return res.status(403).json({ message: "Recording is disabled in this phase" });
+      }
       const displayName = req.collab!.displayName;
       const { jurorNumber, questionId, responseText, side, questionSummary } = req.body;
 
@@ -1594,6 +1598,11 @@ export async function registerRoutes(
     const existing = await storage.getResponseById(req.params.id);
     if (!existing || existing.caseId !== req.collab!.caseId) {
       return res.status(404).json({ message: "Response not found" });
+    }
+
+    const caseRecord = await storage.getCase(req.collab!.caseId);
+    if (caseRecord && caseRecord.lastPhase >= 5) {
+      return res.status(403).json({ message: "Recording is disabled in this phase" });
     }
 
     const updated = await storage.addFollowUpToResponse(req.params.id, { question: question || "", answer });
