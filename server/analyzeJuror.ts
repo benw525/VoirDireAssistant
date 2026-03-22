@@ -228,8 +228,8 @@ export async function analyzeJuror(
     enrichmentSection = `\nENRICHED BACKGROUND DATA (from public records / data services):\n${enrichText}\n`;
   }
 
-  const side: 'plaintiff' | 'defense' = (caseContext.side?.toLowerCase() === 'defense') ? 'defense' : 'plaintiff';
-  const archetypesText = getArchetypesAndBias(caseContext.areaOfLaw, side);
+  const archetypesText = getArchetypesAndBias(caseContext.areaOfLaw);
+  const systemPromptWithContext = SYSTEM_PROMPT + '\n\n' + archetypesText;
 
   const userPrompt = `CASE CONTEXT:
 Case: ${caseContext.name}
@@ -238,8 +238,6 @@ Summary: ${caseContext.summary}
 Representing: ${caseContext.side}
 Favorable Traits: ${caseContext.favorableTraits.join(', ') || 'None specified'}
 Risk Traits: ${caseContext.riskTraits.join(', ') || 'None specified'}
-
-${archetypesText}
 
 JUROR PROFILE:
 Juror #${juror.number}: ${juror.name}
@@ -258,7 +256,7 @@ Provide your risk assessment analysis for this juror.`;
   const completion = await openai.chat.completions.create({
     model: "gpt-5.4-2026-03-05",
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPromptWithContext },
       { role: "user", content: userPrompt },
     ],
     temperature: 0.4,

@@ -1384,7 +1384,7 @@ export function getStrategyModule(areaOfLaw: string, side: 'plaintiff' | 'defens
   return sections.join('\n');
 }
 
-export function getArchetypesAndBias(areaOfLaw: string, side: 'plaintiff' | 'defense'): string {
+export function getArchetypesAndBias(areaOfLaw: string): string {
   const { categoryModule, subSpecOverlay } = resolveRouting(areaOfLaw);
 
   const sections: string[] = [
@@ -1398,7 +1398,6 @@ export function getArchetypesAndBias(areaOfLaw: string, side: 'plaintiff' | 'def
   }
 
   sections.push('', categoryModule.biasPatterns);
-  sections.push('', assembleSideRules(categoryModule, side));
 
   return sections.join('\n');
 }
