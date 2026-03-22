@@ -20,188 +20,175 @@ export interface SubSpecOverlay {
 
 const CRIMINAL_LAW_BASE: StrategyModule = {
   category: 'Criminal Law',
-  archetypes: `DANGEROUS JUROR ARCHETYPES — CRIMINAL LAW
+  archetypes: `CRIMINAL LAW STRATEGY MODULE
 
-For the Prosecution:
-• The Anti-Government Libertarian — Deeply distrusts law enforcement and government authority. Believes police routinely lie and the system is rigged against defendants. Will hold the State to an impossibly high standard and may nullify regardless of evidence.
-• The "Reasonable Doubt Absolutist" — Interprets reasonable doubt as requiring near-certainty. Will find any hypothetical scenario, however implausible, sufficient to create doubt. Refuses to rely on circumstantial evidence.
-• The Personal Experience Victim Identifier — Has been wrongly accused, arrested, or knows someone who was. Projects that experience onto the defendant. Cannot separate their story from the case.
-• The Contrarian Holdout — Enjoys disagreeing with authority and group consensus. Will hold out in deliberations to feel powerful. Often presents as intellectual or independent.
+DANGEROUS JUROR ARCHETYPES:
+1. The Authoritarian: Defers to authority, trusts police implicitly, believes arrest equals guilt. Likely to credit law enforcement testimony without scrutiny and resent the defendant for "making us all sit here."
+2. The Victim Identifier: Has personal or family experience with violent crime. May unconsciously side with the complainant regardless of evidence quality. Emotional response may override analytical thinking.
+3. The Verdict Telegrapher: Has already formed an opinion about guilt based on the charge alone. Often reveals this through statements like "where there's smoke there's fire" or discomfort with the presumption of innocence.
+4. The System Skeptic: Deep distrust of police, prosecutors, or the criminal justice system generally. May nullify or refuse to convict regardless of evidence. Can also be hostile toward defense attorneys they see as "getting people off."
+5. The Reluctant Juror: Resentful about service, distracted by personal obligations, openly disengaged. Unlikely to deliberate carefully or follow complex instructions.`,
 
-For the Defense:
-• The Law-and-Order Absolutist — Believes if someone is charged, they are probably guilty. Trusts police implicitly. Sees defense attorneys as obstacles to justice. Will convict on weak evidence to "keep the streets safe."
-• The Victim Advocate — Strong emotional identification with crime victims. Cannot separate sympathy for the victim from the legal standard of proof. Prior victimization or close ties to victims of similar crimes.
-• The Punishment-First Thinker — Focused on consequences and sentencing before guilt is established. Believes harsh sentences deter crime. May convict to "send a message."
-• The "Common Sense" Juror — Dismisses legal technicalities and constitutional protections as "loopholes." Relies on gut feeling over evidence. Finds constitutional safeguards frustrating.`,
+  biasPatterns: `PRIMARY BIAS PATTERNS TO SCREEN:
+- Presumption of innocence compliance: Can the juror truly start at zero, or do they believe the defendant "must have done something"?
+- Burden of proof understanding: Does the juror understand that "beyond a reasonable doubt" means the State must prove every element, not that the defendant must prove innocence?
+- Right to silence: Can the juror accept that the defendant may not testify and not hold it against them?
+- Law enforcement credibility: Does the juror automatically believe police testimony over civilian testimony?
+- Prior criminal justice exposure: Has the juror or a close family member been arrested, charged, convicted, or victimized? How did that experience shape their views?
+- Punishment orientation: Is the juror more focused on conviction and sentencing than on evaluating evidence?
+- Witness credibility assessment: Can the juror evaluate conflicting testimony on its merits rather than defaulting to the "official" version?`,
 
-  biasPatterns: `BIAS PATTERNS — CRIMINAL LAW
-• Prior victimization bias — Jurors who have been victims of crime (especially similar crimes) may over-identify with the complainant and presume guilt
-• Authority deference bias — Some jurors automatically credit law enforcement testimony over civilian testimony
-• Media exposure bias — Pretrial publicity, true crime consumption, or general "crime wave" perceptions can create presumption of guilt
-• Demographic projection bias — Jurors may project their assumptions about the defendant's race, age, or appearance onto guilt determination
-• "Where there's smoke" bias — Belief that the mere fact of arrest or indictment indicates guilt
-• CSI Effect — Unrealistic expectations about forensic evidence (DNA, fingerprints) from television; cuts both ways depending on whether forensic evidence exists`,
+  questionSequencing: `QUESTION SEQUENCING PRIORITIES:
+1. Background and experience (least threatening): Prior jury service, familiarity with criminal cases, personal experiences with crime or law enforcement
+2. Attitude exploration: Views on the justice system, fairness of the process, whether innocent people get charged
+3. Burden and rights: Understanding of presumption of innocence, burden of proof, right to remain silent — explore misunderstandings without lecturing
+4. Witness credibility: Comfort evaluating conflicting stories, experience making credibility judgments, views on police testimony
+5. Specific case themes: Inoculate on the specific facts (type of crime, relationship between parties, nature of evidence)
+6. Fairness commitment: Final questions about ability to be fair, follow the law, and hold the State to its burden`,
 
-  questionSequencing: `QUESTION SEQUENCING — CRIMINAL LAW
-1. Experience-based: Prior jury service, prior involvement with the justice system (witness, victim, accused), family/friends in law enforcement or corrections
-2. Attitude-based: Views on the criminal justice system, whether the system is fair, feelings about the burden of proof
-3. Theme-specific: Attitudes about the specific crime type charged, prior experience with similar situations, media exposure
-4. Presumption and burden: Whether the juror can truly presume innocence, whether they understand the State bears the full burden, whether they require the defendant to testify
-5. Law enforcement credibility: Whether police officers' testimony is automatically more credible, whether officers can make mistakes or lie
-6. Punishment considerations: Whether knowledge of potential punishment would affect deliberations, views on sentencing severity`,
+  causeChallengeGrounds: `TYPICAL CAUSE-CHALLENGE GROUNDS:
+- Juror states they would expect the defendant to testify or present evidence
+- Juror states they would give more weight to police testimony simply because the witness is an officer
+- Juror has a close relationship with law enforcement, the DA's office, or a party/witness
+- Juror has been a victim of a similar crime and states or implies they cannot set that aside
+- Juror expresses a fixed opinion about guilt based on the charge
+- Juror states they cannot follow the beyond-a-reasonable-doubt standard
+- Juror has pending charges or is a witness in a case handled by the same DA's office`,
 
-  causeChallengeGrounds: `CAUSE CHALLENGE GROUNDS — CRIMINAL LAW
-• Stated inability to presume innocence ("I think if they're charged, there's probably a reason")
-• Refusal to hold the State to the burden of proof ("I'd need to hear from the defendant too")
-• Admitted bias based on the type of crime charged ("I could never be fair in a [drug/sex/DUI] case")
-• Close relationship with law enforcement that prevents impartial evaluation of officer testimony
-• Prior victimization of the same crime type where the juror states they cannot set aside that experience
-• Fixed opinion on guilt or punishment before hearing evidence
-• Stated belief that defense attorneys who represent guilty people are morally wrong`,
+  inoculation: `KEY INOCULATION TOPICS:
+- The defendant is not required to prove anything or present any evidence
+- An accusation is not evidence; the indictment/information is just a formal charge
+- Witness testimony can be unreliable even when the witness believes they are telling the truth
+- The State's burden never shifts to the defense at any point
+- Jurors may find a witness not credible even if no one directly contradicts them
+- A not-guilty verdict is not the same as saying the defendant is innocent — it means the State did not meet its burden`,
 
-  inoculation: `INOCULATION TOPICS — CRIMINAL LAW
-• The defendant may choose not to testify — and that is a constitutional right, not evidence of guilt
-• The defense is not required to present any evidence or call any witnesses
-• Circumstantial evidence is legally equivalent to direct evidence if it meets the standard
-• Police officers are witnesses like any other and their testimony should be evaluated the same way
-• A not guilty verdict does not mean the juror believes nothing happened — it means the State did not prove its case beyond a reasonable doubt
-• The juror may hear about evidence that was excluded and must not speculate about why`,
+  plaintiffRules: `IF REPRESENTING PROSECUTION/STATE:
+- Screen for jurors with deep distrust of law enforcement or the criminal justice system
+- Identify jurors who may nullify (refuse to convict regardless of evidence)
+- Screen for jurors with personal criminal history who may over-identify with the defendant
+- Look for jurors who express extreme skepticism about witness testimony generally
+- Watch for jurors who state they could "never" convict based on circumstantial evidence
+- Favorable signals: respect for law enforcement (without blind deference), prior jury service resulting in conviction, comfort with the responsibility of rendering a guilty verdict, stated belief that the system generally works`,
 
-  plaintiffRules: `PROSECUTION SCREENING RULES — CRIMINAL LAW
-• Screen for anti-law-enforcement sentiment — jurors who distrust police, believe officers routinely lie, or have had negative encounters with law enforcement
-• Screen for "reasonable doubt absolutists" who set an impossibly high bar for proof
-• Screen for jurors with personal experience being accused, arrested, or convicted — especially if they feel the system treated them unfairly
-• Screen for nullification risk — jurors who believe they can ignore the law if they disagree with it
-• Screen for jurors who express strong opposition to the specific criminal statute at issue
-• Identify favorable jurors: those with law enforcement connections, prior crime victimization (on the complaining side), military/security backgrounds, rule-followers who value order and accountability`,
-
-  defenseRules: `DEFENSE SCREENING RULES — CRIMINAL LAW
-• Screen for automatic deference to law enforcement — jurors who say they would believe an officer over a civilian "because of the badge"
-• Screen for "where there's smoke" bias — jurors who admit the mere fact of indictment suggests guilt
-• Screen for prior victimization of the same crime type — especially if they describe ongoing emotional impact
-• Screen for punishment-focused jurors who want to "send a message" or discuss sentencing before hearing evidence
-• Screen for jurors who cannot commit to requiring the State to prove every element beyond a reasonable doubt
-• Screen for jurors uncomfortable with constitutional protections (right to silence, exclusionary rule, right to counsel)
-• Identify favorable jurors: independent thinkers, those with personal or family experience with wrongful accusations, skeptics of government power, jurors who value individual rights`
+  defenseRules: `IF REPRESENTING DEFENSE:
+- Screen aggressively for jurors who equate accusation with guilt
+- Develop cause challenges on right-to-silence violations (jurors who expect testimony from the accused)
+- Screen for law enforcement connections that create automatic credibility bias
+- Identify jurors with victim experiences similar to the alleged crime
+- Look for jurors who understand and value the concept of holding the government to its burden
+- Favorable signals: prior jury service resulting in acquittal, experience questioning authority, professional experience evaluating evidence or making credibility judgments, stated belief that the system sometimes gets it wrong`
 };
 
 const CRIMINAL_OVERLAYS: SubSpecOverlay[] = [
   {
     name: 'Capital/Homicide',
-    archetypes: `ADDITIONAL ARCHETYPES — CAPITAL/HOMICIDE
-• The Death Penalty Advocate — Believes certain crimes automatically deserve death. Cannot meaningfully consider life as an alternative. May minimize mitigating evidence to reach a death verdict.
-• The Absolute Abolitionist — Morally opposed to the death penalty under all circumstances. Cannot impose death regardless of the evidence. Will nullify at the penalty phase.
-• The Grief Projector — Cannot separate their own fear of violent death from deliberation. May be overwhelmed by autopsy photos or victim impact testimony.`,
-    screeningPoints: `SCREENING — CAPITAL/HOMICIDE
-• Death qualification: Can the juror consider BOTH life imprisonment and death as potential sentences? A juror who can only consider one is challengeable for cause.
-• Exposure to violent media or personal violence — does it desensitize or traumatize?
-• Religious or moral beliefs about the sanctity of life, forgiveness, or retribution
-• Whether the juror can follow mitigation instructions — considering the defendant's background, mental health, age, and circumstances
-• Prior experience with murder, violent crime, or loss of a loved one to violence
-• Whether the juror understands that a life sentence means the defendant will die in prison`,
-    inoculation: `INOCULATION — CAPITAL/HOMICIDE
-• The jury will see graphic evidence — autopsy photos, crime scene images. Can the juror view this evidence and still deliberate rationally without being overwhelmed?
-• Mitigating evidence is not an excuse — it is context the law requires the jury to consider
-• A life sentence without parole means exactly that — the defendant will never leave prison`
+    archetypes: `CAPITAL / HOMICIDE OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The Death Penalty Absolutist: Believes anyone convicted of murder must receive the death penalty. Cannot genuinely consider the full range of punishment. Often reveals through statements like "an eye for an eye" or "some crimes only have one answer."
+- The Life-Means-Life Doubter: Believes life without parole does not actually mean life. Fears the defendant will "get out someday." May push for death as the only "safe" option.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Can the juror consider the full range of punishment, including life without parole?
+- Does the juror have religious or moral convictions that would prevent them from voting for either death or life?
+- Can the juror follow mitigation instructions and consider the defendant's background, mental health, and circumstances?
+- Has the juror or a family member been a homicide victim? How did the case resolve?
+- Does the juror understand that a life-without-parole sentence means the defendant will die in prison?`,
+    inoculation: `INOCULATION:
+- The jury must consider mitigating circumstances even if they find the defendant guilty
+- Life without parole means exactly what it says — no possibility of release
+- The decision on punishment is separate from the decision on guilt`
   },
   {
     name: 'DUI/DWI',
-    archetypes: `ADDITIONAL ARCHETYPES — DUI/DWI
-• The MADD Sympathizer — Has lost someone to a drunk driver or is deeply connected to anti-DUI advocacy. Cannot be impartial regardless of the specific facts.
-• The Social Drinker Minimizer — Believes everyone drives after a few drinks and DUI laws are overly harsh. May nullify or refuse to convict on principle.
-• The Field Sobriety Test Skeptic — Believes standardized field sobriety tests are junk science. Distrusts breathalyzer/blood test accuracy.`,
-    screeningPoints: `SCREENING — DUI/DWI
-• Personal experience with alcohol or substance abuse — self, family, or close friends
-• Has the juror or someone close been injured or killed by a drunk/impaired driver?
-• Attitudes about social drinking, acceptable blood alcohol levels, and personal driving behavior
-• Knowledge of or opinions about breathalyzer/blood test reliability
-• Views on whether DUI laws are too harsh, too lenient, or appropriate
-• Prior DUI arrests or convictions (self or family)`,
-    inoculation: `INOCULATION — DUI/DWI
-• Breathalyzer and blood test machines require calibration and maintenance — results are not infallible
-• Field sobriety tests are subjective evaluations conducted under stressful conditions
-• The legal limit is a legislative decision, not a scientific certainty about impairment
-• A person can fail a field sobriety test while completely sober due to medical conditions, nervousness, or physical limitations`
+    archetypes: `DUI / DWI OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The MADD Advocate: Personal connection to drunk driving tragedy. Views any DUI defendant as a potential killer. Cannot separate this defendant from their experience.
+- The Social Drinker in Denial: Drinks regularly, drives after drinking, but would never admit it. May be harsh on the defendant to distance themselves from their own behavior.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Has the juror or anyone close to them been injured or killed by an impaired driver?
+- Does the juror believe that any amount of alcohol makes a person too impaired to drive?
+- Does the juror understand that field sobriety tests and breathalyzers can produce inaccurate results?
+- Does the juror have strong feelings about alcohol or drug use generally?
+- Can the juror distinguish between "had been drinking" and "impaired beyond the legal limit"?`,
+    inoculation: `INOCULATION:
+- Breath and blood testing equipment can malfunction or be improperly calibrated
+- Field sobriety tests are subjective evaluations, not scientific measurements
+- The legal standard is impairment beyond the legal limit, not any consumption at all`
   },
   {
     name: 'Drug Offenses',
-    archetypes: `ADDITIONAL ARCHETYPES — DRUG OFFENSES
-• The War-on-Drugs Believer — Believes all drug users are criminals who destroy communities. No tolerance for drug activity regardless of context or amount.
-• The Legalization Advocate — Believes drug laws are unjust, especially for marijuana. May nullify because they disagree with the statute.
-• The Addiction-as-Disease Juror — Views addiction as a medical condition. May sympathize with the defendant to the point of ignoring distribution evidence.`,
-    screeningPoints: `SCREENING — DRUG OFFENSES
-• Personal or family history of addiction or substance abuse
-• Views on drug legalization, decriminalization, or the war on drugs
-• Neighborhood impact — has the juror been personally affected by drug activity in their community?
-• Views on mandatory minimum sentencing for drug offenses
-• Whether the juror distinguishes between personal use and distribution
-• Attitudes about confidential informants and undercover operations`,
-    inoculation: `INOCULATION — DRUG OFFENSES
-• Confidential informants are a common and legal tool — their testimony should be evaluated like any witness
-• The quantity of drugs and the circumstances determine the charge, not the juror's personal views on drug policy
-• Addiction does not excuse distribution or trafficking
-• Undercover operations and controlled buys are standard law enforcement techniques, not entrapment`
+    archetypes: `DRUG OFFENSES OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The Zero-Tolerance Parent: Has children and views any drug activity as an existential threat to families. Cannot see drug possession as anything other than morally reprehensible.
+- The Addiction-Is-Choice Juror: Believes addiction is a character flaw, not a medical condition. Will not be sympathetic to any mitigation involving substance abuse.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror believe all drug offenses should result in prison time regardless of circumstances?
+- Has the juror or a family member struggled with addiction? How did that shape their views?
+- Does the juror distinguish between drug possession for personal use and distribution?
+- Can the juror evaluate whether the State proved the defendant actually knew about or controlled the substance?
+- Does the juror have views on drug policy that would prevent fair evaluation of the evidence?`,
+    inoculation: `INOCULATION:
+- Proximity to drugs does not equal possession or knowledge
+- Constructive possession requires proof of knowledge and control, not just presence
+- The quantity of a substance does not automatically prove intent to distribute`
   },
   {
     name: 'Sex Offenses',
-    archetypes: `ADDITIONAL ARCHETYPES — SEX OFFENSES
-• The Automatic Believer — Believes all accusers and cannot fathom that a sexual assault allegation could be false or exaggerated. "Why would someone lie about this?"
-• The False Accusation Crusader — Believes false accusations are rampant. Distrusts all complainants. May have personal experience with a false accusation.
-• The Trauma-Triggered Juror — Survivor of sexual assault or close to a survivor. May be re-traumatized by testimony and cannot deliberate objectively.`,
-    screeningPoints: `SCREENING — SEX OFFENSES
-• Personal history of sexual assault or abuse — self, family, or close friends (handle with extreme sensitivity)
-• #MeToo movement attitudes — does the juror believe accusers should always be believed?
-• Views on false accusations — how common does the juror think they are?
-• Comfort level hearing graphic sexual testimony
-• Views on consent, especially in cases involving alcohol or relationships
-• Whether the juror can convict on testimony alone without physical evidence
-• Attitudes about delayed reporting — why a victim might wait to come forward`,
-    inoculation: `INOCULATION — SEX OFFENSES
-• Delayed reporting is common in sexual assault cases and does not indicate fabrication
-• The absence of physical evidence does not mean an assault did not occur
-• Victims of trauma may have fragmented or inconsistent memories — this is a documented neurological response
-• The defendant's character or reputation does not determine guilt or innocence
-• Consent is a factual question for the jury — not a moral judgment about the parties' behavior`
+    archetypes: `SEX OFFENSES OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The Protective Parent: Views any accusation involving sexual conduct as automatically credible. Cannot separate the emotional weight of the charge from the evidence requirement.
+- The Stigma Voter: Believes that merely being charged with a sex offense proves something is wrong with the defendant. The social stigma becomes evidence in their mind.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Can the juror evaluate the accuser's testimony with the same scrutiny as any other witness?
+- Has the juror or someone close to them been a victim of sexual assault? Can they set that aside?
+- Does the juror believe that false accusations of sexual crimes are extremely rare or essentially nonexistent?
+- Can the juror follow the instruction that the accuser's testimony must be evaluated like any other witness's?
+- Can the juror look at the defendant without prejudging based on the nature of the charge?`,
+    inoculation: `INOCULATION:
+- The nature of the charge does not change the burden of proof
+- A single witness's testimony must still be evaluated for credibility and consistency
+- The presumption of innocence applies with the same force regardless of what the charge is
+- The jury must decide based on evidence, not emotion or the seriousness of the allegation`
   },
   {
     name: 'White Collar/Federal',
-    archetypes: `ADDITIONAL ARCHETYPES — WHITE COLLAR/FEDERAL
-• The Anti-Corporate Populist — Believes all wealthy people and corporations are corrupt. Will convict based on class resentment rather than evidence.
-• The Business Sympathizer — Understands business complexity and may excuse fraudulent conduct as "just how business works" or "aggressive but not criminal."
-• The Document Phobic — Cannot process large volumes of financial documents, spreadsheets, or email evidence. Will tune out during complex testimony.`,
-    screeningPoints: `SCREENING — WHITE COLLAR/FEDERAL
-• Financial literacy — can the juror understand financial statements, wire transfers, and corporate structures?
-• Attitudes about wealth, corporations, and financial regulation
-• Prior experience with fraud — as a victim, perpetrator, or witness
-• Views on government regulation and enforcement agencies (SEC, FBI, IRS)
-• Ability to sit through a lengthy trial with complex documentary evidence
-• Understanding that intent is a key element — "I didn't know it was wrong" is relevant to criminal fraud
-• Views on whistleblowers and cooperating witnesses`,
-    inoculation: `INOCULATION — WHITE COLLAR/FEDERAL
-• Complex financial transactions are not inherently suspicious — the question is whether there was intent to defraud
-• Cooperating witnesses who received plea deals have a motive to testify but that does not automatically make their testimony unreliable
-• The government must prove criminal intent — negligence or poor judgment alone is not fraud
-• Business records and emails will be the primary evidence — the jury must be willing to review them carefully`
+    archetypes: `WHITE COLLAR / FEDERAL OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The Anti-Corporate Populist: Views anyone in business or finance as inherently corrupt. Predisposed to believe financial misconduct charges because "they're all crooks."
+- The Complexity Avoider: Overwhelmed by financial documents, accounting concepts, or regulatory frameworks. May default to "they wouldn't have been charged if they didn't do something" rather than engage with complicated evidence.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror have strong feelings about corporations, banks, or Wall Street?
+- Can the juror follow complex financial evidence and accounting concepts?
+- Does the juror understand the difference between aggressive business practices and criminal conduct?
+- Is the juror comfortable with the idea that a successful businessperson can be innocent of fraud?
+- Can the juror distinguish between civil liability and criminal guilt?`,
+    inoculation: `INOCULATION:
+- Business judgments that turn out badly are not crimes
+- The complexity of financial transactions does not make them suspicious
+- Intent is a required element — the government must prove the defendant acted with criminal purpose, not just that a loss occurred`
   },
   {
     name: 'Domestic Violence',
-    archetypes: `ADDITIONAL ARCHETYPES — DOMESTIC VIOLENCE
-• The "Why Didn't They Leave" Juror — Cannot understand why a victim stays in an abusive relationship. May blame the victim or doubt the severity.
-• The Cycle-of-Violence Expert — Has personal experience with DV (as victim or advocate) and may project their experience onto the case facts.
-• The Mutual Combat Believer — Believes most DV cases are "both sides fighting" and may minimize the defendant's conduct.`,
-    screeningPoints: `SCREENING — DOMESTIC VIOLENCE
-• Personal experience with domestic violence — as victim, accused, witness, or in family
-• Views on why victims stay in abusive relationships
-• Attitudes about self-defense in the domestic context
-• Whether the juror believes DV is a private family matter or a criminal justice issue
-• Experience with protective orders — as petitioner, respondent, or witness
-• Views on recanting victims — does the juror understand why a victim might recant?
-• Gender-based assumptions about who can be a victim or perpetrator`,
-    inoculation: `INOCULATION — DOMESTIC VIOLENCE
-• Victims of domestic violence often recant or refuse to cooperate — this is a documented pattern of the abuse cycle, not evidence of fabrication
-• Domestic violence can occur without visible injuries
-• The relationship between the parties does not diminish the seriousness of the charges
-• Self-defense in the domestic context requires the same legal analysis as any other self-defense claim`
+    archetypes: `DOMESTIC VIOLENCE OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The Survivor Advocate: Has personal experience with domestic violence (as victim, witness, or through a close relationship). Views all DV accusations through the lens of their own experience.
+- The Reconciliation Skeptic: Believes that if the victim returned to or maintains contact with the defendant, the accusation must be false or exaggerated. Misunderstands the dynamics of abusive relationships.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Has the juror or someone close experienced domestic violence? How did it resolve?
+- Does the juror understand that victims sometimes recant or minimize for reasons unrelated to truth?
+- Can the juror evaluate the evidence without automatically believing or disbelieving the complainant based on the relationship context?
+- Does the juror have views about how domestic disputes should be handled (e.g., "keep it in the family" vs. "always prosecute")?
+- Can the juror follow the instruction that prior bad acts (if excluded) cannot be considered?`,
+    inoculation: `INOCULATION:
+- The relationship between the parties does not change the evidence standard
+- Witness credibility must be evaluated on the specifics of this case, not assumptions about domestic relationships generally
+- The defendant's character is not on trial unless specific evidence is admitted`
   }
 ];
 
@@ -209,186 +196,175 @@ const CRIMINAL_OVERLAYS: SubSpecOverlay[] = [
 
 const PI_TORT_BASE: StrategyModule = {
   category: 'Personal Injury / Tort',
-  archetypes: `DANGEROUS JUROR ARCHETYPES — PERSONAL INJURY / TORT
+  archetypes: `PERSONAL INJURY / TORT STRATEGY MODULE
 
-For the Plaintiff:
-• The Tort Reform Warrior — Believes lawsuits are destroying America. Reads about "frivolous lawsuits" and thinks most plaintiffs are faking or exaggerating. Will cap damages regardless of evidence.
-• The Corporate Apologist — Works for or identifies with large companies. Believes businesses should not be punished for accidents. Sees regulation as government overreach.
-• The Personal Responsibility Absolutist — Believes people are entirely responsible for their own safety. "If you got hurt, you should have been more careful." Minimizes defendant's negligence.
-• The Damages Skeptic — Cannot award large verdicts. Believes pain and suffering are subjective and shouldn't be compensated with money. Will anchor to medical bills only.
+DANGEROUS JUROR ARCHETYPES:
+1. The Tort Reformer: Believes lawsuits are out of control, verdicts are too large, and plaintiffs are usually exaggerating. Often works in business, insurance, or management. May use phrases like "lawsuit lottery" or "personal responsibility."
+2. The Sympathy Voter: Cannot separate emotional response to injury from analytical evaluation of liability and causation. Will award damages based on how badly the plaintiff is hurt regardless of whether the defendant caused it.
+3. The Corporate Apologist: Identifies with businesses and employers. Believes companies generally act responsibly and that plaintiffs are motivated by greed. May work in management or own a business.
+4. The Anti-Authority Plaintiff: Distrusts all institutions (corporations, hospitals, insurance companies) and assumes the plaintiff is David fighting Goliath. May award damages to "send a message" regardless of evidence.
+5. The Minimizer: Believes everyone exaggerates their injuries, that pain is subjective, and that people should just "tough it out." Often dismissive of soft-tissue injuries, mental health claims, or chronic pain.`,
 
-For the Defense:
-• The Sympathy Voter — Deeply empathetic juror who will award based on the plaintiff's suffering regardless of liability. Cannot separate sympathy from the legal standard.
-• The Anti-Corporate Crusader — Believes all corporations are greedy and negligent. Will punish the defendant to "send a message" regardless of the specific facts.
-• The Jackpot Juror — Sees the trial as an opportunity to award a massive verdict. Excited about large numbers. May have financial stress that colors their view.
-• The Prior Claimant — Has filed personal injury claims before and had positive experiences. Identifies with the plaintiff's position and process.`,
+  biasPatterns: `PRIMARY BIAS PATTERNS TO SCREEN:
+- Litigation attitudes: Does the juror believe there are too many lawsuits? That verdicts are too high? That people should handle problems without suing?
+- Damages comfort: Can the juror award large damages if the evidence supports it? Or will they anchor low regardless?
+- Corporate vs. individual framing: Does the juror automatically side with businesses or individuals?
+- Personal responsibility attribution: Does the juror believe injured people usually bear some fault?
+- Insurance awareness: Does the juror understand (or assume) that insurance is involved? Will that affect their verdict?
+- Medical skepticism: Does the juror distrust doctors, medical testimony, or the ability to objectively measure pain and suffering?
+- Prior claims experience: Has the juror made an injury claim, been denied a claim, or been sued? How did that shape their views?`,
 
-  biasPatterns: `BIAS PATTERNS — PERSONAL INJURY / TORT
-• "McDonald's coffee" bias — Media-driven belief that most lawsuits are frivolous, affecting jurors' willingness to award fair damages
-• Anchoring bias — Jurors anchor to the first number they hear (medical bills, insurance policy limits) and resist adjusting upward for non-economic damages
-• Invisible injury skepticism — Bias against injuries that cannot be seen (soft tissue, chronic pain, PTSD, TBI) vs. visible injuries (broken bones, scars)
-• Litigation frequency bias — Belief that too many lawsuits exist and that filing suit is itself suspect
-• Contributory fault inflation — Tendency to assign more fault to the plaintiff than the evidence supports because "they should have been more careful"
-• Sympathy-to-liability confusion — Conflating feeling sorry for the plaintiff with finding the defendant liable`,
+  questionSequencing: `QUESTION SEQUENCING PRIORITIES:
+1. Experience with lawsuits and the legal system: Prior jury service in civil cases, personal claims, involvement in litigation
+2. Attitudes toward lawsuits and damages: General views on the civil justice system, lawsuit frequency, verdict sizes
+3. Corporate and institutional attitudes: Views on businesses, hospitals, insurance companies depending on the defendant type
+4. Damages exploration: Comfort with non-economic damages (pain and suffering, loss of enjoyment), understanding of future damages, willingness to award what the evidence supports
+5. Specific liability themes: Negligence concepts, comparative fault, causation, standard of care
+6. Money comfort: Ability to write a large number on a verdict form if the evidence justifies it`,
 
-  questionSequencing: `QUESTION SEQUENCING — PERSONAL INJURY / TORT
-1. Experience-based: Prior injuries, prior lawsuits (as plaintiff or defendant), insurance claims, Workers' Comp experience
-2. Attitude-based: Views on the civil justice system, lawsuit culture, tort reform, whether there are too many lawsuits
-3. Theme-specific: Attitudes about the specific type of injury, corporate responsibility, safety standards
-4. Damages and money: Comfort with large verdicts, understanding of non-economic damages, attitudes about pain and suffering compensation
-5. Burden and proof: Understanding of preponderance of the evidence standard, comparative fault concepts
-6. Specific fact inoculation: Addressing potentially damaging facts (pre-existing conditions, gaps in treatment, social media)`,
+  causeChallengeGrounds: `TYPICAL CAUSE-CHALLENGE GROUNDS:
+- Juror states they believe most lawsuits are frivolous or that people sue too much
+- Juror states they could not award non-economic damages (pain and suffering) because they are too subjective
+- Juror states a specific dollar cap they would never exceed regardless of evidence
+- Juror has a financial interest in the outcome (e.g., employed by the defendant, insured by the same carrier)
+- Juror states they believe the plaintiff should bear responsibility for their injury regardless of the facts
+- Juror has a close relationship with a party, witness, or treating physician
+- Juror states they would hold the plaintiff to a higher standard because they are the one suing`,
 
-  causeChallengeGrounds: `CAUSE CHALLENGE GROUNDS — PERSONAL INJURY / TORT
-• Stated refusal to award non-economic damages ("I don't believe in paying for pain and suffering")
-• Admission that they would cap damages regardless of evidence ("I could never award more than X")
-• Stated belief that filing a lawsuit is wrong or that most plaintiffs are faking
-• Close relationship with a party, attorney, or key witness
-• Employment relationship that creates bias (works for defendant's company, insurer, or industry)
-• Prior negative experience as a defendant in a lawsuit that prevents impartiality
-• Stated inability to follow the law on comparative fault, burden of proof, or damages`,
+  inoculation: `KEY INOCULATION TOPICS:
+- Non-economic damages (pain, suffering, loss of enjoyment) are real and recognized by law
+- The jury's job is to make the plaintiff whole, not to compromise
+- Comparative fault means apportioning responsibility, not eliminating the claim
+- Future damages require projection based on evidence, not guesswork
+- The amount of the verdict should be based on the evidence, not on what feels "reasonable" in a vacuum
+- Insurance (if relevant and admissible) exists to pay claims — that is its purpose`,
 
-  inoculation: `INOCULATION TOPICS — PERSONAL INJURY / TORT
-• Pre-existing conditions can be aggravated by negligence — the defendant takes the plaintiff as they find them (eggshell plaintiff rule)
-• Gaps in treatment do not mean the plaintiff was not injured — financial, logistical, and psychological barriers to care exist
-• Non-economic damages (pain, suffering, loss of enjoyment of life) are real and recognized by the law
-• The plaintiff bears the burden of proof by a preponderance of the evidence — more likely than not
-• Insurance is not relevant to liability or damages (or: insurance may be mentioned depending on jurisdiction)
-• The amount the plaintiff asks for is not the amount the jury must award — it is the amount the evidence supports`,
+  plaintiffRules: `IF REPRESENTING PLAINTIFF:
+- Screen aggressively for tort reform attitudes and lawsuit skepticism
+- Identify jurors who would cap damages regardless of evidence
+- Screen for corporate favoritism, especially if the defendant is a business entity
+- Develop cause challenges on damages refusal (jurors who state they cannot award non-economic damages)
+- Look for jurors comfortable with the responsibility of awarding full compensation
+- Favorable signals: prior experience being wronged by an institution, empathy without sentimentality, professional experience caring for others, stated belief that accountability matters`,
 
-  plaintiffRules: `PLAINTIFF SCREENING RULES — PERSONAL INJURY / TORT
-• Screen for tort reform attitudes — jurors who believe there are too many lawsuits or that verdicts are too high
-• Screen for corporate identification — jurors who work in the defendant's industry or identify with business interests
-• Screen for damages skeptics — jurors who cannot award non-economic damages or are uncomfortable with large numbers
-• Screen for personal responsibility absolutists who will inflate the plaintiff's comparative fault
-• Screen for invisible injury skeptics if the case involves soft tissue, chronic pain, or psychological injuries
-• Identify favorable jurors: those with prior injury experience, healthcare workers who understand pain, union members, community-minded jurors who value accountability`,
-
-  defenseRules: `DEFENSE SCREENING RULES — PERSONAL INJURY / TORT
-• Screen for anti-corporate bias — jurors who express hostility toward businesses, insurance companies, or "big companies"
-• Screen for prior claimants — jurors who have filed lawsuits and had large awards or positive litigation experiences
-• Screen for sympathy-driven jurors who cannot separate empathy from the legal standard
-• Screen for jackpot mentality — jurors who are excited about large verdicts or see the trial as a windfall opportunity
-• Screen for jurors with financial stress who may project their needs onto the damages calculation
-• Identify favorable jurors: business owners, management-level employees, jurors with engineering or safety backgrounds who understand risk management, fiscally conservative jurors`
+  defenseRules: `IF REPRESENTING DEFENSE:
+- Screen for anti-corporate bias and automatic sympathy for injured plaintiffs
+- Identify jurors who would award damages based on sympathy rather than causation
+- Screen for jurors who distrust the defendant's industry (medicine, construction, manufacturing, etc.)
+- Develop cause challenges on jurors who state they would presume liability from the existence of an injury
+- Look for jurors who understand comparative fault and personal responsibility
+- Favorable signals: business experience, management roles, analytical professions, comfort with the concept that bad outcomes don't always mean someone was negligent`
 };
 
 const PI_TORT_OVERLAYS: SubSpecOverlay[] = [
   {
     name: 'Medical Malpractice',
-    archetypes: `ADDITIONAL ARCHETYPES — MEDICAL MALPRACTICE
-• The Doctor Worshipper — Reveres physicians and cannot believe a doctor would make a serious error. "Doctors are doing their best in difficult situations."
-• The Healthcare System Critic — Has had terrible healthcare experiences and blames all doctors. Will punish the defendant doctor for the system's failings.
-• The Outcome-Equals-Malpractice Juror — Believes any bad medical outcome means someone made a mistake. Cannot distinguish between a known complication and negligence.`,
-    screeningPoints: `SCREENING — MEDICAL MALPRACTICE
-• Personal or family relationships with healthcare providers — doctors, nurses, hospital administrators
-• Prior medical malpractice experience — as patient, family member, or healthcare worker accused
-• Understanding that a bad outcome alone does not equal malpractice
-• Attitudes about the difficulty of practicing medicine and the role of informed consent
-• Whether the juror can evaluate competing expert medical testimony
-• Views on the medical profession generally — trust level, prior negative experiences
-• Understanding of standard of care as a legal concept`,
-    inoculation: `INOCULATION — MEDICAL MALPRACTICE
-• Informed consent means the patient was told about risks — it does not mean the patient consented to negligence
-• A known complication is different from a preventable error
-• Expert witnesses on both sides are qualified — the jury must weigh their opinions
-• Standard of care is what a reasonable physician in the same specialty would do — not perfection`
+    archetypes: `MEDICAL MALPRACTICE OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The Doctor Worshipper: Views physicians as infallible. Cannot believe a doctor would make a serious mistake. May have a personal physician they adore and project that relationship onto the defendant.
+- The System Blamer: Believes the healthcare system is fundamentally broken and that medical errors are routine. Predisposed to find liability in any bad outcome.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror or a family member work in healthcare? What is their role and how do they view medical errors?
+- Does the juror believe doctors generally do their best, or that the system creates avoidable mistakes?
+- Can the juror distinguish between a bad medical outcome and medical negligence?
+- Does the juror have strong feelings about healthcare costs, insurance, or access to care?
+- Has the juror or a family member experienced a medical error or unexpected complication?`,
+    inoculation: `INOCULATION:
+- A bad outcome does not automatically mean malpractice occurred
+- The standard of care is what a reasonably prudent physician would do, not perfection
+- Medical expert testimony may conflict — the jury must evaluate which experts are more credible
+- Informed consent means the patient accepted known risks; the question is whether the physician deviated from the standard`
   },
   {
     name: 'Products Liability',
-    archetypes: `ADDITIONAL ARCHETYPES — PRODUCTS LIABILITY
-• The Consumer Blame Juror — "If the product was dangerous, why did they use it?" Blames the consumer for not reading warnings or using the product differently.
-• The Over-Regulation Critic — Believes government safety regulations are excessive and companies shouldn't be punished for making products people choose to buy.
-• The Design Engineer Defender — Has engineering background and sympathizes with design trade-offs. May excuse known defects as acceptable risk-benefit decisions.`,
-    screeningPoints: `SCREENING — PRODUCTS LIABILITY
-• Engineering or manufacturing background — may understand design trade-offs too sympathetically
-• Consumer safety attitudes — does the juror believe manufacturers have a duty to make products safe?
-• Experience with product recalls or defective products
-• Views on warning labels — are they sufficient protection or corporate cover?
-• Attitudes about government regulation of product safety (CPSC, FDA, NHTSA)
-• Whether the juror can apply strict liability concepts if instructed`,
-    inoculation: `INOCULATION — PRODUCTS LIABILITY
-• Warning labels do not eliminate a manufacturer's duty to design safe products
-• A product can be defective even if it is used as intended
-• Companies know about risks through internal testing — the question is what they did with that knowledge
-• The cost of making a product safer is relevant but does not excuse ignoring known dangers`
+    archetypes: `PRODUCTS LIABILITY OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The User-Error Default: Believes product injuries are almost always caused by misuse. If the plaintiff got hurt, they must have done something wrong.
+- The Anti-Regulation Libertarian: Opposes product safety regulation and believes consumers should bear the risk of their choices. Unlikely to hold manufacturers accountable.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror believe manufacturers generally make safe products, or that corners are regularly cut?
+- Does the juror understand the difference between a design defect, manufacturing defect, and failure to warn?
+- Has the juror been injured by a product or had a product fail unexpectedly?
+- Does the juror have engineering, manufacturing, or quality-control experience?
+- Can the juror hold a large corporation responsible even if the product is widely used without incident by most consumers?`,
+    inoculation: `INOCULATION:
+- A product can be defective even if most users are not injured
+- The manufacturer has a duty to anticipate reasonably foreseeable misuse
+- Warnings must be adequate, not just present
+- The focus is on whether the product was unreasonably dangerous, not whether the plaintiff was careful`
   },
   {
     name: 'Wrongful Death',
-    archetypes: `ADDITIONAL ARCHETYPES — WRONGFUL DEATH
-• The Emotional Shutout — Cannot handle the emotional weight of a death case. May rush deliberations to escape discomfort, resulting in lower damages.
-• The "Life Has No Price" Literalist — Believes putting a dollar value on a human life is morally wrong. May award either nothing or an irrational amount.
-• The Grief Assessor — Judges the family's grief and demeanor in court. If they seem "too composed" or "not sad enough," questions the sincerity of the claim.`,
-    screeningPoints: `SCREENING — WRONGFUL DEATH
-• Recent personal loss — can the juror sit through testimony about death without being overwhelmed?
-• Comfort with valuing a human life in monetary terms
-• Attitudes about survival actions vs. wrongful death damages
-• Whether the juror will judge the surviving family's courtroom demeanor
-• Views on loss of consortium, companionship, and guidance claims
-• Religious or philosophical beliefs about death that might affect damages deliberation`,
-    inoculation: `INOCULATION — WRONGFUL DEATH
-• The law requires the jury to place a monetary value on the loss — this is the only way the justice system can provide a remedy
-• How a family grieves in public is not evidence of the depth of their loss
-• Future lost earnings and future companionship are real, calculable damages
-• The fact that someone has died does not automatically mean someone is legally responsible — liability must still be proven`
+    archetypes: `WRONGFUL DEATH OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The Grief Projector: So emotionally affected by the death that they cannot analytically evaluate causation or liability. Will award damages based on the tragedy itself.
+- The Life Valuator: Uncomfortable placing a dollar value on human life. May award token damages despite strong liability because the concept of monetizing death feels wrong.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Has the juror lost a close family member unexpectedly? How recently? Can they separate that experience from this case?
+- Is the juror comfortable with the concept of placing a monetary value on a human life as the law requires?
+- Does the juror understand the difference between compensatory damages in a death case and a "price" on someone's life?
+- Can the juror follow the damages framework (loss of companionship, support, guidance, etc.) without being overwhelmed by emotion?`,
+    inoculation: `INOCULATION:
+- The law requires monetary compensation because it is the only remedy available in a civil case
+- Damages categories (loss of companionship, support, guidance, future earnings) are specifically defined
+- The jury's task is not to assign a value to life but to compensate for specific, provable losses
+- Emotional difficulty with the subject does not excuse the duty to evaluate evidence carefully`
   },
   {
     name: 'Trucking/Auto Accident',
-    archetypes: `ADDITIONAL ARCHETYPES — TRUCKING/AUTO ACCIDENT
-• The "Accidents Happen" Minimizer — Believes car and truck accidents are an unavoidable part of life. Reluctant to assign blame or award significant damages.
-• The Truck Driver Sympathizer — Understands the difficulty of trucking and may excuse violations of hours-of-service rules or maintenance requirements.
-• The Comparative Fault Maximizer — Will scrutinize the plaintiff's driving behavior to assign fault even when the defendant clearly caused the collision.`,
-    screeningPoints: `SCREENING — TRUCKING/AUTO ACCIDENT
-• CDL holders or family members who drive trucks commercially
-• Personal experience with serious car or truck accidents
-• Views on distracted driving, speeding, and traffic law enforcement
-• Understanding of federal motor carrier safety regulations (if trucking case)
-• Attitudes about the trucking industry and corporate fleet safety
-• Whether the juror has been at fault in an accident and how that experience shapes their view`,
-    inoculation: `INOCULATION — TRUCKING/AUTO ACCIDENT
-• Federal hours-of-service regulations exist because fatigued driving is as dangerous as drunk driving
-• Trucking companies have a duty to maintain their vehicles and monitor their drivers
-• The severity of injuries does not always correlate with the visual damage to vehicles
-• Electronic logging devices (ELDs) and black box data provide objective evidence of driver behavior`
+    archetypes: `TRUCKING / AUTO ACCIDENTS OVERLAY:`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror drive for a living or have family members who do? May sympathize with a commercial driver defendant.
+- Does the juror have strong opinions about truck drivers, road safety, or traffic enforcement?
+- Has the juror been in a significant auto accident? Were they at fault? How did insurance handle it?
+- Does the juror understand that trucking companies have regulatory obligations (hours of service, maintenance, training) beyond ordinary driver care?
+- Can the juror hold a trucking company responsible for the actions of its driver?`,
+    inoculation: `INOCULATION:
+- Federal and state regulations impose specific duties on commercial carriers beyond ordinary traffic law
+- Respondeat superior means the employer can be liable for the driver's on-duty conduct
+- Hours-of-service violations, maintenance failures, and hiring practices are all relevant to the company's liability
+- The severity of injuries from truck collisions reflects the physics involved, not exaggeration`
   },
   {
     name: 'Nursing Home/Elder Abuse',
-    archetypes: `ADDITIONAL ARCHETYPES — NURSING HOME/ELDER ABUSE
-• The "Old People Die" Nihilist — Believes elderly patients in nursing homes are expected to decline. Minimizes neglect because "they were already sick."
-• The Guilt-Ridden Family Member — Has placed a family member in a nursing home and feels guilty. May over-identify with the plaintiff's family or, conversely, become defensive about the facility.
-• The Staffing Realist — Understands nursing homes are understaffed and underfunded. May excuse neglect as a systemic problem rather than the facility's fault.`,
-    screeningPoints: `SCREENING — NURSING HOME/ELDER ABUSE
-• Personal experience with nursing homes — as family decision-maker, visitor, or employee
-• Attitudes about elder care quality and expectations
-• Views on corporate-owned vs. independently operated care facilities
-• Whether the juror will judge the family for placing the elder in a facility
-• Understanding of staffing ratios, regulatory requirements, and minimum standards of care
-• Emotional capacity to view bedsore photos, weight loss documentation, and other evidence of neglect`,
-    inoculation: `INOCULATION — NURSING HOME/ELDER ABUSE
-• Placing a loved one in a nursing home is not abandonment — families rely on these facilities to provide professional care
-• Nursing homes accept payment to provide a specific standard of care — they are legally bound to meet it
-• Bedsores, dehydration, and falls are preventable with proper staffing and protocols
-• Corporate ownership structures and profit-driven cost cutting can directly cause neglect`
+    archetypes: `NURSING HOME / ELDER ABUSE OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The Guilt Deflector: Has a family member in a nursing home or recently placed one. May minimize institutional failures to avoid confronting their own guilt about the placement decision.
+- The Industry Insider: Works in healthcare, elder care, or facility management. May view staffing shortages and care lapses as unavoidable realities rather than negligence.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror have a family member in a nursing home or assisted living facility?
+- Does the juror work in healthcare or elder care? What is their view of staffing and care standards?
+- Does the juror believe nursing homes generally provide good care, or that problems are widespread?
+- Can the juror evaluate a corporate nursing home chain's staffing decisions as potential negligence?
+- Does the juror have strong feelings about end-of-life care, aging, or the value of elderly patients' lives?`,
+    inoculation: `INOCULATION:
+- Nursing homes have specific legal duties to provide adequate staffing and supervision
+- Understaffing is often a corporate budgeting decision, not an unavoidable condition
+- Falls, pressure ulcers, malnutrition, and medication errors can indicate systemic neglect
+- The age and frailty of the resident does not reduce the facility's duty of care`
   },
   {
     name: 'Toxic Tort/Environmental',
-    archetypes: `ADDITIONAL ARCHETYPES — TOXIC TORT/ENVIRONMENTAL
-• The "Prove the Molecule" Skeptic — Demands direct proof of individual causation at the molecular level. Cannot accept epidemiological or statistical evidence.
-• The Environmental Absolutist — Believes all industrial activity is harmful and all companies are polluters. Will find liability based on ideology rather than evidence.
-• The Regulatory Compliance Defender — Believes that if a company followed government regulations, it cannot be liable. "If the EPA said it was okay, it was okay."`,
-    screeningPoints: `SCREENING — TOXIC TORT/ENVIRONMENTAL
-• Scientific literacy — can the juror evaluate expert testimony about dose-response, exposure pathways, and epidemiology?
-• Views on environmental regulation and corporate environmental responsibility
-• Personal experience with environmental contamination or pollution
-• Attitudes about industries involved (chemical, oil/gas, manufacturing, mining)
-• Whether the juror understands that regulatory compliance does not immunize against liability
-• Ability to process lengthy scientific and medical evidence
-• Proximity to industrial sites or personal connection to environmental issues`,
-    inoculation: `INOCULATION — TOXIC TORT/ENVIRONMENTAL
-• Regulatory compliance sets minimum standards — a company can comply with regulations and still be negligent
-• Epidemiological evidence (population studies) is a valid way to prove causation when individual exposure cannot be measured directly
-• The effects of toxic exposure may take years or decades to manifest
-• Companies have internal documents showing what they knew about risks — the jury must evaluate whether they acted on that knowledge`
+    archetypes: `TOXIC TORT / ENVIRONMENTAL OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The Causation Skeptic: Believes that linking chemical exposure to disease is speculative science. Demands certainty that no court or expert can provide.
+- The Jobs-vs-Environment Voter: Identifies with the employer or industry and views the lawsuit as a threat to jobs and economic stability.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror work in the chemical, petroleum, manufacturing, or mining industry?
+- Does the juror have strong views about environmental regulation (too much vs. too little)?
+- Does the juror understand epidemiological and toxicological evidence, or will complexity create doubt by default?
+- Does the juror live near the site or facility involved, and if so, do they have financial or social ties to the defendant?
+- Can the juror accept that causation in toxic exposure cases is proven through scientific methodology, not certainty?`,
+    inoculation: `INOCULATION:
+- Scientific causation is proven by a preponderance of evidence, not absolute certainty
+- Latency periods between exposure and disease are expected and do not undermine causation
+- The defendant's knowledge of the hazard at the time of exposure is relevant to liability
+- Multiple exposures do not excuse any single defendant's contribution`
   }
 ];
 
@@ -396,125 +372,113 @@ const PI_TORT_OVERLAYS: SubSpecOverlay[] = [
 
 const EMPLOYMENT_BASE: StrategyModule = {
   category: 'Employment Law',
-  archetypes: `DANGEROUS JUROR ARCHETYPES — EMPLOYMENT LAW
+  archetypes: `EMPLOYMENT LAW STRATEGY MODULE
 
-For the Plaintiff (Employee):
-• The Management Loyalist — Has been in management for years and identifies with the employer's decision-making. Believes most terminations are justified. "Companies don't fire people without good reason."
-• The Anti-Litigation Employee — Has never sued an employer despite workplace problems. Views employees who sue as disloyal or unable to handle normal workplace friction.
-• The "At-Will" Absolutist — Believes employers can fire anyone for any reason and that employment lawsuits are an overreach. Does not distinguish between at-will termination and discriminatory termination.
-• The HR Defender — Works in or has worked in HR. Identifies with the company's compliance processes. Believes documentation and progressive discipline prove fairness.
+DANGEROUS JUROR ARCHETYPES:
+1. The Loyal Manager: Has hiring/firing authority and identifies with the employer. Views termination as a business necessity and discrimination claims as excuses for poor performance.
+2. The Disgruntled Employee: Harbors resentment toward their own employer or a former employer. May project their grievances onto the case and side with the plaintiff regardless of evidence.
+3. The Meritocracy Believer: Believes the workplace is fundamentally fair and that hard work is always rewarded. Cannot accept that systemic discrimination exists in professional settings.
+4. The Lawsuit Profiteer: Believes employment lawsuits are a way to get paid for getting fired. Views the plaintiff as gaming the system.
+5. The Silent Sufferer: Has experienced workplace mistreatment themselves but never reported or sued. May resent the plaintiff for taking action they never did, or may deeply empathize.`,
 
-For the Defense (Employer):
-• The Workplace Crusader — Has been mistreated at work and never got justice. Will use this case to vindicate their own experience. Projects their story onto the plaintiff.
-• The Union Activist — Strong pro-worker ideology. Distrusts all management decisions and assumes corporate malice.
-• The Emotional Reactor — Will be so outraged by testimony about workplace mistreatment that they cannot analyze liability objectively. Awards large verdicts on emotion alone.
-• The Discrimination Absolutist — Believes discrimination is pervasive and any adverse employment action against a protected class member is discriminatory.`,
+  biasPatterns: `PRIMARY BIAS PATTERNS TO SCREEN:
+- Employment authority: Does the juror have hiring, firing, or disciplinary authority? Do they identify with management or workers?
+- Discrimination beliefs: Does the juror believe workplace discrimination is common, rare, or essentially nonexistent?
+- At-will employment understanding: Does the juror believe employers can fire anyone for any reason, full stop?
+- Lawsuit attitudes: Does the juror believe most employment lawsuits are legitimate or opportunistic?
+- Personal workplace experience: Has the juror been fired, demoted, passed over, or discriminated against? How did they handle it?
+- Damages attitudes: Can the juror award emotional distress damages? Punitive damages against an employer?
+- Industry connection: Does the juror work in the same industry as the defendant employer?`,
 
-  biasPatterns: `BIAS PATTERNS — EMPLOYMENT LAW
-• "I'd never sue my employer" bias — Jurors who value loyalty and conflict avoidance may judge plaintiffs for filing suit
-• Management vs. labor identification — Jurors naturally align with either the employer or employee based on their own work history
-• Just-world thinking — "Bad things happen to people who deserve them" — belief that the plaintiff must have done something wrong
-• Documentation bias — Overreliance on paper trails; if the employer documented performance issues, it must be true
-• Protected class projection — Jurors from the same protected class may over-identify; jurors from different groups may not see the discrimination
-• Retaliation blindness — Difficulty seeing the connection between protected activity and adverse action when there is a time gap`,
+  questionSequencing: `QUESTION SEQUENCING PRIORITIES:
+1. Work background: Current and past employment, management experience, work environment satisfaction
+2. Workplace conflict experience: Has the juror witnessed or experienced unfair treatment at work?
+3. Views on employment relationships: At-will doctrine, employer obligations, employee rights
+4. Discrimination attitudes: Beliefs about the prevalence and seriousness of workplace discrimination
+5. Damages comfort: Ability to award emotional distress, lost wages, and punitive damages in an employment context
+6. Accountability: Can the juror hold an employer accountable for a supervisor's or manager's conduct?`,
 
-  questionSequencing: `QUESTION SEQUENCING — EMPLOYMENT LAW
-1. Experience-based: Employment history, management vs. line worker, experience with hiring/firing decisions, workplace conflicts
-2. Attitude-based: Views on workplace lawsuits, whether they've considered suing an employer, attitudes about employee rights vs. employer rights
-3. Theme-specific: Experience with discrimination, harassment, or retaliation (self or close others), views on workplace diversity and inclusion
-4. Damages: Understanding of lost wages, emotional distress damages, punitive damages in the employment context
-5. Specific fact inoculation: Performance issues, mixed-motive situations, comparator evidence`,
+  causeChallengeGrounds: `TYPICAL CAUSE-CHALLENGE GROUNDS:
+- Juror states they believe most discrimination claims are fabricated or exaggerated
+- Juror states employers should be free to fire anyone without consequences
+- Juror has a business relationship with the defendant employer
+- Juror states they could not award emotional distress damages because hurt feelings are not compensable
+- Juror states they would require direct evidence of discriminatory intent ("smoking gun") and would not consider circumstantial evidence
+- Juror has had a personal employment dispute with the same employer or in the same industry`,
 
-  causeChallengeGrounds: `CAUSE CHALLENGE GROUNDS — EMPLOYMENT LAW
-• Stated belief that employment lawsuits are always frivolous or that employees should "just find another job"
-• Close relationship with a party, attorney, or key witness
-• Works for or has significant financial interest in the defendant company or its competitor
-• Prior experience as a defendant in an employment lawsuit
-• Stated inability to award emotional distress or punitive damages
-• Expressed belief that discrimination based on the specific protected class at issue does not exist or is not a real problem`,
+  inoculation: `KEY INOCULATION TOPICS:
+- Employment discrimination is usually proven through circumstantial evidence, not a recorded confession
+- At-will employment does not mean an employer can fire someone for an illegal reason
+- Emotional distress from workplace discrimination is real and compensable under law
+- A legitimate business reason for termination does not end the inquiry if the reason was pretextual
+- The jury does not need to find the employer is a bad company — only that this specific action was unlawful`,
 
-  inoculation: `INOCULATION TOPICS — EMPLOYMENT LAW
-• Performance documentation can be pretextual — companies sometimes create a paper trail after the decision to terminate has already been made
-• The timing of adverse action relative to protected activity is relevant evidence
-• Mixed-motive cases: the employer may have had both legitimate and discriminatory reasons — the question is whether discrimination was a motivating factor
-• Emotional distress from losing a job is real — employment is tied to identity, financial security, and self-worth
-• "At-will" employment does not mean employers can fire someone for an illegal reason`,
+  plaintiffRules: `IF REPRESENTING EMPLOYEE/PLAINTIFF:
+- Screen for management identifiers who will side with the employer
+- Screen for jurors who believe discrimination is essentially over or does not happen in modern workplaces
+- Develop cause challenges on jurors who refuse to consider circumstantial evidence of intent
+- Look for jurors who understand power dynamics in the workplace
+- Favorable signals: has been treated unfairly at work, has seen others treated unfairly, non-management roles, empathy for vulnerable positions`,
 
-  plaintiffRules: `PLAINTIFF (EMPLOYEE) SCREENING RULES — EMPLOYMENT LAW
-• Screen for management loyalists who automatically side with employer decisions
-• Screen for "at-will absolutists" who believe employers can fire anyone for any reason
-• Screen for jurors in HR or compliance roles who identify with the company's processes
-• Screen for jurors who have never considered filing a workplace complaint despite experiencing problems — they may judge the plaintiff for doing so
-• Screen for just-world thinkers who believe the plaintiff must have done something wrong
-• Identify favorable jurors: those who have experienced workplace mistreatment, union members, jurors from the same protected class, advocates for fairness and equality`,
-
-  defenseRules: `DEFENSE (EMPLOYER) SCREENING RULES — EMPLOYMENT LAW
-• Screen for jurors who have been fired or disciplined and feel it was unfair — they will identify with the plaintiff
-• Screen for strong pro-worker ideology or union activism
-• Screen for jurors who have personally experienced discrimination and carry unresolved anger
-• Screen for emotional reactors who will be swayed by sympathy rather than evidence
-• Screen for jurors who distrust all corporations or management
-• Identify favorable jurors: business owners, managers, HR professionals, jurors who value documentation and process, those with experience making difficult termination decisions`
+  defenseRules: `IF REPRESENTING EMPLOYER/DEFENSE:
+- Screen for jurors with personal grievances against employers generally
+- Identify jurors who believe all employers are inherently exploitative
+- Screen for jurors who would use punitive damages to "send a message" regardless of the evidence
+- Look for jurors who understand business decision-making and operational pressures
+- Favorable signals: management experience, business ownership, human resources background, comfort with the concept that termination can be legitimate even if the employee disagrees`
 };
 
 const EMPLOYMENT_OVERLAYS: SubSpecOverlay[] = [
   {
     name: 'Discrimination',
-    archetypes: `ADDITIONAL ARCHETYPES — DISCRIMINATION
-• The "I Don't See Color" Juror — Claims to be colorblind or gender-blind. Cannot recognize implicit bias or systemic patterns. "If the plaintiff was qualified, they would have been promoted."
-• The Reverse Discrimination Advocate — Believes protected classes receive preferential treatment. Sees discrimination claims as "playing the race/gender card."
-• The Pattern Recognizer — Has witnessed workplace discrimination and will connect dots that may not exist in this specific case.`,
-    screeningPoints: `SCREENING — DISCRIMINATION
-• Personal experience with discrimination — based on race, sex, age, disability, religion, national origin
-• Views on systemic discrimination vs. individual incidents
-• Attitudes about diversity initiatives, affirmative action, and equal opportunity
-• Whether the juror believes the specific type of discrimination at issue (race, sex, age, etc.) is still a real problem
-• Comfort evaluating statistical evidence of discriminatory patterns
-• Views on implicit bias — does the juror believe unconscious bias exists?`,
-    inoculation: `INOCULATION — DISCRIMINATION
-• Discrimination is rarely overt in the modern workplace — it often manifests through patterns, timing, and differential treatment
-• Comparator evidence (how similar employees from different groups were treated) is powerful evidence of intent
-• An employer can have a diverse workforce and still discriminate against individual employees
-• The plaintiff does not need a "smoking gun" email or statement — circumstantial evidence is sufficient`
+    archetypes: `DISCRIMINATION OVERLAY:`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror believe discrimination based on [the specific protected class in this case] is a significant problem or largely a thing of the past?
+- Has the juror witnessed discrimination in their own workplace? How did they respond?
+- Does the juror understand the concept of disparate treatment vs. disparate impact?
+- Can the juror evaluate whether a stated business reason is pretextual without requiring a "smoking gun"?
+- Does the juror have strong views about affirmative action, DEI programs, or diversity initiatives that could color their evaluation of either party?`,
+    inoculation: `INOCULATION:
+- Discrimination can be proven through patterns and circumstantial evidence
+- An employer's stated reason for an action is not conclusive — the jury must evaluate whether it is genuine or pretextual
+- Implicit bias can influence decisions even when the decision-maker does not consciously intend to discriminate`
   },
   {
     name: 'Sexual Harassment',
-    archetypes: `ADDITIONAL ARCHETYPES — SEXUAL HARASSMENT
-• The "Boys Will Be Boys" Juror — Believes workplace flirtation and crude humor are harmless. Sets an extremely high bar for what constitutes harassment.
-• The #MeToo Skeptic — Believes the #MeToo movement has gone too far and people are too sensitive. Sympathizes with accused harassers.
-• The Workplace Romance Complicator — Focuses on whether the plaintiff may have initially welcomed attention, participated in office culture, or sent mixed signals.`,
-    screeningPoints: `SCREENING — SEXUAL HARASSMENT
-• Personal experience with sexual harassment — as target, accused, or bystander
-• Attitudes about workplace behavior standards and what crosses the line
-• Views on the #MeToo movement and its impact on workplace culture
-• Whether the juror distinguishes between a hostile work environment and quid pro quo harassment
-• Comfort hearing graphic testimony about sexual conduct in the workplace
-• Gender dynamics — how the juror's own gender and workplace experience shapes their view
-• Views on reporting — whether the juror judges people who don't report immediately`,
-    inoculation: `INOCULATION — SEXUAL HARASSMENT
-• A harassment victim's failure to report immediately does not mean the harassment did not occur — fear of retaliation is a documented reason for delayed reporting
-• Participating in workplace culture (laughing at jokes, attending social events) does not mean the plaintiff welcomed the specific harassing conduct
-• A single incident can constitute harassment if it is sufficiently severe
-• The employer's liability depends on what it knew and what it did about it`
+    archetypes: `SEXUAL HARASSMENT OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The Threshold Setter: Has a very high bar for what constitutes harassment. Believes the plaintiff is being oversensitive and that workplace banter is harmless.
+- The Blame Shifter: Believes the plaintiff invited or could have prevented the harassment by reporting sooner, dressing differently, or leaving the job.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror believe most sexual harassment claims are legitimate or exaggerated?
+- Does the juror distinguish between "locker room talk" and legally actionable harassment?
+- Does the juror believe the victim has a responsibility to immediately report and leave the workplace?
+- Has the juror experienced or witnessed sexual harassment? How was it handled?
+- Can the juror accept that a hostile work environment can exist even without physical touching?`,
+    inoculation: `INOCULATION:
+- The legal standard is whether the conduct was severe or pervasive enough to alter the conditions of employment
+- Failure to immediately report does not invalidate a harassment claim
+- Employers have a duty to prevent and correct harassment — the plaintiff should not have to quit to escape it
+- The reasonable person standard, not the plaintiff's subjective sensitivity, controls`
   },
   {
     name: 'Whistleblower/Retaliation',
-    archetypes: `ADDITIONAL ARCHETYPES — WHISTLEBLOWER/RETALIATION
-• The Company Loyalist — Believes employees who report wrongdoing are disloyal troublemakers. "If you don't like it, quit."
-• The Whistleblower Hero — Idolizes whistleblowers and will assume the employer retaliated regardless of the evidence.
-• The Procedure Follower — Believes the employee should have gone through internal channels first and judges external reporting harshly.`,
-    screeningPoints: `SCREENING — WHISTLEBLOWER/RETALIATION
-• Has the juror ever reported wrongdoing at work? What happened?
-• Views on employee loyalty vs. duty to report illegal or unethical conduct
-• Attitudes about government reporting channels (OSHA, SEC, EEOC)
-• Whether the juror believes companies actually retaliate or if employees use "retaliation" as an excuse for poor performance
-• Experience with workplace investigations — as complainant, witness, or subject
-• Views on temporal proximity — does the juror find it suspicious when adverse action follows closely after protected activity?`,
-    inoculation: `INOCULATION — WHISTLEBLOWER/RETALIATION
-• Employees are protected by law when they report illegal activity — retaliation for reporting is itself illegal
-• The temporal proximity between protected activity and adverse action is relevant evidence of retaliatory intent
-• The employer does not need to admit retaliation — intent can be proven through circumstantial evidence
-• An employee does not need to be right about the underlying complaint — they only need to have had a reasonable, good-faith belief`
+    archetypes: `WHISTLEBLOWER / RETALIATION OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The Team Player: Values loyalty to the organization above all. Views whistleblowers as traitors or troublemakers who should have handled concerns internally.
+- The Conspiracy Theorist: Assumes the employer is always covering something up. Will believe retaliation occurred based on the accusation alone.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror believe employees who report wrongdoing to outside authorities are acting responsibly or being disloyal?
+- Has the juror ever witnessed wrongdoing at work? Did they report it? What happened?
+- Does the juror understand that retaliation can include subtle actions (schedule changes, isolation, bad evaluations) not just termination?
+- Can the juror evaluate the timing between the protected activity and the adverse action without assuming causation?`,
+    inoculation: `INOCULATION:
+- Employees are legally protected when they report reasonably believed violations in good faith
+- Temporal proximity (reporting followed quickly by adverse action) is relevant but not conclusive
+- Retaliation can be subtle and cumulative, not just a single dramatic firing
+- The employer must show the same action would have been taken regardless of the report`
   }
 ];
 
@@ -522,120 +486,101 @@ const EMPLOYMENT_OVERLAYS: SubSpecOverlay[] = [
 
 const BUSINESS_COMMERCIAL_BASE: StrategyModule = {
   category: 'Business / Commercial',
-  archetypes: `DANGEROUS JUROR ARCHETYPES — BUSINESS / COMMERCIAL
+  archetypes: `BUSINESS / COMMERCIAL LITIGATION STRATEGY MODULE
 
-For the Plaintiff:
-• The "Business Is Business" Juror — Believes sharp dealing is expected in commerce. "Buyer beware." Reluctant to award damages for contract disputes because both parties should have protected themselves.
-• The Contract Literalist — Will focus exclusively on the written contract and refuse to consider implied terms, course of dealing, or equitable principles.
-• The Anti-Litigation Business Person — Has been sued in business and believes most commercial lawsuits are attempts to renegotiate bad deals.
+DANGEROUS JUROR ARCHETYPES:
+1. The Anti-Business Juror: Views all business disputes as rich people fighting over money they do not deserve. Disengaged from the start and may award or deny based on who seems wealthier or more sympathetic.
+2. The Handshake Believer: Thinks contracts should be simple and that any dispute means someone is acting in bad faith. Cannot parse complex contractual language or industry-specific terms.
+3. The Numbers Phobic: Shuts down when presented with financial evidence, spreadsheets, or damages calculations. May default to a compromise verdict rather than engaging with the math.
+4. The Sophisticated Business Person: Has enough business experience to substitute their own judgment for the evidence. May decide what "should have" happened rather than what the contract required.
+5. The Zero-Sum Thinker: Cannot understand that both sides may have legitimate claims and defenses. Picks a side early and ignores contrary evidence.`,
 
-For the Defense:
-• The Anti-Corporate Populist — Sees all business disputes as "big company vs. little guy" regardless of the actual parties. Will punish the larger entity.
-• The Promise Keeper Absolutist — Believes any broken promise should be severely punished regardless of context, changed circumstances, or mitigation.
-• The Emotional Fraud Reactor — Will react emotionally to allegations of fraud and skip the technical analysis of reliance, materiality, and damages.`,
+  biasPatterns: `PRIMARY BIAS PATTERNS TO SCREEN:
+- Business sophistication: Can the juror follow contract interpretation, breach analysis, and damages calculations?
+- Big vs. small framing: Does the juror automatically side with the smaller or larger party?
+- Contract sanctity: Does the juror believe contracts should be enforced as written, or that fairness should override the text?
+- Damages scale: Is the juror comfortable with large damages in a commercial context, or will they reduce because the parties are businesses, not individuals?
+- Industry familiarity: Does the juror work in or have opinions about the specific industry involved?
+- Fraud skepticism: Does the juror believe business fraud is common or rare?`,
 
-  biasPatterns: `BIAS PATTERNS — BUSINESS / COMMERCIAL
-• David vs. Goliath framing — Jurors sympathize with the smaller party regardless of the merits
-• Business sophistication assumption — Belief that a sophisticated party should have anticipated and prevented the problem
-• "A deal is a deal" rigidity — Unwillingness to consider changed circumstances, impossibility, or equitable defenses
-• Damages confusion — Difficulty distinguishing between expectation damages, reliance damages, and consequential damages
-• Fraud conflation — Treating every broken promise as fraud rather than a breach of contract
-• Complexity fatigue — Tuning out during testimony about complex business transactions, financial statements, or technical contract terms`,
+  questionSequencing: `QUESTION SEQUENCING PRIORITIES:
+1. Business background: Industry experience, contract experience, financial literacy
+2. Attitudes toward business disputes: Views on lawsuits between companies, whether businesses should settle, litigation as a tool
+3. Contract understanding: Comfort with reading and interpreting written agreements
+4. Damages attitudes: Comfort with large damages numbers in commercial context, ability to calculate lost profits or expectation damages
+5. Fraud and fairness: Views on business ethics, sharp dealing vs. fraud, sophisticated parties' responsibilities
+6. Complexity tolerance: Can the juror engage with a multi-week trial involving extensive documentary evidence?`,
 
-  questionSequencing: `QUESTION SEQUENCING — BUSINESS / COMMERCIAL
-1. Experience-based: Business ownership, contract experience, prior commercial litigation, investment experience
-2. Attitude-based: Views on business ethics, handshake deals vs. written contracts, corporate behavior
-3. Theme-specific: Understanding of the industry involved, experience with similar transactions
-4. Damages: Comfort with calculating lost profits, understanding of mitigation, views on punitive damages in business cases
-5. Complexity tolerance: Ability to process financial documents, accounting testimony, and expert economic analysis`,
+  causeChallengeGrounds: `TYPICAL CAUSE-CHALLENGE GROUNDS:
+- Juror states they believe lawsuits between businesses are a waste of the court's time
+- Juror states they cannot follow complex financial or contractual evidence
+- Juror has a business relationship with a party or competitor
+- Juror states they would split the difference rather than determine who is right
+- Juror has been involved in a similar business dispute and cannot set that experience aside
+- Juror states they believe anyone who sues a business partner is acting in bad faith`,
 
-  causeChallengeGrounds: `CAUSE CHALLENGE GROUNDS — BUSINESS / COMMERCIAL
-• Financial interest in one of the parties (shareholder, customer, vendor, competitor)
-• Prior business dispute with one of the parties
-• Stated belief that all business lawsuits are frivolous or that courts should not be involved in business disputes
-• Employment or professional relationship with a key witness or expert
-• Stated inability to follow instructions on the measure of damages or burden of proof
-• Prior experience in a substantially similar business dispute that prevents impartiality`,
+  inoculation: `KEY INOCULATION TOPICS:
+- Commercial disputes involve real harm even though the parties are businesses, not injured individuals
+- The contract is the starting point — the jury's job is to determine what it requires, not what seems fair in hindsight
+- Lost profits and expectation damages are legitimate and must be calculated based on evidence, not arbitrarily reduced
+- Both parties may be sophisticated — that does not mean neither was wronged
+- The complexity of the evidence does not mean the issues are unclear`,
 
-  inoculation: `INOCULATION TOPICS — BUSINESS / COMMERCIAL
-• Contracts can be breached by sophisticated parties — sophistication does not prevent breach
-• Lost profits are a real and calculable form of damages
-• The duty to mitigate does not excuse the breach — it limits damages but does not eliminate liability
-• Fraud requires proof of intentional misrepresentation — not just a broken promise
-• Expert testimony about damages calculations is evidence the jury should evaluate carefully`,
+  plaintiffRules: `IF REPRESENTING PLAINTIFF:
+- Screen for jurors who view commercial litigation as frivolous
+- Identify jurors who would reduce damages because both parties are businesses
+- Look for jurors who respect contracts and believe breaches should have consequences
+- Favorable signals: experience with broken agreements, values accountability, analytical professions`,
 
-  plaintiffRules: `PLAINTIFF SCREENING RULES — BUSINESS / COMMERCIAL
-• Screen for "buyer beware" attitudes that shift all risk to the plaintiff
-• Screen for contract literalists who will ignore equitable principles and contextual evidence
-• Screen for jurors who have been defendants in business lawsuits and carry anti-plaintiff bias
-• Screen for industry insiders who may sympathize with the defendant's business practices
-• Identify favorable jurors: those with experience being cheated in business, small business owners who value trust and fairness, jurors who understand that contracts create enforceable obligations`,
-
-  defenseRules: `DEFENSE SCREENING RULES — BUSINESS / COMMERCIAL
-• Screen for anti-corporate bias and David-vs-Goliath thinking
-• Screen for jurors who have been wronged in business transactions and carry unresolved anger
-• Screen for promise-keeper absolutists who will punish any breach severely
-• Screen for jurors who react emotionally to fraud allegations without analyzing the legal elements
-• Identify favorable jurors: business owners, managers, and executives who understand commercial realities; jurors with contract drafting or negotiation experience; those who value evidence over emotion`
+  defenseRules: `IF REPRESENTING DEFENSE:
+- Screen for anti-corporate bias, especially if the plaintiff is a smaller entity
+- Identify jurors who believe the bigger party is always wrong
+- Look for jurors who understand business judgment, good-faith disagreements, and contract ambiguity
+- Favorable signals: business experience, management roles, comfort with complexity, understanding that not every dispute means someone cheated`
 };
 
 const BUSINESS_COMMERCIAL_OVERLAYS: SubSpecOverlay[] = [
   {
     name: 'Fraud',
-    archetypes: `ADDITIONAL ARCHETYPES — FRAUD
-• The "Everyone Lies in Business" Cynic — Believes misrepresentation is standard business practice. Sets an impossibly high bar for what constitutes actionable fraud.
-• The Scam Victim — Has been defrauded personally and will project that experience. May see fraud where none exists.
-• The Intent Denier — Cannot distinguish between an honest mistake and intentional deception. "How can you prove what someone was thinking?"`,
-    screeningPoints: `SCREENING — FRAUD
-• Personal experience with fraud — as victim or accused
-• Understanding of the distinction between breach of contract and fraud
-• Ability to evaluate evidence of intent (emails, testimony, course of conduct)
-• Views on whether "everyone lies in business" or whether there are meaningful lines
-• Comfort evaluating circumstantial evidence of fraudulent intent
-• Understanding that reliance must be reasonable`,
-    inoculation: `INOCULATION — FRAUD
-• Fraud requires intent to deceive — not just a broken promise or a change in business circumstances
-• Reliance must be reasonable — the jury evaluates whether a reasonable person in the plaintiff's position would have believed the representation
-• Intent can be proven through circumstantial evidence — patterns of behavior, concealment of information, inconsistent statements
-• The measure of damages for fraud may differ from breach of contract damages`
+    archetypes: `FRAUD OVERLAY:`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror understand the difference between a broken promise and a fraudulent misrepresentation?
+- Can the juror evaluate whether reliance on a statement was reasonable given the parties' sophistication?
+- Does the juror believe that if someone loses money in a deal, someone must have lied to them?
+- Does the juror understand intent requirements — that fraud requires knowing misrepresentation, not just error?`,
+    inoculation: `INOCULATION:
+- A bad business outcome is not proof of fraud
+- Intent and knowledge must be proven, not assumed
+- Sophisticated parties have duties to investigate — reliance must be reasonable
+- Punitive damages in fraud cases require clear and convincing evidence`
   },
   {
     name: 'Trade Secret',
-    archetypes: `ADDITIONAL ARCHETYPES — TRADE SECRET
-• The "Information Should Be Free" Juror — Believes knowledge should not be owned. Skeptical of trade secret claims. "If it's not patented, it's not protected."
-• The Corporate Espionage Alarmist — Assumes any employee who changes jobs is stealing secrets. Will find misappropriation based on the job change alone.
-• The Non-Compete Hater — Views trade secret and non-compete claims as corporate attempts to control workers. Sympathizes with the departing employee.`,
-    screeningPoints: `SCREENING — TRADE SECRET
-• Experience changing jobs and bringing knowledge to a new employer
-• Views on non-compete agreements and employee mobility
-• Understanding that general skills and knowledge are different from trade secrets
-• Experience in industries where trade secrets are common (tech, pharma, manufacturing)
-• Attitudes about corporate ownership of employee-developed knowledge
-• Whether the juror has signed NDAs or non-competes and how they feel about them`,
-    inoculation: `INOCULATION — TRADE SECRET
-• A trade secret does not need to be patented to be protected — the company must take reasonable measures to keep it secret
-• Employees can take their general skills and knowledge to a new job — they cannot take specific proprietary information
-• Reasonable measures to protect secrecy include NDAs, restricted access, and marking documents as confidential
-• The value of a trade secret is its secrecy — once disclosed, the competitive advantage is destroyed`
+    archetypes: `TRADE SECRET OVERLAY:`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror believe that employees should be free to use whatever knowledge they gained at a prior job?
+- Does the juror understand the difference between general skills/knowledge and protectable trade secrets?
+- Has the juror changed jobs in the same industry? Were they subject to a non-compete or NDA?
+- Does the juror have strong views about non-compete agreements (oppressive vs. necessary)?`,
+    inoculation: `INOCULATION:
+- Trade secrets are a specific legal category, not just any business information
+- Employees may use general skills and knowledge but not information the employer took reasonable steps to protect
+- The company must have actually treated the information as secret — not just labeled it confidential after the fact
+- Damages include both the owner's losses and the misappropriator's unjust gains`
   },
   {
     name: 'Construction',
-    archetypes: `ADDITIONAL ARCHETYPES — CONSTRUCTION
-• The DIY Expert — Has construction experience and will second-guess expert testimony based on personal knowledge. May substitute their own standards for industry standards.
-• The "You Get What You Pay For" Juror — Believes the property owner chose the cheapest bid and should expect problems. Unsympathetic to claims against contractors.
-• The Anti-Contractor Juror — Has had a bad experience with a contractor. Will project that experience onto the case.`,
-    screeningPoints: `SCREENING — CONSTRUCTION
-• Construction industry experience — as worker, contractor, owner, or inspector
-• Home renovation or building experience and satisfaction level
-• Understanding of construction contracts, change orders, and industry practices
-• Experience with construction defect claims (as claimant or defendant)
-• Attitudes about building codes and code enforcement
-• Understanding of multi-party construction disputes (owner, GC, sub, design professional)`,
-    inoculation: `INOCULATION — CONSTRUCTION
-• Building codes establish minimum safety standards — compliance does not preclude negligence
-• Change orders are a normal part of construction — they reflect evolving project needs, not mismanagement
-• Construction defects may be latent — not visible until years after completion
-• The general contractor is responsible for the subcontractor's work — this is standard industry practice`
+    archetypes: `CONSTRUCTION OVERLAY:`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror have construction, contracting, or trades experience? They may substitute personal knowledge for evidence.
+- Has the juror had a bad experience with a contractor or a homebuilding project?
+- Does the juror understand change orders, punch lists, substantial completion, and contract modification?
+- Can the juror follow a dispute involving multiple subcontractors, insurers, and indemnification chains?`,
+    inoculation: `INOCULATION:
+- Construction disputes often involve shared responsibility among multiple parties
+- Change orders and contract modifications can alter the original scope and price
+- "Substantial completion" is a defined legal concept, not a subjective standard
+- Delays and cost overruns can result from factors beyond any single party's control`
   }
 ];
 
@@ -643,99 +588,86 @@ const BUSINESS_COMMERCIAL_OVERLAYS: SubSpecOverlay[] = [
 
 const IP_BASE: StrategyModule = {
   category: 'Intellectual Property',
-  archetypes: `DANGEROUS JUROR ARCHETYPES — INTELLECTUAL PROPERTY
+  archetypes: `INTELLECTUAL PROPERTY STRATEGY MODULE
 
-For the Plaintiff (IP Owner):
-• The "Ideas Are Free" Juror — Believes intellectual property should not be owned. Skeptical of IP rights in general. May associate patent claims with "patent trolls."
-• The Open Source Advocate — Believes information and innovation should be freely shared. Hostile to IP enforcement.
-• The Complexity Avoider — Will tune out during technical testimony and vote based on which party seems more sympathetic rather than the evidence.
+DANGEROUS JUROR ARCHETYPES:
+1. The Tech Know-It-All: Has enough technical knowledge to be dangerous. Will substitute personal understanding of the technology for the expert testimony and may lead deliberations based on their own conclusions.
+2. The Patent Skeptic: Believes the patent system is broken, that patents stifle innovation, and that most patent lawsuits are "trolling." May refuse to enforce a valid patent as a matter of principle.
+3. The Complexity Surrenderer: Overwhelmed by technical evidence. Will default to whoever's expert was more likeable or whose attorney explained things more simply, rather than engaging with the substance.
+4. The Copycat Sympathizer: Identifies with the accused infringer as a hard-working company that developed its product independently. Views the patent holder as a gatekeeper trying to block innovation.
+5. The IP Absolutist: Believes any use of someone else's idea is theft. May find infringement based on surface similarity without engaging with claim construction or the actual scope of protection.`,
 
-For the Defense (Accused Infringer):
-• The Inventor Sympathizer — Strong belief in protecting inventors and creators. Will side with the patent/copyright holder regardless of the strength of the claim.
-• The Brand Loyalist — Strong attachment to the defendant's brand or products. Cannot be objective about allegations that their favorite company infringes IP.
-• The "Stealing Is Wrong" Simplifier — Reduces complex IP disputes to simple theft narratives. "They stole the idea. Pay up."`,
+  biasPatterns: `PRIMARY BIAS PATTERNS TO SCREEN:
+- Technical background: Does the juror have relevant technical knowledge? Enough to help or enough to substitute for evidence?
+- Patent system attitudes: Does the juror view patents as important protections or as obstacles to innovation?
+- Damages scale: Can the juror award reasonable royalties or lost profits in the millions if the evidence supports it?
+- Corporate size dynamics: Does the juror automatically favor the larger or smaller entity?
+- Innovation values: Does the juror believe inventors deserve protection, or that ideas should be free?
+- Complexity tolerance: Can the juror engage with technical testimony for a multi-week trial?`,
 
-  biasPatterns: `BIAS PATTERNS — INTELLECTUAL PROPERTY
-• "Patent troll" bias — Media-driven belief that most patent lawsuits are filed by non-practicing entities trying to extract settlements
-• Technical complexity avoidance — Jurors who cannot process technical testimony may default to sympathy or narrative
-• Inventor romanticism — Over-identification with the "lone inventor" narrative regardless of the patent's actual merit
-• Brand loyalty interference — Jurors who use or admire the defendant's products may be unable to find infringement
-• Damages inflation/deflation — Difficulty grasping reasonable royalty calculations or lost profits in technology contexts`,
+  questionSequencing: `QUESTION SEQUENCING PRIORITIES:
+1. Technical background: Education, profession, familiarity with the technology at issue
+2. Patent system attitudes: Views on patents, innovation, IP protection generally
+3. Complexity comfort: Ability to follow expert testimony, read claims, evaluate technical evidence
+4. Business attitudes: Views on the parties (large corp vs. small inventor, or competitor vs. competitor)
+5. Damages comfort: Ability to calculate and award IP damages based on evidence
+6. Impartiality: Can the juror follow jury instructions on claim construction and infringement analysis?`,
 
-  questionSequencing: `QUESTION SEQUENCING — INTELLECTUAL PROPERTY
-1. Experience-based: Technical background, invention or creative work, familiarity with patents or copyrights
-2. Attitude-based: Views on intellectual property rights, patent trolls, innovation protection
-3. Theme-specific: Understanding of the technology or creative work at issue, industry familiarity
-4. Damages: Comfort with reasonable royalty calculations, understanding of lost profits, views on the value of innovation
-5. Complexity tolerance: Ability to process claim construction, prior art analysis, and technical expert testimony`,
+  causeChallengeGrounds: `TYPICAL CAUSE-CHALLENGE GROUNDS:
+- Juror states they believe the patent system is fundamentally unfair or broken
+- Juror states they cannot follow complex technical testimony
+- Juror works in the specific technology field and cannot set aside personal expertise
+- Juror has a financial interest in one party's technology or a competitor's
+- Juror states they believe ideas cannot be owned
+- Juror states they would not award damages above a certain amount regardless of evidence`,
 
-  causeChallengeGrounds: `CAUSE CHALLENGE GROUNDS — INTELLECTUAL PROPERTY
-• Works for or has financial interest in either party or a direct competitor
-• Has a patent or IP portfolio that creates identification bias
-• Stated belief that patents/copyrights should not exist or that all IP lawsuits are frivolous
-• Technical expertise in the exact field at issue that would substitute for testimony
-• Prior involvement in IP litigation as a party, witness, or consultant
-• Stated inability to follow the court's claim construction or legal instructions`,
+  inoculation: `KEY INOCULATION TOPICS:
+- The court will provide specific instructions on what the patent claims mean — the jury must apply those instructions
+- Infringement is determined by comparing the accused product to the patent claims as construed by the court, not by surface similarity
+- Damages are calculated based on established methodologies, not gut feeling
+- Both parties may have spent significant resources — the size of the parties does not determine who is right`,
 
-  inoculation: `INOCULATION TOPICS — INTELLECTUAL PROPERTY
-• A patent does not mean the invention is the best or most innovative — it means it meets specific legal criteria
-• Claim construction (what the patent covers) is a legal determination — the judge will instruct on the claim scope
-• A non-practicing entity (someone who doesn't make products) can still validly hold and enforce patents
-• Independent development is relevant to willfulness but not to infringement — you can infringe even if you didn't know about the patent`,
+  plaintiffRules: `IF REPRESENTING PATENT HOLDER / IP OWNER:
+- Screen for patent skepticism and anti-IP attitudes
+- Identify jurors who view the lawsuit as "trolling" regardless of the merits
+- Look for jurors who respect innovation and believe inventors deserve protection
+- Favorable signals: creative or inventive backgrounds, respect for hard work and research, experience with having work copied`,
 
-  plaintiffRules: `PLAINTIFF (IP OWNER) SCREENING RULES — INTELLECTUAL PROPERTY
-• Screen for "ideas should be free" attitudes and open-source ideology
-• Screen for patent troll bias — does the juror believe most patent lawsuits are frivolous?
-• Screen for jurors who use or admire the defendant's products and cannot be objective
-• Screen for complexity avoiders who will tune out during technical testimony
-• Identify favorable jurors: inventors, engineers who have patented their work, creators who understand the value of IP, small business owners who rely on proprietary methods`,
-
-  defenseRules: `DEFENSE (ACCUSED INFRINGER) SCREENING RULES — INTELLECTUAL PROPERTY
-• Screen for inventor romanticists who will side with any patent holder
-• Screen for "stealing is wrong" simplifiers who reduce complex IP to a theft narrative
-• Screen for jurors with their own patents or creative works who over-identify with the plaintiff
-• Screen for jurors hostile to the defendant's industry
-• Identify favorable jurors: those who understand competitive markets, jurors who value independent innovation, tech-savvy jurors who can evaluate prior art and claim scope`
+  defenseRules: `IF REPRESENTING ACCUSED INFRINGER:
+- Screen for IP absolutists who equate any similarity with theft
+- Identify jurors predisposed to believe the patent holder is the underdog inventor (if they are not)
+- Look for jurors who understand independent development, prior art, and that patents have specific boundaries
+- Favorable signals: engineering or technical background, understanding of iterative innovation, comfort with the idea that different companies can reach similar solutions independently`
 };
 
 const IP_OVERLAYS: SubSpecOverlay[] = [
   {
     name: 'Patent',
-    archetypes: `ADDITIONAL ARCHETYPES — PATENT
-• The Prior Art Evangelist — Believes every patent has prior art that invalidates it. Focused on invalidity even before hearing the evidence.
-• The Patent System Critic — Believes the patent system is broken and abused. Cannot fairly evaluate a patent infringement claim.
-• The Licensing Math Phobic — Cannot process reasonable royalty calculations, Georgia-Pacific factors, or comparable license analysis.`,
-    screeningPoints: `SCREENING — PATENT
-• Technical background in the field of the patent — helps with comprehension but may substitute personal knowledge for testimony
-• Prior patent litigation experience as a party, expert, or consultant
-• Views on the patent system — is it working or broken?
-• Ability to understand claim construction and infringement analysis
-• Comfort with damages calculations involving hypothetical negotiations and reasonable royalties
-• Views on standard-essential patents and FRAND obligations (if applicable)`,
-    inoculation: `INOCULATION — PATENT
-• The judge will instruct on claim construction — the jury applies those constructions to the accused product
-• Prior art must specifically teach or suggest the claimed invention — general knowledge in the field is not enough
-• A reasonable royalty is a legal construct — it is what the parties would have agreed to in a hypothetical negotiation
-• Willful infringement requires knowledge of the patent and deliberate decision to infringe`
+    archetypes: `PATENT OVERLAY:`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror understand that patent claims have specific boundaries and are not about broad concepts?
+- Can the juror follow claim construction instructions from the court?
+- Does the juror have experience reading technical specifications or schematics?
+- Does the juror have strong feelings about pharmaceutical patents, tech patents, or "patent trolls"?`,
+    inoculation: `INOCULATION:
+- A patent claim is a specific definition of an invention, not a general idea
+- The court's claim construction is law that the jury must follow
+- Willful infringement requires knowledge and deliberate copying, not just similarity
+- Reasonable royalty damages are based on a hypothetical negotiation, not punishment`
   },
   {
     name: 'Trademark/Copyright',
-    archetypes: `ADDITIONAL ARCHETYPES — TRADEMARK/COPYRIGHT
-• The Fair Use Absolutist — Believes any non-commercial use is automatically fair use. Over-applies fair use principles regardless of the facts.
-• The Consumer Confusion Denier — Cannot believe consumers would be confused between two products or marks. "People aren't that dumb."
-• The Copying Is Flattery Juror — Minimizes copying as a natural part of creative industries. "Everyone borrows ideas."`,
-    screeningPoints: `SCREENING — TRADEMARK/COPYRIGHT
-• Creative background — artists, musicians, writers, designers who understand IP from the creator's perspective
-• Consumer experience with counterfeit or knockoff products
-• Views on fair use, parody, and transformative works
-• Brand awareness and loyalty that might affect objectivity
-• Understanding of the difference between trademark (source identification) and copyright (creative expression)
-• Experience with brand confusion in the marketplace`,
-    inoculation: `INOCULATION — TRADEMARK/COPYRIGHT
-• Fair use is a legal defense with specific factors — it is not an automatic exemption for any non-commercial use
-• Consumer confusion is evaluated based on the hypothetical reasonable consumer, not whether the jurors personally would be confused
-• The strength of a mark and the similarity of the goods/services are key factors in trademark infringement
-• Copyright protection attaches automatically — registration is not required for protection, only for statutory damages`
+    archetypes: `TRADEMARK / COPYRIGHT OVERLAY:`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror understand the difference between trademark (source identification) and copyright (creative expression)?
+- Can the juror evaluate likelihood of confusion without simply asking whether two things look similar?
+- Does the juror believe that parody, criticism, and fair use are legitimate defenses or loopholes?
+- Has the juror had personal experience with knock-off products, counterfeits, or content copying?`,
+    inoculation: `INOCULATION:
+- Trademark infringement turns on likelihood of confusion in the marketplace, not mere similarity
+- Copyright protects specific expression, not ideas, facts, or concepts
+- Fair use is a legal defense with specific factors the jury must weigh
+- The strength of the mark or the creativity of the work affects the scope of protection`
   }
 ];
 
@@ -743,104 +675,93 @@ const IP_OVERLAYS: SubSpecOverlay[] = [
 
 const CIVIL_RIGHTS_BASE: StrategyModule = {
   category: 'Civil Rights',
-  archetypes: `DANGEROUS JUROR ARCHETYPES — CIVIL RIGHTS
+  archetypes: `CIVIL RIGHTS / SECTION 1983 STRATEGY MODULE
 
-For the Plaintiff:
-• The Blue Line Loyalist — Unwavering support for law enforcement. Cannot believe officers would violate constitutional rights. "They have a tough job and we should support them."
-• The "Comply and You'll Be Fine" Juror — Believes citizens who are injured by government actors brought it on themselves by not complying with instructions.
-• The Government Defender — Believes lawsuits against government entities waste taxpayer money. Reluctant to find liability against public institutions.
-• The Qualified Immunity Sympathizer — Believes government officials should not be held personally liable for doing their jobs, even when they make mistakes.
+DANGEROUS JUROR ARCHETYPES:
+1. The Blue Line Defender: Automatically sides with law enforcement. Believes officers are always justified and that anyone who sues the police is a criminal looking for a payday.
+2. The ACAB Juror: Views all law enforcement as corrupt. Will find liability regardless of the evidence and may want to use the verdict to punish the institution.
+3. The Respectability Judge: Evaluates the plaintiff's worthiness based on their criminal history, lifestyle, or appearance rather than whether their constitutional rights were violated.
+4. The Government Apologist: Believes government employees generally act in good faith and that second-guessing their decisions from the safety of a courtroom is unfair.
+5. The Runaway Damages Juror: So outraged by the misconduct that they want to award a massive verdict to "send a message" without tying damages to actual harm.`,
 
-For the Defense (Government/Official):
-• The ACLU Activist — Believes government actors routinely violate civil rights. Will find liability on principle rather than facts.
-• The Prior Victim — Has personally experienced what they perceive as government overreach or civil rights violations. Will project their experience onto the case.
-• The Punitive Damages Crusader — Wants to punish the government or institution severely to "change the system." Focused on systemic reform rather than the specific case.`,
+  biasPatterns: `PRIMARY BIAS PATTERNS TO SCREEN:
+- Law enforcement attitudes: Does the juror trust, distrust, or have nuanced views about police?
+- Authority deference: Does the juror defer to government officials or believe they should be held accountable?
+- Plaintiff background bias: Will the juror discount the plaintiff's claim if the plaintiff has a criminal record or was engaged in illegal activity at the time?
+- Constitutional values: Does the juror believe constitutional rights apply equally to everyone, including people they disapprove of?
+- Damages attitudes: Can the juror award damages for dignitary harm, emotional distress, and constitutional violations that may not involve physical injury?
+- Community connection: Does the juror have family or friends in law enforcement or government?`,
 
-  biasPatterns: `BIAS PATTERNS — CIVIL RIGHTS
-• Pro-authority bias — Automatic deference to law enforcement, corrections officers, or government officials
-• Race-based credibility gaps — Differential assessment of plaintiff credibility based on race, national origin, or socioeconomic status
-• Qualified immunity confusion — Difficulty separating the legal standard from their personal feelings about when officials should be liable
-• Taxpayer resentment — Belief that verdicts against government entities come out of the juror's pocket
-• "Bad apple" vs. systemic thinking — Tendency to see misconduct as individual rather than institutional, or vice versa
-• Delayed reporting skepticism — Questioning why the plaintiff did not file a complaint sooner`,
+  questionSequencing: `QUESTION SEQUENCING PRIORITIES:
+1. Law enforcement connections: Family, friends, professional relationships with police or government
+2. Personal experiences: Interactions with police (positive and negative), encounters with government agencies
+3. Authority attitudes: Views on accountability, oversight, and the role of courts in checking government power
+4. Constitutional values: Understanding of and commitment to constitutional rights, even for unpopular individuals
+5. Damages: Comfort with compensating for constitutional violations, emotional distress, dignitary harm
+6. Qualified immunity: Understanding that the legal question is whether the right was clearly established`,
 
-  questionSequencing: `QUESTION SEQUENCING — CIVIL RIGHTS
-1. Experience-based: Interactions with law enforcement or government agencies, personal or family experience with civil rights issues
-2. Attitude-based: Views on law enforcement, government accountability, the balance between safety and civil liberties
-3. Theme-specific: Experience with the specific type of civil rights violation at issue, views on qualified immunity, Section 1983 litigation
-4. Damages: Understanding of compensatory and punitive damages against government defendants, taxpayer impact concerns
-5. Credibility and proof: Willingness to evaluate conflicting accounts between citizens and officials without defaulting to authority`,
+  causeChallengeGrounds: `TYPICAL CAUSE-CHALLENGE GROUNDS:
+- Juror states they would always believe a police officer's testimony over a civilian's
+- Juror states they believe people with criminal records have forfeited their constitutional rights
+- Juror has a close family member in law enforcement and cannot set that aside
+- Juror states they believe government employees should not be personally liable for on-duty decisions
+- Juror states they cannot award emotional distress damages without physical injury
+- Juror works for the same government agency being sued`,
 
-  causeChallengeGrounds: `CAUSE CHALLENGE GROUNDS — CIVIL RIGHTS
-• Employment by or close relationship with the defendant government entity
-• Stated inability to find against a law enforcement officer ("I always believe the police")
-• Close family member in law enforcement who would create loyalty bias
-• Stated belief that civil rights lawsuits waste taxpayer money or are always frivolous
-• Personal involvement in a similar civil rights dispute that prevents impartiality
-• Stated inability to award damages against a government entity`,
+  inoculation: `KEY INOCULATION TOPICS:
+- Constitutional rights belong to everyone, including people with criminal records or those engaged in illegal activity
+- The use of force must be reasonable under the circumstances; the question is what a reasonable officer would have done
+- The plaintiff's character or criminal history does not determine whether their rights were violated
+- Government accountability through civil rights lawsuits is a feature of the constitutional system, not an abuse of it
+- Damages compensate for the violation itself, not just physical injuries`,
 
-  inoculation: `INOCULATION TOPICS — CIVIL RIGHTS
-• Government officials have a duty to respect constitutional rights — the Constitution limits government power, not citizen behavior
-• The fact that law enforcement has a difficult job does not excuse constitutional violations
-• Damages in civil rights cases serve two purposes: compensating the victim and deterring future violations
-• Qualified immunity is a legal defense — the court will instruct on when it applies. The jury's job is to determine the facts.
-• A citizen does not forfeit their constitutional rights by being non-compliant, rude, or uncooperative`,
+  plaintiffRules: `IF REPRESENTING PLAINTIFF:
+- Screen aggressively for automatic law enforcement deference
+- Identify jurors who will discount the claim based on the plaintiff's background
+- Develop cause challenges on jurors who state they cannot evaluate police conduct critically
+- Look for jurors who value accountability and believe everyone deserves constitutional protection
+- Favorable signals: personal experience being treated unfairly by authority, community activism, education or professional experience involving civil liberties`,
 
-  plaintiffRules: `PLAINTIFF SCREENING RULES — CIVIL RIGHTS
-• Screen for Blue Line loyalists who cannot fairly evaluate officer conduct
-• Screen for "comply and survive" attitudes that blame the victim
-• Screen for taxpayer resentment — jurors who view verdicts as wasting their money
-• Screen for jurors with law enforcement family members whose loyalty will override objectivity
-• Screen for jurors who believe civil rights violations are rare or exaggerated
-• Identify favorable jurors: civil libertarians, those with negative law enforcement experiences (if they can be fair), community organizers, jurors who value constitutional protections, those who have witnessed or experienced government overreach`,
-
-  defenseRules: `DEFENSE (GOVERNMENT/OFFICIAL) SCREENING RULES — CIVIL RIGHTS
-• Screen for jurors who have personally experienced or witnessed civil rights violations — especially if unresolved
-• Screen for ACLU/activist types who will find liability on principle
-• Screen for anti-government ideology that extends beyond the specific case
-• Screen for jurors who want to "send a message" through punitive damages
-• Screen for jurors who cannot separate the individual officer from the institution
-• Identify favorable jurors: those with law enforcement connections (while still impartial), jurors who understand the difficulty of split-second decisions, those who value evidence over narratives, jurors who focus on individual facts rather than systemic arguments`
+  defenseRules: `IF REPRESENTING GOVERNMENT/DEFENSE:
+- Screen for anti-police bias and jurors who view all law enforcement negatively
+- Identify jurors who would use the verdict to punish the institution rather than evaluate this specific case
+- Look for jurors who understand split-second decision-making, officer safety concerns, and the difficulty of the job
+- Favorable signals: respect for public servants, understanding of operational constraints, military or first-responder experience, analytical mindset`
 };
 
 const CIVIL_RIGHTS_OVERLAYS: SubSpecOverlay[] = [
   {
     name: 'Police Excessive Force',
-    archetypes: `ADDITIONAL ARCHETYPES — POLICE EXCESSIVE FORCE
-• The "I'd Be Scared Too" Juror — Over-identifies with the officer's fear and stress. Will excuse any level of force because "I don't know what I'd do in that situation."
-• The Video Interpreter — Will watch body cam or bystander video and reach conclusions before hearing context. The video becomes the entire case.
-• The De-Escalation Critic — Believes officers should always de-escalate and any use of force is excessive. Holds officers to an unrealistic standard.`,
-    screeningPoints: `SCREENING — POLICE EXCESSIVE FORCE
-• Personal experience with police use of force — as witness, victim, or family member
-• Views on police reform, defunding/refunding police, body cameras
-• Whether the juror has friends or family in law enforcement
-• Media consumption about police shootings and use-of-force incidents
-• Views on the objective reasonableness standard — whether it gives officers too much or too little discretion
-• Whether the juror can evaluate force from the officer's perspective at the moment without hindsight bias`,
-    inoculation: `INOCULATION — POLICE EXCESSIVE FORCE
-• The standard is objective reasonableness — what a reasonable officer would do under the same circumstances, not what the juror would do
-• Officers are trained in use-of-force continuum — the jury evaluates whether the officer followed training and protocol
-• The Supreme Court recognizes that force situations are "tense, uncertain, and rapidly evolving" but that does not immunize all force
-• Video evidence shows one perspective — it does not capture what the officer could see, hear, or perceive at that moment`
+    archetypes: `POLICE EXCESSIVE FORCE OVERLAY:`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror believe officers are ever justified in using force against unarmed individuals?
+- Does the juror understand the Graham v. Connor "objective reasonableness" standard?
+- Has the juror seen police use-of-force incidents in the news? Have those shaped strong opinions?
+- Can the juror evaluate force from the officer's perspective at the moment it was used, without 20/20 hindsight?
+- Does the juror have strong views about specific policing techniques (chokeholds, tasers, prone restraint)?`,
+    inoculation: `INOCULATION:
+- The standard is objective reasonableness at the moment force was used, not hindsight
+- Officers are not required to use the least amount of force possible, but the force must be reasonable
+- The plaintiff's resistance or noncompliance does not automatically justify any level of force
+- Video evidence may not capture everything the officer perceived`
   },
   {
     name: 'Prisoner Rights',
-    archetypes: `ADDITIONAL ARCHETYPES — PRISONER RIGHTS
-• The "Prisoners Deserve What They Get" Juror — Believes incarcerated people have forfeited all rights. Cannot award damages for mistreatment of someone in prison.
-• The System Critic — Believes the entire prison system is corrupt and will find liability regardless of the specific facts.
-• The Crime Severity Weigher — Will evaluate the prisoner's civil rights claim through the lens of their underlying conviction. "What did they do to end up there?"`,
-    screeningPoints: `SCREENING — PRISONER RIGHTS
-• Views on prisoners' rights — do incarcerated people retain constitutional protections?
-• Personal experience with incarceration (self or family members)
-• Attitudes about prison conditions, solitary confinement, and correctional officer behavior
-• Whether the juror will focus on the plaintiff's underlying criminal conviction rather than the civil rights violation
-• Views on whether incarcerated people should have access to courts
-• Employment in or connection to the corrections industry`,
-    inoculation: `INOCULATION — PRISONER RIGHTS
-• The Constitution protects all people, including those who are incarcerated — the Eighth Amendment prohibits cruel and unusual punishment
-• The plaintiff's underlying criminal conviction is not relevant to whether their civil rights were violated in prison
-• Correctional officers have a duty of care to incarcerated individuals — they are responsible for the safety and welfare of those in their custody
-• Deliberate indifference to serious medical needs or safety risks violates the Constitution`
+    archetypes: `PRISONER RIGHTS OVERLAY:
+
+ADDITIONAL ARCHETYPES:
+- The Forfeiture Believer: Believes incarcerated people gave up all rights when they committed their crime. Cannot accept that prisoners retain constitutional protections.
+- The Conditions Denier: Believes prison is supposed to be unpleasant and that complaints about conditions are evidence of entitlement, not genuine harm.`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror believe prisoners retain constitutional rights including protection from excessive force and deliberate indifference to medical needs?
+- Does the juror have family or friends who have been incarcerated? What was their experience?
+- Can the juror award damages to a convicted person without reducing the award because of the plaintiff's criminal status?
+- Does the juror understand the difference between uncomfortable conditions and unconstitutional conditions?`,
+    inoculation: `INOCULATION:
+- The Eighth Amendment prohibits cruel and unusual punishment — incarceration does not strip all rights
+- Deliberate indifference to serious medical needs is a constitutional violation
+- The seriousness of the plaintiff's crime does not determine whether their rights were violated in custody
+- Damages are based on the harm suffered from the constitutional violation, not adjusted for the plaintiff's criminal history`
   }
 ];
 
@@ -848,104 +769,82 @@ const CIVIL_RIGHTS_OVERLAYS: SubSpecOverlay[] = [
 
 const FAMILY_LAW_BASE: StrategyModule = {
   category: 'Family Law',
-  archetypes: `DANGEROUS JUROR ARCHETYPES — FAMILY LAW
+  archetypes: `FAMILY LAW STRATEGY MODULE
 
-For the Petitioner/Plaintiff:
-• The Traditional Values Absolutist — Holds rigid views about family structure, gender roles, and parenting. Cannot evaluate modern family arrangements (same-sex parents, non-traditional custody, stay-at-home fathers) without bias.
-• The "Families Should Stay Together" Juror — Believes divorce is always harmful and that couples should work things out. Reluctant to support outcomes that finalize family dissolution.
-• The Wealth Protector — Believes marital assets should stay with the earner. Hostile to equitable distribution, spousal support, or claims against inherited wealth.
+DANGEROUS JUROR ARCHETYPES:
+1. The Bitter Divorcee: Went through a difficult divorce and projects their experience onto the case. May automatically identify with one party based on gender, custody role, or perceived victimhood.
+2. The Traditional Values Juror: Has rigid views about gender roles in marriage, parenting, and family structure. May punish a party whose lifestyle or choices conflict with their values.
+3. The Child Savior: So focused on protecting children that they cannot objectively evaluate evidence. May make decisions based on emotion rather than the legal standard.
+4. The Wealth Punisher: Resentful of the wealthier spouse and motivated to redistribute assets as a matter of perceived fairness rather than law.
+5. The Reconciliation Advocate: Believes divorce is wrong or that the parties should work it out. May resent both parties for bringing the matter to court.`,
 
-For the Respondent/Defendant:
-• The Scorned Spouse Identifier — Has been through a difficult divorce and identifies strongly with one party. Will project their own custody or financial battle onto the case.
-• The Gender Bias Juror — Applies gender-based assumptions about parenting ability, financial contribution, or fault. "Mothers are always better parents" or "Fathers are always the breadwinners."
-• The Punitive Divorce Juror — Wants to punish one party for perceived bad behavior in the marriage (infidelity, abandonment, substance abuse) through custody or financial penalties.`,
+  biasPatterns: `PRIMARY BIAS PATTERNS TO SCREEN:
+- Divorce experience: Has the juror been through a divorce? Was it contentious? Who do they relate to?
+- Gender role views: Does the juror have fixed beliefs about mothers vs. fathers as primary caregivers, breadwinners, or household managers?
+- Parenting philosophy: Does the juror believe in specific parenting approaches that could influence custody evaluations?
+- Property attitudes: Does the juror believe marital property should be split 50/50 regardless of circumstances?
+- Moral judgments: Will the juror punish a party for infidelity, lifestyle choices, or unconventional family arrangements?
+- Children's interests: Can the juror evaluate the best interest of the child analytically rather than emotionally?`,
 
-  biasPatterns: `BIAS PATTERNS — FAMILY LAW
-• Gender-based custody presumptions — Belief that mothers are inherently better parents or that fathers are inherently less involved
-• Fault-based thinking — Desire to punish one party for the end of the marriage through custody or financial outcomes
-• Wealth-earner identification — Sympathy for the primary earner who "worked for" the assets
-• Children-as-pawns perception — Belief that one party is using the children as leverage
-• Religious or cultural values projection — Applying personal religious or cultural beliefs about marriage, divorce, and family to the case
-• "Best interest" subjectivity — Substituting personal parenting philosophy for the legal standard`,
+  questionSequencing: `QUESTION SEQUENCING PRIORITIES:
+1. Family background: Marital history, divorce experience, co-parenting experience
+2. Values and beliefs: Views on marriage, divorce, gender roles, parenting
+3. Financial attitudes: Views on property division, spousal support, earning capacity
+4. Child welfare: Understanding of children's needs, best interest standard, parenting evaluation
+5. Bias exploration: Feelings about the specific family dynamics in this case
+6. Impartiality: Ability to follow the legal standards rather than personal values`,
 
-  questionSequencing: `QUESTION SEQUENCING — FAMILY LAW
-1. Experience-based: Divorce experience (personal or family), custody disputes, blended families, single parenting
-2. Attitude-based: Views on divorce, custody, spousal support, gender roles in parenting
-3. Theme-specific: Experience with specific issues in the case (substance abuse, domestic violence, relocation, alienation)
-4. Best interest: Understanding of the "best interest of the child" standard, willingness to apply legal factors rather than personal beliefs
-5. Financial: Views on equitable distribution, spousal maintenance/alimony, child support calculation`,
+  causeChallengeGrounds: `TYPICAL CAUSE-CHALLENGE GROUNDS:
+- Juror states they believe one gender is inherently a better parent
+- Juror states they morally oppose divorce and cannot participate fairly
+- Juror has an ongoing custody dispute or recent divorce
+- Juror states they would punish a party for infidelity in the property division
+- Juror states they cannot set aside personal values about family structure`,
 
-  causeChallengeGrounds: `CAUSE CHALLENGE GROUNDS — FAMILY LAW
-• Currently in a contested divorce or custody dispute
-• Stated gender-based presumptions about parenting ("Mothers should always get custody")
-• Stated inability to award spousal support or divide assets equitably
-• Strong religious beliefs about divorce that prevent impartial application of the law
-• Personal experience with a substantially similar family situation that prevents objectivity
-• Close relationship with a party, attorney, or child welfare professional involved`,
+  inoculation: ``,
 
-  inoculation: `INOCULATION TOPICS — FAMILY LAW
-• The legal standard is the best interest of the child — not the preferences of either parent
-• Both parents have equal standing before the court regardless of gender
-• Marital assets are jointly owned regardless of which party earned them — equitable distribution is the law
-• A parent's behavior during the marriage may or may not be relevant to their parenting ability
-• Spousal support is not a punishment or reward — it addresses economic imbalance created by the marriage
-• Children benefit from meaningful relationships with both parents absent safety concerns`,
+  plaintiffRules: `IF REPRESENTING PETITIONER/PLAINTIFF:
+- Screen for gender bias that favors the other parent based on stereotypical assumptions
+- Screen for traditional values jurors who will judge lifestyle choices
+- Look for jurors who prioritize children's welfare and understand the legal standard
+- Favorable signals: experience with co-parenting, understanding of economic imbalance in marriages, analytical approach to family issues`,
 
-  plaintiffRules: `PETITIONER/PLAINTIFF SCREENING RULES — FAMILY LAW
-• Screen for gender bias that favors the other parent based on stereotypical assumptions
-• Screen for "families should stay together" attitudes that will resist necessary custody or financial determinations
-• Screen for wealth protector mentality if seeking equitable distribution or support
-• Screen for jurors in active divorce or custody disputes who cannot separate their case from this one
-• Identify favorable jurors: those who prioritize children's welfare, jurors with co-parenting experience, those who understand economic imbalance in marriages`,
-
-  defenseRules: `RESPONDENT/DEFENDANT SCREENING RULES — FAMILY LAW
-• Screen for scorned spouse identifiers who will project their own divorce experience
-• Screen for punitive divorce jurors who want to punish based on marital conduct rather than legal standards
-• Screen for gender bias that favors the other party's gender in custody
-• Screen for jurors who will judge the respondent's lifestyle, dating, or parenting choices post-separation
-• Identify favorable jurors: those who understand shared parenting benefits, jurors who can apply the legal standard objectively, those with positive co-parenting experiences`
+  defenseRules: `IF REPRESENTING RESPONDENT/DEFENDANT:
+- Screen for bitter divorcees who will project their own experience
+- Screen for jurors who will punish based on marital conduct rather than legal standards
+- Look for jurors who can evaluate the best interest standard objectively
+- Favorable signals: positive co-parenting experience, understanding that both parents can be fit, ability to follow legal instructions over personal values`
 };
 
 const FAMILY_LAW_OVERLAYS: SubSpecOverlay[] = [
   {
     name: 'Custody',
-    archetypes: `ADDITIONAL ARCHETYPES — CUSTODY
-• The Helicopter Parent Projector — Imposes their own intensive parenting standards on the case. Judges any parenting that differs from their approach.
-• The Alienation Alarmist — Believes parental alienation is rampant and will see it even when it doesn't exist. Conversely, may refuse to believe it exists at all.
-• The Stability-Above-All Juror — Believes children should never be moved or have their routine disrupted. Will resist any custody change regardless of the circumstances.`,
-    screeningPoints: `SCREENING — CUSTODY
-• Personal custody dispute experience — current or past
-• Views on shared custody vs. primary custody arrangements
-• Attitudes about parental relocation and its impact on children
-• Understanding of parental alienation — does the juror believe it exists? Can they identify it?
-• Views on age-appropriate parenting styles and whether different approaches constitute bad parenting
-• Experience with child welfare agencies, custody evaluators, or guardians ad litem
-• Attitudes about non-traditional family structures (same-sex parents, grandparent custody, etc.)`,
-    inoculation: `INOCULATION — CUSTODY
-• The best interest of the child standard considers multiple factors — no single factor is determinative
-• Children can thrive in many different custody arrangements — there is no one-size-fits-all answer
-• A custody evaluator's recommendation is evidence but not binding on the fact-finder
-• Parental alienation is a recognized pattern — one parent systematically undermining the child's relationship with the other`
+    archetypes: `CUSTODY OVERLAY:`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror believe children always belong with their mother? Or that fathers are undervalued in custody decisions?
+- Does the juror have personal experience with custody disputes? How did they resolve?
+- Can the juror evaluate a best-interest-of-the-child standard without substituting their own parenting values?
+- Does the juror understand that both parents can be fit while one arrangement may be better for the child?
+- Does the juror have strong views about relocation, non-traditional families, or same-sex parenting?`,
+    inoculation: `INOCULATION:
+- The legal standard is the best interest of the child, not the rights or preferences of either parent
+- A parent's imperfections do not make them unfit unless those imperfections affect the child's welfare
+- Stability, continuity, and the child's existing relationships are all legally relevant factors`
   },
   {
     name: 'Termination of Parental Rights',
-    archetypes: `ADDITIONAL ARCHETYPES — TERMINATION OF PARENTAL RIGHTS
-• The "Give Them Another Chance" Juror — Believes every parent deserves unlimited chances to improve. Cannot terminate parental rights regardless of the evidence.
-• The Quick Termination Advocate — Believes children should be removed from imperfect homes immediately. Low tolerance for parental struggles.
-• The Foster Care Critic — Believes the foster care system is worse than any family situation. Reluctant to terminate because the alternative is foster care.`,
-    screeningPoints: `SCREENING — TERMINATION OF PARENTAL RIGHTS
-• Personal experience with child protective services — as a parent, foster parent, social worker, or family member
-• Views on when the state should intervene in family decisions
-• Attitudes about substance abuse, mental health, and parenting fitness
-• Understanding of the permanency timeline — how long should a parent have to demonstrate improvement?
-• Views on the foster care system and adoption
-• Whether the juror can apply the clear and convincing evidence standard
-• Emotional capacity to hear testimony about child neglect or abuse`,
-    inoculation: `INOCULATION — TERMINATION OF PARENTAL RIGHTS
-• Termination of parental rights is the most severe action the family court can take — it permanently severs the legal parent-child relationship
-• The standard of proof is clear and convincing evidence — higher than preponderance but lower than beyond a reasonable doubt
-• The focus is on the child's safety and welfare — not punishment of the parent
-• The parent has been offered reunification services — the question is whether they have made sufficient progress`
+    archetypes: `TERMINATION OF PARENTAL RIGHTS OVERLAY:`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror understand that termination of parental rights is permanent and among the most serious actions in civil law?
+- Has the juror or a family member been involved with child protective services? What was their experience?
+- Can the juror hold the State to its burden (typically clear and convincing evidence) rather than ruling on suspicion?
+- Does the juror believe the government intervenes too much or too little in family matters?
+- Can the juror accept that imperfect parenting does not justify termination?`,
+    inoculation: `INOCULATION:
+- Termination of parental rights is irrevocable and requires the highest standard of proof in civil cases
+- Poverty, unconventional living arrangements, or cultural differences are not grounds for termination
+- The State must prove specific statutory grounds, not just that the child might be "better off" elsewhere
+- The right to parent is a fundamental constitutional right that cannot be severed on speculation`
   }
 ];
 
@@ -953,164 +852,142 @@ const FAMILY_LAW_OVERLAYS: SubSpecOverlay[] = [
 
 const PROBATE_ESTATE_BASE: StrategyModule = {
   category: 'Probate / Estate',
-  archetypes: `DANGEROUS JUROR ARCHETYPES — PROBATE / ESTATE
+  archetypes: `PROBATE / ESTATE LITIGATION STRATEGY MODULE
 
-For the Will Proponent (Party Supporting the Will):
-• The Family Entitlement Juror — Believes family members are automatically entitled to inherit regardless of what the will says. "You can't just cut your children out."
-• The Undue Influence Presumptionist — Believes any family member who is close to an elderly person is automatically exerting undue influence. "They were just waiting for the money."
-• The Elder Vulnerability Absolutist — Believes all elderly people are vulnerable and easily manipulated. Cannot accept that an elderly testator made a knowing, voluntary decision.
+DANGEROUS JUROR ARCHETYPES:
+1. The Family Loyalist: Believes family should never fight over money. Views will contests as greedy and disrespectful to the deceased. Will punish the challenger regardless of evidence.
+2. The Elder Protector: So concerned about elder exploitation that they assume any unusual estate plan reflects manipulation. May find undue influence based on suspicion rather than evidence.
+3. The Testamentary Absolutist: Believes the person who wrote the will had every right to do whatever they wanted with their money. Views any challenge as an attempt to override the decedent's wishes.
+4. The Inheritance Entitlement Juror: Believes children and family members are entitled to inherit regardless of what the will says. Sympathizes with disinherited family members.
+5. The Caregiver Identifier: Identifies with the person who cared for the decedent and views that caregiver's inheritance as earned, not suspicious.`,
 
-For the Will Contestant (Party Challenging the Will):
-• The "A Will Is a Will" Formalist — Believes a signed will is sacrosanct and should never be challenged. "The deceased's wishes should be respected, period."
-• The Anti-Family Drama Juror — Disgusted by family members fighting over money. Will reject the challenge regardless of its merit because they find the dispute distasteful.
-• The Lawyer Trust Juror — Believes that if an attorney supervised the will signing, it must be valid. Defers to professional involvement without examining the circumstances.`,
+  biasPatterns: `PRIMARY BIAS PATTERNS TO SCREEN:
+- Family inheritance views: Does the juror believe family members are entitled to inherit, or that the decedent's wishes control?
+- Elder exploitation awareness: Does the juror understand undue influence, or do they see it everywhere (or nowhere)?
+- Wealth attitudes: Does the juror have strong feelings about inherited wealth, estate planning, or trusts?
+- Caregiver dynamics: Does the juror relate to the caregiver or the excluded family members?
+- Will formality: Does the juror believe a signed will should always be upheld, or that the circumstances of signing matter?
+- Cognitive decline understanding: Does the juror understand the spectrum of capacity, or does any decline equal incapacity?`,
 
-  biasPatterns: `BIAS PATTERNS — PROBATE / ESTATE
-• Family entitlement expectation — Belief that certain family members (children, spouses) should always inherit regardless of the testator's wishes
-• Wealth and worthiness judgment — Evaluating whether heirs or beneficiaries "deserve" the inheritance based on their character or relationship
-• Elder stereotyping — Assuming cognitive decline or vulnerability based on age alone
-• Formalism bias — Over-valuing the formal execution of the will (notarized, attorney-supervised) without examining the underlying intent
-• Greed projection — Assuming that any party contesting a will is motivated purely by greed
-• Caregiver suspicion — Automatically suspecting the motives of family members who provided care in the decedent's final years`,
+  questionSequencing: `QUESTION SEQUENCING PRIORITIES:
+1. Personal experience: Has the juror dealt with wills, estates, or family inheritance disputes?
+2. Views on testamentary freedom: Does the decedent have the right to leave assets however they choose?
+3. Elder dynamics: Understanding of cognitive decline, caregiver relationships, and vulnerability
+4. Undue influence understanding: Can the juror evaluate the line between persuasion and coercion?
+5. Family obligation: Does the juror believe family members are owed an inheritance?
+6. Evidence evaluation: Can the juror assess medical records, witness testimony, and circumstantial evidence of influence?`,
 
-  questionSequencing: `QUESTION SEQUENCING — PROBATE / ESTATE
-1. Experience-based: Personal experience with wills, estates, inheritance disputes, caring for elderly relatives
-2. Attitude-based: Views on inheritance rights, family obligations, testamentary freedom
-3. Theme-specific: Experience with elderly family members, cognitive decline, family conflicts about money
-4. Legal concepts: Understanding of testamentary capacity, undue influence, fiduciary duty
-5. Emotional tolerance: Ability to hear testimony about family dysfunction, end-of-life decisions, and contested inheritances without emotional bias`,
+  causeChallengeGrounds: `TYPICAL CAUSE-CHALLENGE GROUNDS:
+- Juror states they believe children should always inherit equally and would not honor a will that excluded a child
+- Juror states they believe any will signed by an elderly person with cognitive decline is automatically invalid
+- Juror states they have strong personal experience with family inheritance disputes they cannot set aside
+- Juror states they believe will contests are always motivated by greed
+- Juror has a relationship with an estate planning attorney, fiduciary, or care facility involved in the case`,
 
-  causeChallengeGrounds: `CAUSE CHALLENGE GROUNDS — PROBATE / ESTATE
-• Currently involved in an inheritance dispute or estate administration
-• Stated belief that wills should never be challenged or that family members always deserve to inherit
-• Close relationship with estate planning attorneys, fiduciaries, or financial advisors involved in the case
-• Personal experience with a substantially similar estate dispute that prevents impartiality
-• Stated inability to evaluate cognitive capacity objectively
-• Financial interest in the outcome (e.g., beneficiary of a trust administered by one of the parties)`,
+  inoculation: `KEY INOCULATION TOPICS:
+- Testamentary capacity is a specific legal standard, not the absence of all cognitive decline
+- Undue influence requires more than opportunity and motive — it requires proof of actual coercion or manipulation that overcame the decedent's free will
+- A person can have dementia and still have testamentary capacity on a particular day
+- Changing a will is not inherently suspicious — people's wishes evolve
+- The burden of proof and which party bears it varies by jurisdiction and by issue`,
 
-  inoculation: `INOCULATION TOPICS — PROBATE / ESTATE
-• Testamentary freedom means a person can leave their assets to anyone they choose — they are not required to leave anything to family members
-• Testamentary capacity is a legal standard — the testator must understand the nature and extent of their property, their relationship to potential heirs, and the effect of the will
-• Undue influence requires more than close relationship or persuasion — it requires overcoming the testator's free will
-• A will supervised by an attorney carries weight but is not immune from challenge if the circumstances suggest problems
-• Contesting a will is a legal right — it does not automatically mean the contestant is greedy or disrespectful`,
+  plaintiffRules: `IF REPRESENTING THE CHALLENGER:
+- Screen for jurors who view will contests as inherently greedy
+- Identify jurors who believe the decedent's written will is the final word under all circumstances
+- Look for jurors who understand vulnerability, power dynamics, and caregiver influence
+- Favorable signals: experience caring for elderly relatives, understanding of cognitive decline, skepticism of sudden estate plan changes`,
 
-  plaintiffRules: `WILL PROPONENT SCREENING RULES — PROBATE / ESTATE
-• Screen for family entitlement jurors who believe children or spouses always deserve to inherit
-• Screen for elder vulnerability absolutists who cannot believe an elderly testator acted freely
-• Screen for undue influence presumptionists who will suspect any close family relationship
-• Screen for jurors currently in inheritance disputes who cannot separate their experience
-• Identify favorable jurors: those who value individual autonomy and testamentary freedom, jurors with estate planning experience, those who understand that family dynamics are complex`,
-
-  defenseRules: `WILL CONTESTANT SCREENING RULES — PROBATE / ESTATE
-• Screen for will formalists who believe signed documents are sacrosanct
-• Screen for anti-family-drama jurors who will dismiss the challenge out of distaste
-• Screen for attorney trust jurors who defer to professional involvement without scrutiny
-• Screen for jurors who view any will contest as motivated by greed
-• Identify favorable jurors: those who have witnessed elder exploitation, jurors who understand cognitive decline, those who value fairness over formalism, jurors who have cared for aging family members`
+  defenseRules: `IF REPRESENTING THE PROPONENT/BENEFICIARY:
+- Screen for jurors who believe family members are always entitled to inherit
+- Identify jurors who assume any unusual estate plan was the product of manipulation
+- Look for jurors who respect individual autonomy and testamentary freedom
+- Favorable signals: experience with estate planning, understanding that family relationships are complicated, comfort with the idea that a person may choose to leave assets to a caregiver or non-family member`
 };
 
 // ─── MODULE 09: INSURANCE ───────────────────────────────────────────────────
 
 const INSURANCE_BASE: StrategyModule = {
   category: 'Insurance',
-  archetypes: `DANGEROUS JUROR ARCHETYPES — INSURANCE
+  archetypes: `INSURANCE LITIGATION STRATEGY MODULE
 
-For the Policyholder/Claimant:
-• The Premium Payer Juror — Fixated on the impact of claims on premiums. "If we award big claims, everyone's premiums go up." Aligns with the insurer's economic argument.
-• The Contract Literalist — Reads the policy language narrowly and finds any ambiguity cuts against coverage. "The policy says what it says."
-• The Insurance Industry Insider — Works for or has worked for an insurance company. Understands and sympathizes with the business model. May have adjustment bias.
-• The Personal Responsibility Absolutist — Believes the insured should have read the policy more carefully or taken different precautions. Blames the policyholder.
+DANGEROUS JUROR ARCHETYPES:
+1. The Premium Worrier: Believes every insurance payout raises everyone's premiums. Will deny or reduce claims to "protect" rates, essentially acting as a defense advocate for the industry.
+2. The Insurance Hater: Has had a personal claim denied or badly handled. Cannot evaluate this case without projecting their own experience. May award damages to punish the industry rather than based on the evidence.
+3. The Contract Literalist: Believes the policy language is the final word under all circumstances. Cannot accept that ambiguities are resolved against the insurer or that implied duties exist.
+4. The Fraud Assumer: Believes most insurance claims are exaggerated or fraudulent. Starts from a position of skepticism about the policyholder.
+5. The Industry Insider: Works in insurance or has family in the industry. May identify with the company's claims-handling process and view coverage disputes as legitimate business disagreements.`,
 
-For the Insurance Company:
-• The Insurance Hater — Has had a claim denied and carries resentment. Believes all insurers are dishonest and act in bad faith. Will punish the insurer regardless of the specific facts.
-• The David vs. Goliath Juror — Sees any individual vs. insurance company case as an unfair fight. Will side with the policyholder on principle.
-• The Punitive Damages Enthusiast — Wants to make an example of the insurance company. Focused on punitive damages from the outset.
-• The "I Pay Premiums, I Deserve Coverage" Juror — Believes any claim should be paid because the policyholder paid premiums. Cannot evaluate policy language objectively.`,
+  biasPatterns: `PRIMARY BIAS PATTERNS TO SCREEN:
+- Insurance experience: Has the juror filed a claim? Was it paid or denied? How did that experience shape their views?
+- Industry connections: Does the juror or a family member work in insurance?
+- Premium bias: Does the juror believe awarding claims raises everyone's rates?
+- Fraud assumptions: Does the juror believe insurance fraud is widespread?
+- Contract interpretation: Does the juror default to literal policy language or understand that policies are contracts of adhesion?
+- Bad faith understanding: Does the juror believe insurance companies can be held accountable for how they handle claims, or that claim denials are always legitimate business decisions?`,
 
-  biasPatterns: `BIAS PATTERNS — INSURANCE
-• Premium impact bias — Concern that verdicts against insurers will raise premiums for everyone
-• Insurance industry distrust — Belief that insurers routinely deny valid claims for profit
-• Contract of adhesion sympathy — Awareness that the insured did not negotiate the policy terms cuts both ways
-• Claim frequency bias — Belief that frequent claimants are fraudulent or that one denied claim means the insurer is bad
-• Adjuster cynicism — Belief that insurance adjusters are trained to deny claims rather than evaluate them fairly
-• "Read the fine print" blame — Faulting the policyholder for not understanding complex policy language`,
+  questionSequencing: `QUESTION SEQUENCING PRIORITIES:
+1. Insurance experience: Personal claims history, industry connections, general attitudes
+2. Claims attitudes: Views on claim frequency, fraud, legitimate vs. frivolous claims
+3. Company accountability: Can the juror hold an insurance company to its obligations?
+4. Premium impact: Can the juror set aside premium concerns and focus on whether this claim was properly handled?
+5. Bad faith concepts: Understanding of the duty of good faith, claims handling obligations
+6. Damages: Comfort with compensatory and punitive damages against an insurer`,
 
-  questionSequencing: `QUESTION SEQUENCING — INSURANCE
-1. Experience-based: Insurance claims experience (property, auto, health, disability), claim denials, disputes with insurers
-2. Attitude-based: Views on the insurance industry, whether insurers treat policyholders fairly, premium concerns
-3. Theme-specific: Experience with the specific type of insurance at issue, understanding of how policies work
-4. Contract interpretation: Comfort reading and interpreting contract language, understanding of ambiguity rules
-5. Damages: Views on punitive damages against insurers, understanding of bad faith remedies, consequential damages`,
+  causeChallengeGrounds: `TYPICAL CAUSE-CHALLENGE GROUNDS:
+- Juror works in the insurance industry and cannot set aside professional loyalty
+- Juror states they believe insurance companies always pay legitimate claims and that any denial is justified
+- Juror states they would consider the effect on premiums when evaluating damages
+- Juror has a pending or recent insurance claim dispute they cannot set aside
+- Juror states they believe most insurance claims involve exaggeration or fraud
+- Juror has a financial interest in the insurer (stock ownership, retirement plan, etc.)`,
 
-  causeChallengeGrounds: `CAUSE CHALLENGE GROUNDS — INSURANCE
-• Employment by or close relationship with the insurer or its parent company
-• Pending insurance dispute or claim denial that creates identification bias
-• Stated belief that insurance companies always act in bad faith or always act properly
-• Financial interest in the insurance industry (stocks, pension tied to insurer performance)
-• Prior experience as a claims adjuster, underwriter, or insurance defense attorney
-• Stated inability to award punitive damages against an insurance company or stated intent to always award them`,
+  inoculation: `KEY INOCULATION TOPICS:
+- An insurance policy is a contract, and the insurer has a legal duty to honor its terms
+- When the insurer drafted the policy and the language is ambiguous, the ambiguity is resolved in favor of coverage
+- The duty of good faith and fair dealing requires the insurer to investigate claims reasonably, not to look for reasons to deny
+- Punitive damages in bad faith cases serve to deter industry-wide claims-handling abuses
+- The premium impact of a single verdict is negligible; the insurer collects premiums specifically to pay claims`,
 
-  inoculation: `INOCULATION TOPICS — INSURANCE
-• Insurance policies are contracts — both parties have obligations. The insurer's obligation to pay valid claims is the core of the bargain.
-• Policy language is drafted by the insurer — ambiguities are construed against the drafter
-• Bad faith is not just a denied claim — it requires unreasonable conduct by the insurer, such as ignoring evidence, failing to investigate, or prioritizing profit over the policyholder's interests
-• The policyholder pays premiums in exchange for the promise of coverage — the insurer must honor that promise in good faith
-• An insurer can legitimately deny a claim if the policy does not cover the loss — the question is whether the denial was reasonable`,
+  plaintiffRules: `IF REPRESENTING POLICYHOLDER:
+- Screen aggressively for insurance industry connections and premium-impact bias
+- Identify jurors who assume all claims are exaggerated
+- Develop cause challenges on jurors who state they cannot award punitive damages against an insurer
+- Look for jurors who have had personal experience with unfair claim handling
+- Favorable signals: experience being denied a claim, understanding that insurance is a product you pay for, skepticism of large corporations`,
 
-  plaintiffRules: `POLICYHOLDER/CLAIMANT SCREENING RULES — INSURANCE
-• Screen for premium impact bias — jurors focused on how verdicts affect insurance rates
-• Screen for insurance industry insiders or family members who work in insurance
-• Screen for contract literalists who will interpret policy language narrowly against coverage
-• Screen for personal responsibility absolutists who blame the policyholder for not reading the policy
-• Identify favorable jurors: those who have had claims unfairly denied, jurors who value consumer protection, those who understand that insurance policies are one-sided contracts of adhesion`,
-
-  defenseRules: `INSURANCE COMPANY SCREENING RULES — INSURANCE
-• Screen for insurance haters who have unresolved claim denial resentment
-• Screen for David vs. Goliath jurors who will side with the individual on principle
-• Screen for punitive damages enthusiasts who want to make an example of the insurer
-• Screen for jurors who believe all premium payments entitle coverage regardless of policy terms
-• Identify favorable jurors: business-minded jurors who understand contractual obligations, those with insurance industry knowledge, jurors who read contracts carefully and value clarity, those who can distinguish between a denied claim and bad faith`
+  defenseRules: `IF REPRESENTING INSURER:
+- Screen for jurors with strong negative insurance experiences who cannot be fair
+- Identify jurors who want to use the verdict to punish the industry generally
+- Look for jurors who understand that claim investigation is a legitimate business function
+- Favorable signals: business experience, understanding of contractual obligations on both sides, analytical mindset, comfort with the idea that not every denied claim is bad faith`
 };
 
 const INSURANCE_OVERLAYS: SubSpecOverlay[] = [
   {
     name: 'Bad Faith',
-    archetypes: `ADDITIONAL ARCHETYPES — BAD FAITH INSURANCE
-• The "Insurers Are Evil" Absolutist — Believes every claim denial is bad faith. Cannot evaluate the reasonableness of the insurer's position.
-• The Business Decision Defender — Sympathizes with the insurer's cost-containment strategies. Sees claims management as legitimate business practice even when it crosses the line.
-• The Delay Apologist — Believes insurance claims naturally take a long time. Does not recognize unreasonable delay as a form of bad faith.`,
-    screeningPoints: `SCREENING — BAD FAITH
-• Personal experience with claim denials or delays — especially if protracted or painful
-• Understanding of the difference between a legitimate coverage dispute and bad faith conduct
-• Views on whether insurance companies should be punished for the way they handle claims
-• Attitudes about punitive damages — are they appropriate when a company deliberately mistreats a customer?
-• Whether the juror can evaluate internal insurance company documents objectively
-• Experience with insurance claim processes — as claimant, adjuster, or broker`,
-    inoculation: `INOCULATION — BAD FAITH
-• Bad faith is not just a wrong decision — it is an unreasonable process. The insurer must conduct a reasonable investigation before denying a claim.
-• Internal insurance company documents (claims notes, manuals, emails) reveal what the company knew and when
-• An insurer that ignores its own expert's findings or fails to investigate evidence of coverage may be acting in bad faith
-• Punitive damages in bad faith cases serve to deter insurers from systematically mistreating policyholders`
+    archetypes: `BAD FAITH OVERLAY:`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror understand the difference between a legitimate coverage dispute and bad faith claims handling?
+- Can the juror evaluate whether the insurer's investigation was reasonable without substituting hindsight?
+- Does the juror understand that bad faith can include unreasonable delay, lowball offers, and failure to investigate, not just outright denial?
+- Can the juror award punitive damages if the evidence shows the insurer knowingly disregarded its obligations?`,
+    inoculation: `INOCULATION:
+- Bad faith is about the process, not the outcome — an insurer can ultimately be right on coverage and still have acted in bad faith in how it handled the claim
+- The insurer's internal claims files, guidelines, and communications are relevant to whether it acted reasonably
+- A pattern of similar conduct toward other policyholders can be evidence of a claims-handling practice`
   },
   {
     name: 'Coverage Disputes/UM-UIM',
-    archetypes: `ADDITIONAL ARCHETYPES — COVERAGE DISPUTES / UM-UIM
-• The "You Chose Your Coverage" Juror — Believes the policyholder selected their coverage level and must live with it. Unsympathetic to arguments about inadequate coverage.
-• The Stacking Skeptic — Views coverage stacking as a windfall for the policyholder. Reluctant to allow multiple policies to apply.
-• The At-Fault Driver Focuser — In UM/UIM cases, focuses on the at-fault driver's irresponsibility rather than the insurer's coverage obligation.`,
-    screeningPoints: `SCREENING — COVERAGE DISPUTES / UM-UIM
-• Understanding of uninsured/underinsured motorist coverage and its purpose
-• Views on whether insurance companies should pay when someone else caused the accident
-• Attitudes about coverage stacking and anti-stacking provisions
-• Personal experience with UM/UIM claims
-• Understanding of the difference between liability coverage and first-party coverage
-• Whether the juror has declined optional coverages and how they feel about that decision`,
-    inoculation: `INOCULATION — COVERAGE DISPUTES / UM-UIM
-• UM/UIM coverage exists specifically so that policyholders are protected when the at-fault driver has no or insufficient insurance
-• The policyholder pays a separate premium for UM/UIM coverage — it is not free or bonus coverage
-• Coverage stacking is a legal question — the court will instruct on whether it applies
-• The insurer's duty to pay is triggered by the at-fault driver's lack of coverage, not by any fault of the policyholder`
+    archetypes: `COVERAGE DISPUTES / UM-UIM OVERLAY:`,
+    screeningPoints: `ADDITIONAL SCREENING:
+- Does the juror understand that in a UM/UIM case, the policyholder is suing their own insurance company?
+- Does the juror find it confusing or troubling to sue a company they pay premiums to? Will that create sympathy for the insurer?
+- Can the juror evaluate the underlying tort claim (the accident) and the coverage question separately?
+- Does the juror understand policy limits and the concept of underinsured coverage?`,
+    inoculation: `INOCULATION:
+- UM/UIM coverage exists specifically for this situation — the policyholder paid for this protection
+- The policyholder is not suing to "get something extra" — they are asking the insurer to honor the coverage they purchased
+- The jury must evaluate the tort claim as if the at-fault driver were sitting in the courtroom`
   }
 ];
 
@@ -1118,27 +995,23 @@ const INSURANCE_OVERLAYS: SubSpecOverlay[] = [
 
 const GENERAL_FALLBACK_BASE: StrategyModule = {
   category: 'General / Fallback',
-  archetypes: `DANGEROUS JUROR ARCHETYPES — GENERAL
+  archetypes: `GENERAL STRATEGY MODULE
 
-For the Plaintiff/Prosecution:
-• The Anti-Litigation Juror — Believes there are too many lawsuits and the courts are clogged. Will hold the bringing party to a higher standard out of principle.
-• The Skeptic — Distrusts all parties and lawyers. Defaults to disbelief and sets an unreasonably high bar for any claim.
-• The Status Quo Defender — Believes the current situation is acceptable and resists change, intervention, or remedy.
+DANGEROUS JUROR ARCHETYPES:
+1. The Anti-Litigation Juror: Believes there are too many lawsuits and the courts are clogged. Will hold the bringing party to a higher standard out of principle.
+2. The Skeptic: Distrusts all parties and lawyers. Defaults to disbelief and sets an unreasonably high bar for any claim.
+3. The Status Quo Defender: Believes the current situation is acceptable and resists change, intervention, or remedy.
+4. The Sympathy Voter: Makes decisions based on which party evokes more sympathy rather than the evidence and law.
+5. The Underdog Champion: Always sides with the perceived smaller or weaker party regardless of the merits.`,
 
-For the Defense:
-• The Sympathy Voter — Makes decisions based on which party evokes more sympathy rather than the evidence and law.
-• The Underdog Champion — Always sides with the perceived smaller or weaker party regardless of the merits.
-• The Punisher — Wants to use the verdict to punish perceived wrongdoing rather than apply the legal standard objectively.`,
+  biasPatterns: `PRIMARY BIAS PATTERNS TO SCREEN:
+- Confirmation bias: Latching onto early impressions and filtering all subsequent evidence through that lens
+- Anchoring: Over-relying on the first number, fact, or impression presented
+- Authority deference: Automatically crediting testimony from professionals, experts, or officials
+- Narrative bias: Preferring the more compelling story regardless of which party bears the burden of proof
+- In-group/out-group dynamics: Identifying with parties who share their background and discounting those who differ`,
 
-  biasPatterns: `BIAS PATTERNS — GENERAL
-• Confirmation bias — Latching onto early impressions and filtering all subsequent evidence through that lens
-• Anchoring — Over-relying on the first number, fact, or impression presented
-• Authority deference — Automatically crediting testimony from professionals, experts, or officials
-• Narrative bias — Preferring the more compelling story regardless of which party bears the burden of proof
-• Recency bias — Over-weighting the last testimony heard in deliberations
-• In-group/out-group dynamics — Identifying with parties who share their background and discounting those who differ`,
-
-  questionSequencing: `QUESTION SEQUENCING — GENERAL
+  questionSequencing: `QUESTION SEQUENCING PRIORITIES:
 1. Experience-based: Prior jury service, involvement in lawsuits, relevant life experiences
 2. Attitude-based: Views on the legal system, lawsuits, lawyers, and the fairness of trials
 3. Theme-specific: Experience with the subject matter of the case, relevant attitudes and beliefs
@@ -1146,34 +1019,33 @@ For the Defense:
 5. Damages/remedy: Comfort with the available remedies, willingness to apply them if the evidence supports them
 6. Fairness commitment: Ability to be fair to both sides, follow instructions, and deliberate with an open mind`,
 
-  causeChallengeGrounds: `CAUSE CHALLENGE GROUNDS — GENERAL
-• Relationship with a party, attorney, or witness
-• Fixed opinion about the outcome before hearing evidence
-• Inability or unwillingness to follow the law as instructed
-• Bias based on the type of case, the parties, or the subject matter
-• Hardship that would prevent full attention and fair deliberation
-• Financial or personal interest in the outcome`,
+  causeChallengeGrounds: `TYPICAL CAUSE-CHALLENGE GROUNDS:
+- Relationship with a party, attorney, or witness
+- Fixed opinion about the outcome before hearing evidence
+- Inability or unwillingness to follow the law as instructed
+- Bias based on the type of case, the parties, or the subject matter
+- Hardship that would prevent full attention and fair deliberation
+- Financial or personal interest in the outcome`,
 
-  inoculation: `INOCULATION TOPICS — GENERAL
-• The burden of proof applies to specific parties — the jury must follow the court's instructions on who bears that burden
-• Witness credibility is for the jury to evaluate — no witness is automatically more credible than another
-• The jury must decide the case based on the evidence presented in the courtroom, not outside information or personal beliefs
-• Both parties have the right to present their case and have it fairly evaluated
-• The jury instructions are the law the jury must follow — personal disagreement with the law is not a basis for a different result`,
+  inoculation: `KEY INOCULATION TOPICS:
+- The burden of proof applies to specific parties — the jury must follow the court's instructions on who bears that burden
+- Witness credibility is for the jury to evaluate — no witness is automatically more credible than another
+- The jury must decide the case based on the evidence presented in the courtroom, not outside information or personal beliefs
+- Both parties have the right to present their case and have it fairly evaluated`,
 
-  plaintiffRules: `PLAINTIFF/PROSECUTION SCREENING RULES — GENERAL
-• Screen for anti-litigation bias and lawsuit skepticism
-• Screen for extreme skepticism that sets an impossibly high bar for the bringing party
-• Screen for jurors with close ties to the opposing party or its industry
-• Screen for jurors who cannot follow the applicable burden of proof
-• Identify favorable jurors: those who value accountability, fairness, and the role of the court system`,
+  plaintiffRules: `IF REPRESENTING PLAINTIFF/PROSECUTION:
+- Screen for anti-litigation bias and lawsuit skepticism
+- Screen for extreme skepticism that sets an impossibly high bar for the bringing party
+- Screen for jurors with close ties to the opposing party or its industry
+- Screen for jurors who cannot follow the applicable burden of proof
+- Identify favorable jurors: those who value accountability, fairness, and the role of the court system`,
 
-  defenseRules: `DEFENSE SCREENING RULES — GENERAL
-• Screen for sympathy voters who will decide based on emotion rather than evidence
-• Screen for underdog champions who will side with the perceived weaker party
-• Screen for punishers who want to use the verdict to "send a message"
-• Screen for jurors with personal experiences that create strong identification with the opposing party
-• Identify favorable jurors: analytical thinkers, jurors who focus on evidence and instructions, those who value precision and fairness`
+  defenseRules: `IF REPRESENTING DEFENSE:
+- Screen for sympathy voters who will decide based on emotion rather than evidence
+- Screen for underdog champions who will side with the perceived weaker party
+- Screen for jurors who want to use the verdict to "send a message"
+- Screen for jurors with personal experiences that create strong identification with the opposing party
+- Identify favorable jurors: analytical thinkers, jurors who focus on evidence and instructions, those who value precision and fairness`
 };
 
 // ─── ROUTING TABLE ──────────────────────────────────────────────────────────
@@ -1184,7 +1056,6 @@ interface RoutingEntry {
 }
 
 const ROUTING_TABLE: Record<string, RoutingEntry> = {
-  // Criminal Law
   'criminal defense': { categoryModule: CRIMINAL_LAW_BASE, subSpecOverlay: null },
   'criminal prosecution': { categoryModule: CRIMINAL_LAW_BASE, subSpecOverlay: null },
   'criminal law': { categoryModule: CRIMINAL_LAW_BASE, subSpecOverlay: null },
@@ -1207,7 +1078,6 @@ const ROUTING_TABLE: Record<string, RoutingEntry> = {
   'embezzlement': { categoryModule: CRIMINAL_LAW_BASE, subSpecOverlay: CRIMINAL_OVERLAYS[4] },
   'domestic violence': { categoryModule: CRIMINAL_LAW_BASE, subSpecOverlay: CRIMINAL_OVERLAYS[5] },
 
-  // Personal Injury / Tort
   'personal injury': { categoryModule: PI_TORT_BASE, subSpecOverlay: null },
   'general tort': { categoryModule: PI_TORT_BASE, subSpecOverlay: null },
   'negligence': { categoryModule: PI_TORT_BASE, subSpecOverlay: null },
@@ -1228,7 +1098,6 @@ const ROUTING_TABLE: Record<string, RoutingEntry> = {
   'environmental contamination': { categoryModule: PI_TORT_BASE, subSpecOverlay: PI_TORT_OVERLAYS[5] },
   'mass tort': { categoryModule: PI_TORT_BASE, subSpecOverlay: PI_TORT_OVERLAYS[5] },
 
-  // Employment Law
   'employment law': { categoryModule: EMPLOYMENT_BASE, subSpecOverlay: null },
   'employment discrimination': { categoryModule: EMPLOYMENT_BASE, subSpecOverlay: EMPLOYMENT_OVERLAYS[0] },
   'wrongful termination': { categoryModule: EMPLOYMENT_BASE, subSpecOverlay: EMPLOYMENT_OVERLAYS[0] },
@@ -1238,7 +1107,6 @@ const ROUTING_TABLE: Record<string, RoutingEntry> = {
   'whistleblower': { categoryModule: EMPLOYMENT_BASE, subSpecOverlay: EMPLOYMENT_OVERLAYS[2] },
   'retaliation': { categoryModule: EMPLOYMENT_BASE, subSpecOverlay: EMPLOYMENT_OVERLAYS[2] },
 
-  // Business / Commercial
   'business dispute': { categoryModule: BUSINESS_COMMERCIAL_BASE, subSpecOverlay: null },
   'commercial litigation': { categoryModule: BUSINESS_COMMERCIAL_BASE, subSpecOverlay: null },
   'contract dispute': { categoryModule: BUSINESS_COMMERCIAL_BASE, subSpecOverlay: null },
@@ -1251,7 +1119,6 @@ const ROUTING_TABLE: Record<string, RoutingEntry> = {
   'construction dispute': { categoryModule: BUSINESS_COMMERCIAL_BASE, subSpecOverlay: BUSINESS_COMMERCIAL_OVERLAYS[2] },
   'construction defect': { categoryModule: BUSINESS_COMMERCIAL_BASE, subSpecOverlay: BUSINESS_COMMERCIAL_OVERLAYS[2] },
 
-  // Intellectual Property
   'intellectual property': { categoryModule: IP_BASE, subSpecOverlay: null },
   'patent infringement': { categoryModule: IP_BASE, subSpecOverlay: IP_OVERLAYS[0] },
   'patent': { categoryModule: IP_BASE, subSpecOverlay: IP_OVERLAYS[0] },
@@ -1260,7 +1127,6 @@ const ROUTING_TABLE: Record<string, RoutingEntry> = {
   'trademark infringement': { categoryModule: IP_BASE, subSpecOverlay: IP_OVERLAYS[1] },
   'copyright infringement': { categoryModule: IP_BASE, subSpecOverlay: IP_OVERLAYS[1] },
 
-  // Civil Rights
   'civil rights': { categoryModule: CIVIL_RIGHTS_BASE, subSpecOverlay: null },
   'section 1983': { categoryModule: CIVIL_RIGHTS_BASE, subSpecOverlay: null },
   'police excessive force': { categoryModule: CIVIL_RIGHTS_BASE, subSpecOverlay: CIVIL_RIGHTS_OVERLAYS[0] },
@@ -1271,7 +1137,6 @@ const ROUTING_TABLE: Record<string, RoutingEntry> = {
   'inmate rights': { categoryModule: CIVIL_RIGHTS_BASE, subSpecOverlay: CIVIL_RIGHTS_OVERLAYS[1] },
   'prison conditions': { categoryModule: CIVIL_RIGHTS_BASE, subSpecOverlay: CIVIL_RIGHTS_OVERLAYS[1] },
 
-  // Family Law
   'family law': { categoryModule: FAMILY_LAW_BASE, subSpecOverlay: null },
   'divorce': { categoryModule: FAMILY_LAW_BASE, subSpecOverlay: null },
   'custody': { categoryModule: FAMILY_LAW_BASE, subSpecOverlay: FAMILY_LAW_OVERLAYS[0] },
@@ -1280,7 +1145,6 @@ const ROUTING_TABLE: Record<string, RoutingEntry> = {
   'termination of parental rights': { categoryModule: FAMILY_LAW_BASE, subSpecOverlay: FAMILY_LAW_OVERLAYS[1] },
   'tpr': { categoryModule: FAMILY_LAW_BASE, subSpecOverlay: FAMILY_LAW_OVERLAYS[1] },
 
-  // Probate / Estate
   'probate': { categoryModule: PROBATE_ESTATE_BASE, subSpecOverlay: null },
   'estate dispute': { categoryModule: PROBATE_ESTATE_BASE, subSpecOverlay: null },
   'will contest': { categoryModule: PROBATE_ESTATE_BASE, subSpecOverlay: null },
@@ -1288,7 +1152,6 @@ const ROUTING_TABLE: Record<string, RoutingEntry> = {
   'undue influence': { categoryModule: PROBATE_ESTATE_BASE, subSpecOverlay: null },
   'estate litigation': { categoryModule: PROBATE_ESTATE_BASE, subSpecOverlay: null },
 
-  // Insurance
   'insurance': { categoryModule: INSURANCE_BASE, subSpecOverlay: null },
   'insurance dispute': { categoryModule: INSURANCE_BASE, subSpecOverlay: null },
   'insurance coverage': { categoryModule: INSURANCE_BASE, subSpecOverlay: null },
