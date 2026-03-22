@@ -118,12 +118,13 @@ export function ResponseRecording({
   const { toast } = useToast();
 
   useEffect(() => {
-    if (caseInfo) {
-      api.getSessionForCase(caseId || '').then(s => {
+    if (caseInfo && caseId) {
+      setActiveSession(null);
+      api.getSessionForCase(caseId).then(s => {
         if (s && s.isActive) setActiveSession({ id: s.id, sessionCode: s.sessionCode });
       }).catch(() => {});
     }
-  }, [caseInfo]);
+  }, [caseId, caseInfo]);
 
   useEffect(() => {
     if (activeSession) {

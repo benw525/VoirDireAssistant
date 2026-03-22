@@ -265,7 +265,7 @@ export default function CollaboratorView() {
     setLocation('/team');
   };
 
-  const yourSideLabel = caseInfo?.name ? 'Your Side' : 'Plaintiff';
+  const yourSideLabel = 'Your Side';
   const opposingSideLabel = 'Opposing';
 
   const handleQuickReaction = async (jurorNumber: number, reaction: string) => {
