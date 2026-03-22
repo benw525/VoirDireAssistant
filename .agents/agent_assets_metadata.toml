@@ -18,3 +18,9 @@ id = "TBjb3zt3-emoU99haT_Rj"
 uri = "file://docs/application_overview.rtf"
 type = "unspecified"
 title = "Voir Dire Analyst — Application Overview"
+
+[[outputs]]
+id = "h0T-mx1rz4ypw1Sy1oXFy"
+uri = "file://Voir_Dire_Transcript_Pipeline_Diagnostic.rtf"
+type = "unspecified"
+title = "Transcript Pipeline Full Diagnostic"
