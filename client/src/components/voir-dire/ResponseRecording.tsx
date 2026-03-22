@@ -53,6 +53,7 @@ interface ResponseRecordingProps {
   responses: JurorResponse[];
   onRecordResponse: (response: Omit<JurorResponse, 'id' | 'timestamp'>) => void;
   onRemoteResponse?: (response: JurorResponse) => void;
+  onRemoteResponseDeleted?: (responseId: string) => void;
   onRemoteFollowUp?: (responseId: string, followUp: {question: string, answer: string}) => void;
   onAddFollowUp: (responseId: string, followUp: {question: string, answer: string}) => void;
   onProceed: () => void;
@@ -72,6 +73,7 @@ export function ResponseRecording({
   responses,
   onRecordResponse,
   onRemoteResponse,
+  onRemoteResponseDeleted,
   onRemoteFollowUp,
   onAddFollowUp,
   onProceed,
@@ -148,6 +150,11 @@ export function ResponseRecording({
           recordedBy: r.recordedBy,
         };
         onRemoteResponse?.(mapped);
+      }
+    }, []),
+    onResponseDeleted: useCallback((data: any) => {
+      if (data.responseId) {
+        onRemoteResponseDeleted?.(data.responseId);
       }
     }, []),
     onFollowUpNew: useCallback((data: any) => {

@@ -363,6 +363,10 @@ export default function VoirDireApp() {
     });
   }, []);
 
+  const handleRemoteResponseDeleted = useCallback((responseId: string) => {
+    setResponses(prev => prev.filter(r => r.id !== responseId));
+  }, []);
+
   const handleRemoteFollowUp = useCallback((responseId: string, followUp: { question: string; answer: string }) => {
     setResponses(prev =>
       prev.map(r => {
@@ -514,6 +518,7 @@ export default function VoirDireApp() {
             responses={responses}
             onRecordResponse={handleRecordResponse}
             onRemoteResponse={handleRemoteResponse}
+            onRemoteResponseDeleted={handleRemoteResponseDeleted}
             onRemoteFollowUp={handleRemoteFollowUp}
             onAddFollowUp={handleAddFollowUp}
             onProceed={() => { setTriggerAutoAnalyze(true); proceedToPhase(5); }}

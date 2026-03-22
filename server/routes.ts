@@ -1579,6 +1579,10 @@ export async function registerRoutes(
       return res.status(403).json({ message: "You can only delete your own responses" });
     }
     await storage.deleteResponse(req.params.id);
+    broadcastToSession(req.collab!.sessionId, {
+      type: "response:deleted",
+      data: { responseId: req.params.id },
+    });
     res.json({ success: true });
   });
 

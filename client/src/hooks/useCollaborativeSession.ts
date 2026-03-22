@@ -27,6 +27,7 @@ interface UseCollaborativeSessionOptions {
   onParticipantJoined?: (data: any) => void;
   onParticipantLeft?: (data: any) => void;
   onPhaseChanged?: (data: any) => void;
+  onResponseDeleted?: (data: any) => void;
   onDuplicate?: (data: any) => void;
   onSessionRevoked?: () => void;
   onTypingStart?: (data: any) => void;
@@ -88,6 +89,9 @@ export function useCollaborativeSession(options: UseCollaborativeSessionOptions)
           break;
         case 'phase:changed':
           cb.onPhaseChanged?.(msg.data);
+          break;
+        case 'response:deleted':
+          cb.onResponseDeleted?.(msg.data);
           break;
         case 'response:duplicate':
           cb.onDuplicate?.(msg.data);

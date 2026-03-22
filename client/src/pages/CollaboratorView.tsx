@@ -118,6 +118,12 @@ export default function CollaboratorView() {
     }
   }, []);
 
+  const handleResponseDeleted = useCallback((data: any) => {
+    if (data.responseId) {
+      setResponses(prev => prev.filter(r => r.id !== data.responseId));
+    }
+  }, []);
+
   const handleFollowUpNew = useCallback((data: any) => {
     setResponses(prev =>
       prev.map(r =>
@@ -215,6 +221,7 @@ export default function CollaboratorView() {
     sessionId: session?.sessionId || null,
     isOwner: false,
     onResponseNew: handleResponseNew,
+    onResponseDeleted: handleResponseDeleted,
     onFollowUpNew: handleFollowUpNew,
     onNotesUpdated: handleNotesUpdated,
     onParticipantJoined: handleParticipantJoined,
@@ -291,8 +298,12 @@ export default function CollaboratorView() {
 
     if (stage === 'yours' && questionNum) {
       const qNum = parseInt(questionNum, 10);
-      const q = questions.find(q => q.id === qNum);
-      if (q) payload.questionId = q.id || qNum;
+      const q = questions.find(q => q.id === qNum || (q as any).questionNumber === qNum);
+      if (q) {
+        payload.questionId = q.id;
+      } else {
+        payload.questionId = qNum;
+      }
     } else if (questionSummary.trim()) {
       payload.questionSummary = questionSummary.trim();
     }
@@ -653,15 +664,7 @@ function CollabRecordingView({
                   type="number"
                   data-testid="input-collab-juror-num"
                   value={jurorNum}
-                  onChange={e => {
-                    setJurorNum(e.target.value);
-                    const n = parseInt(e.target.value);
-                    if (!isNaN(n)) sendTypingStart(n);
-                  }}
-                  onBlur={() => {
-                    const n = parseInt(jurorNum);
-                    if (!isNaN(n)) sendTypingStop(n);
-                  }}
+                  onChange={e => setJurorNum(e.target.value)}
                   placeholder="#"
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none text-lg font-mono"
                   autoFocus
@@ -699,7 +702,19 @@ function CollabRecordingView({
               <textarea
                 data-testid="input-collab-response"
                 value={responseText}
-                onChange={e => setResponseText(e.target.value)}
+                onChange={e => {
+                  setResponseText(e.target.value);
+                  const n = parseInt(jurorNum);
+                  if (!isNaN(n) && e.target.value.trim()) sendTypingStart(n);
+                }}
+                onFocus={() => {
+                  const n = parseInt(jurorNum);
+                  if (!isNaN(n) && responseText.trim()) sendTypingStart(n);
+                }}
+                onBlur={() => {
+                  const n = parseInt(jurorNum);
+                  if (!isNaN(n)) sendTypingStop(n);
+                }}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
                 placeholder="Type the juror's response..."
                 rows={3}
