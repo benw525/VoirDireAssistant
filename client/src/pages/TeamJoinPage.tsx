@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { Scale, Users, ArrowRight, Loader2 } from 'lucide-react';
+import { Scale, Users, ArrowRight, Loader2, MessageSquare, ClipboardList } from 'lucide-react';
 import * as api from '../lib/api';
 import { setCollabSession } from '../lib/collabAuth';
 
@@ -8,6 +8,7 @@ export default function TeamJoinPage() {
   const [, setLocation] = useLocation();
   const [code, setCode] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [role, setRole] = useState<'recorder' | 'questioner'>('recorder');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -39,7 +40,7 @@ export default function TeamJoinPage() {
 
     setIsLoading(true);
     try {
-      const result = await api.joinSession(trimmedCode, trimmedName);
+      const result = await api.joinSession(trimmedCode, trimmedName, role);
       setCollabSession({
         token: result.token,
         sessionId: result.sessionId,
@@ -47,8 +48,13 @@ export default function TeamJoinPage() {
         displayName: trimmedName,
         caseId: result.caseId,
         caseName: result.caseName,
+        role: (result.role as 'recorder' | 'questioner') || role,
       });
-      setLocation('/team/session');
+      if (role === 'questioner') {
+        setLocation('/team/questions');
+      } else {
+        setLocation('/team/session');
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to join session');
     } finally {
@@ -93,6 +99,40 @@ export default function TeamJoinPage() {
               className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none"
               maxLength={50}
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-3">Your Role</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                data-testid="button-role-recorder"
+                onClick={() => setRole('recorder')}
+                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                  role === 'recorder'
+                    ? 'border-amber-400 bg-amber-50 text-slate-900'
+                    : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                }`}
+              >
+                <ClipboardList className={`w-6 h-6 ${role === 'recorder' ? 'text-amber-600' : 'text-slate-400'}`} />
+                <span className="text-sm font-medium">Response Recorder</span>
+                <span className="text-xs text-center leading-tight opacity-70">Record juror answers</span>
+              </button>
+              <button
+                type="button"
+                data-testid="button-role-questioner"
+                onClick={() => setRole('questioner')}
+                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                  role === 'questioner'
+                    ? 'border-amber-400 bg-amber-50 text-slate-900'
+                    : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                }`}
+              >
+                <MessageSquare className={`w-6 h-6 ${role === 'questioner' ? 'text-amber-600' : 'text-slate-400'}`} />
+                <span className="text-sm font-medium">Question Asker</span>
+                <span className="text-xs text-center leading-tight opacity-70">View & ask questions</span>
+              </button>
+            </div>
           </div>
 
           {error && (

@@ -31,6 +31,8 @@ interface UseCollaborativeSessionOptions {
   onSessionRevoked?: () => void;
   onTypingStart?: (data: any) => void;
   onTypingStop?: (data: any) => void;
+  onQuestionSetActive?: (data: any) => void;
+  onFollowUpSuggestions?: (data: any) => void;
 }
 
 export function useCollaborativeSession(options: UseCollaborativeSessionOptions) {
@@ -47,6 +49,8 @@ export function useCollaborativeSession(options: UseCollaborativeSessionOptions)
     onSessionRevoked,
     onTypingStart,
     onTypingStop,
+    onQuestionSetActive,
+    onFollowUpSuggestions,
   } = options;
 
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
@@ -104,6 +108,12 @@ export function useCollaborativeSession(options: UseCollaborativeSessionOptions)
           break;
         case 'typing:stop':
           cb.onTypingStop?.(msg.data);
+          break;
+        case 'question:set-active':
+          cb.onQuestionSetActive?.(msg.data);
+          break;
+        case 'followup:suggestions':
+          cb.onFollowUpSuggestions?.(msg.data);
           break;
       }
     } catch {}
@@ -185,6 +195,12 @@ export function useCollaborativeSession(options: UseCollaborativeSessionOptions)
     }
   }, []);
 
+  const sendSetActiveQuestion = useCallback((questionId: number | null, questionText: string, isFollowUp?: boolean) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'question:set-active', questionId, questionText, isFollowUp: !!isFollowUp }));
+    }
+  }, []);
+
   const addToWriteQueue = useCallback((write: QueuedWrite) => {
     setWriteQueue(q => [...q, write]);
   }, []);
@@ -223,6 +239,7 @@ export function useCollaborativeSession(options: UseCollaborativeSessionOptions)
     status,
     sendTypingStart,
     sendTypingStop,
+    sendSetActiveQuestion,
     addToWriteQueue,
     writeQueueLength: writeQueue.length,
   };

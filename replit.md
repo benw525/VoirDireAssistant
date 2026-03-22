@@ -18,8 +18,9 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `/` — Public landing page (LandingPage.tsx) — product info, features, pricing, footer with legal links
 - `/auth` — Login/registration page (redirects to `/app` if authenticated)
 - `/app` — Authenticated dashboard (VoirDireApp.tsx, protected route)
-- `/team` — Team join page (TeamJoinPage.tsx) — collaborators enter session code + name to join
+- `/team` — Team join page (TeamJoinPage.tsx) — collaborators enter session code + name + role (recorder/questioner) to join
 - `/team/session` — Collaborator view (CollaboratorView.tsx) — scoped recording + read-only report
+- `/team/questions` — Question Asker view (QuestionAskerView.tsx) — mobile/iPad-optimized question display with tap-to-send and AI follow-up suggestions
 - `/terms` — Terms of Service (public)
 - `/privacy` — Privacy Policy (public)
 
@@ -48,8 +49,9 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `client/src/lib/api.ts` — Frontend API client with auth headers and type conversions; includes collaborative session API helpers (join, create, end, collab record/followup/report)
 - `client/src/lib/collabAuth.ts` — Collaborator session token storage (sessionStorage-based); stores/retrieves/clears collab JWT + session metadata
 - `client/src/hooks/useCollaborativeSession.ts` — WebSocket hook for real-time collab; manages connect/reconnect with exponential backoff, event routing, typing indicators, offline write queue with FIFO flush
-- `client/src/pages/TeamJoinPage.tsx` — Team join page (`/team`); 6-char session code input with URL pre-fill (`?code=`), display name, join API call, redirect to collaborator view
-- `client/src/pages/CollaboratorView.tsx` — Scoped collaborator view (`/team/session`); juror grid (number+name only), response recording, read-only report, typing indicators, phase change handling
+- `client/src/pages/TeamJoinPage.tsx` — Team join page (`/team`); 6-char session code input with URL pre-fill (`?code=`), display name, role selector (recorder/questioner), join API call, redirect to appropriate view
+- `client/src/pages/CollaboratorView.tsx` — Scoped collaborator view (`/team/session`); juror grid (number+name only), response recording, read-only report, typing indicators, phase change handling, active question updates from questioner
+- `client/src/pages/QuestionAskerView.tsx` — Question Asker view (`/team/questions`); mobile/iPad-optimized, shows voir dire questions with tap-to-send, AI-suggested follow-ups based on juror responses (without showing raw responses), WebSocket real-time sync
 - `client/src/types/index.ts` — Frontend TypeScript types (JurorResponse includes optional `recordedBy` for attribution)
 - `client/src/components/voir-dire/` — UI components for each phase
 - `client/src/components/voir-dire/JurySeatingGrid.tsx` — Visual courtroom seating chart with configurable rows/direction, quick-reaction buttons (Raised Hand, Head Nod, Head Shake, Note), active question awareness, visual feedback animations
@@ -70,6 +72,22 @@ A full-stack jury selection assistant application with user authentication, AI-p
 4. Response Recording (three sub-stages: your side's examination, opposing counsel's examination, Court examination). Includes a configurable **Jury Seating Grid** at the top with visual courtroom pew layout (2/3/4 rows, configurable direction). Each juror cell shows quick-reaction buttons (Raised Hand, Head Nod, Head Shake, Note) tied to the active question — reactions auto-record responses. Grid config persists with case. AI-powered follow-up suggestions auto-generated after each your-side response via `/api/suggest-followups` (gpt-4o-mini). Each suggestion has "Ask" (opens inline response box) and "Mark" (saves to collapsible marked follow-ups section with parent context). Marked follow-ups are collapsible, collapsed by default, grouped individually with juror name/number as title.
 5. Juror Review (assess leanings and risk tiers). Features: "Analyze All" batch button to generate full AI analysis for all jurors. Auto-generates full analysis when attorney sets a lean. AI analysis returns structured JSON with numeric riskScore (1-100), aiRiskTier, and analysis text. Risk score weighting: responses 60-70%, enrichment 15-25%, demographics 10-15%. Tier imbalance banner warns when 60%+ jurors share the same risk tier. Enrichment status badges show research completion per juror.
 6. End Report (final analysis, collapsible jury panel, peremptory strike boxes, recommendations, optional push to MattrMindr)
+
+## Question Asker View (Collaborative)
+- Mobile/iPad-optimized view at `/team/questions` for the attorney asking questions during voir dire
+- Join flow: TeamJoinPage now includes role selector (Response Recorder vs Question Asker)
+- Role stored in collab JWT token and session storage, routes to appropriate view on join
+- Displays all voir dire questions in a clean, tappable card layout
+- Each question card shows question number, text, and a send icon
+- Tap a question to broadcast it as the "active question" to all recorders (collaborators + case owner)
+- AI-suggested follow-ups appear in real-time as juror responses are recorded by the team
+- Follow-up suggestions generated via `POST /api/collab/suggest-followups` (gpt-4o-mini) — questioner does NOT see raw juror responses
+- Prepared follow-ups (from question generation) and AI suggestions shown separately with expand/collapse
+- Tapping a follow-up also broadcasts it as the active question to recorders
+- WebSocket events: `question:set-active` broadcast to all session participants
+- Both CollaboratorView and ResponseRecording (owner) handle `question:set-active` to auto-populate the active question
+- Connection status indicator, session revocation handling, phase change awareness
+- Collab endpoints: `POST /api/collab/set-active-question`, `POST /api/collab/suggest-followups`
 
 ## AI Assistant
 - Floating circular button (bottom-right) with BrainCircuit icon in slate-900/amber-500

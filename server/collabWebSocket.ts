@@ -208,6 +208,20 @@ export function setupCollabWebSocket(httpServer: HttpServer) {
               },
             }, ws);
           }
+        } else if (msg.type === "question:set-active") {
+          const isQuestioner = ws.collabPayload?.role === "questioner";
+          const isOwner = !!ws.ownerUserId;
+          if (ws.sessionId && (isQuestioner || isOwner)) {
+            broadcastToSession(ws.sessionId, {
+              type: "question:set-active",
+              data: {
+                questionId: msg.questionId || null,
+                questionText: msg.questionText || "",
+                isFollowUp: !!msg.isFollowUp,
+                setBy: ws.collabPayload?.displayName || "Case Owner",
+              },
+            }, ws);
+          }
         }
       } catch {
       }

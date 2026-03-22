@@ -806,17 +806,18 @@ export async function validateSessionCode(code: string): Promise<{ valid: boolea
   return fetchJson(`${API_BASE}/sessions/validate/${code}`);
 }
 
-export async function joinSession(code: string, displayName: string): Promise<{
+export async function joinSession(code: string, displayName: string, role?: string): Promise<{
   token: string;
   sessionId: string;
   participantId: string;
   caseId: string;
   caseName: string;
+  role: string;
 }> {
   return fetch(`${API_BASE}/sessions/join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, displayName }),
+    body: JSON.stringify({ code, displayName, role }),
   }).then(async res => {
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: res.statusText }));
@@ -906,5 +907,20 @@ export async function collabUpdateJurorNotes(jurorNumber: number, notes: string)
     method: 'PATCH',
     body: JSON.stringify({ notes }),
   });
+}
+
+export async function collabSetActiveQuestion(questionId: number | null, questionText: string, isFollowUp?: boolean): Promise<any> {
+  return collabFetchJson(`${API_BASE}/collab/set-active-question`, {
+    method: 'POST',
+    body: JSON.stringify({ questionId, questionText, isFollowUp: !!isFollowUp }),
+  });
+}
+
+export async function collabSuggestFollowups(questionText: string, responseText: string, jurorName: string, jurorNumber: number): Promise<string[]> {
+  const result = await collabFetchJson<{ suggestions: string[] }>(`${API_BASE}/collab/suggest-followups`, {
+    method: 'POST',
+    body: JSON.stringify({ questionText, responseText, jurorName, jurorNumber }),
+  });
+  return result.suggestions;
 }
 

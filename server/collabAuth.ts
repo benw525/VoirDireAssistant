@@ -18,6 +18,7 @@ export interface CollabJwtPayload {
   participantId: string;
   displayName: string;
   caseId: string;
+  role: "recorder" | "questioner";
   type: "collaborator";
 }
 

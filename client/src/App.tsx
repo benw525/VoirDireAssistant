@@ -11,6 +11,7 @@ import TermsPage from "@/pages/TermsPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import TeamJoinPage from "@/pages/TeamJoinPage";
 import CollaboratorView from "@/pages/CollaboratorView";
+import QuestionAskerView from "@/pages/QuestionAskerView";
 import { AuthProvider, useAuth } from "./lib/auth";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -59,6 +60,7 @@ function Router() {
       </Route>
       <Route path="/team" component={TeamJoinPage} />
       <Route path="/team/session" component={CollaboratorView} />
+      <Route path="/team/questions" component={QuestionAskerView} />
       <Route path="/terms" component={TermsPage} />
       <Route path="/privacy" component={PrivacyPage} />
       <Route component={NotFound} />

@@ -1290,10 +1290,11 @@ export async function registerRoutes(
   // --- Collaborative Session Join (public, no auth required) ---
   app.post("/api/sessions/join", async (req, res) => {
     try {
-      const { code, displayName } = req.body;
+      const { code, displayName, role } = req.body;
       if (!code || !displayName) {
         return res.status(400).json({ message: "code and displayName are required" });
       }
+      const participantRole = role === "questioner" ? "questioner" : "recorder";
       if (displayName.length > 50) {
         return res.status(400).json({ message: "Display name must be 50 characters or less" });
       }
@@ -1323,6 +1324,7 @@ export async function registerRoutes(
         participantId: participant.id,
         displayName: participant.displayName,
         caseId: session.caseId,
+        role: participantRole,
       });
 
       const caseRecord = await storage.getCase(session.caseId);
@@ -1334,6 +1336,7 @@ export async function registerRoutes(
         participantId: participant.id,
         displayName: participant.displayName,
         caseName: caseRecord?.name || "Unknown Case",
+        role: participantRole,
       });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to join session" });
@@ -1569,6 +1572,48 @@ export async function registerRoutes(
         });
       }
 
+      if (questionId && side === "yours") {
+        (async () => {
+          try {
+            const allJurors = await storage.getJurorsByCase(caseId);
+            const juror = allJurors.find((j) => j.number === jurorNumber);
+            if (!juror || !caseRecord) return;
+            const allQuestions = await storage.getQuestionsByCase(caseId);
+            const question = allQuestions.find((q) => q.questionNumber === questionId);
+            if (!question) return;
+            const questionText = question.originalText || question.rephrase || "";
+            const OpenAI = (await import("openai")).default;
+            const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+            const completion = await openai.chat.completions.create({
+              model: "gpt-4o-mini",
+              messages: [
+                {
+                  role: "system",
+                  content: `You are a trial attorney assistant. Based on a juror's response during voir dire, suggest 2-3 brief follow-up questions that would help assess this juror further. The case is a ${caseRecord.areaOfLaw} case where you represent the ${caseRecord.side}. Keep each question to one sentence. Return ONLY a JSON array of strings, no other text.`,
+                },
+                {
+                  role: "user",
+                  content: `Juror #${jurorNumber} (${juror.name}) was asked: "${questionText}"\n\nTheir response: "${responseText}"\n\nSuggest 2-3 targeted follow-up questions.`,
+                },
+              ],
+              temperature: 0.6,
+              max_tokens: 300,
+            });
+            const raw = completion.choices[0]?.message?.content || "[]";
+            let suggestions: string[];
+            try { suggestions = JSON.parse(raw); } catch { suggestions = []; }
+            if (suggestions.length > 0) {
+              broadcastToSession(req.collab!.sessionId, {
+                type: "followup:suggestions",
+                data: { questionId, jurorNumber, jurorName: juror.name, suggestions },
+              });
+            }
+          } catch (err) {
+            console.error("[Collab] Follow-up suggestion generation failed:", err);
+          }
+        })();
+      }
+
       res.status(201).json({ ...response, isDuplicate });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to record response" });
@@ -1635,6 +1680,81 @@ export async function registerRoutes(
     });
 
     res.json({ number: updated.number, name: updated.name, notes: updated.notes });
+  });
+
+  app.post("/api/collab/set-active-question", async (req, res) => {
+    if (req.collab!.role !== "questioner") {
+      return res.status(403).json({ message: "Only questioners can set the active question" });
+    }
+    const { questionId, questionText, isFollowUp } = req.body;
+    if (!questionText) {
+      return res.status(400).json({ message: "questionText is required" });
+    }
+
+    broadcastToSession(req.collab!.sessionId, {
+      type: "question:set-active",
+      data: {
+        questionId: questionId || null,
+        questionText,
+        isFollowUp: !!isFollowUp,
+        setBy: req.collab!.displayName,
+      },
+    });
+
+    res.json({ success: true });
+  });
+
+  app.post("/api/collab/suggest-followups", async (req, res) => {
+    try {
+      if (req.collab!.type !== "owner") {
+        return res.status(403).json({ message: "Only case owners can request follow-up suggestions via this endpoint" });
+      }
+      const caseId = req.collab!.caseId;
+      const { questionText, responseText, jurorName, jurorNumber } = req.body;
+      if (!questionText || !responseText || !jurorName || jurorNumber === undefined) {
+        return res.status(400).json({ message: "questionText, responseText, jurorName, jurorNumber are required" });
+      }
+
+      const caseRecord = await storage.getCase(caseId);
+      if (!caseRecord) return res.status(404).json({ message: "Case not found" });
+
+      const caseInfo = {
+        name: caseRecord.name,
+        areaOfLaw: caseRecord.areaOfLaw,
+        summary: caseRecord.summary,
+        side: caseRecord.side,
+      };
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are a trial attorney assistant. Based on a juror's response during voir dire, suggest 2-3 brief follow-up questions that would help assess this juror further. The case is a ${caseInfo.areaOfLaw} case where you represent the ${caseInfo.side}. Keep each question to one sentence. Return ONLY a JSON array of strings, no other text.`,
+          },
+          {
+            role: "user",
+            content: `Juror #${jurorNumber} (${jurorName}) was asked: "${questionText}"\n\nTheir response: "${responseText}"\n\nSuggest 2-3 targeted follow-up questions.`,
+          },
+        ],
+        temperature: 0.6,
+        max_tokens: 300,
+      });
+
+      const raw = completion.choices[0]?.message?.content || "[]";
+      let suggestions: string[];
+      try {
+        suggestions = JSON.parse(raw);
+      } catch {
+        suggestions = [];
+      }
+
+      res.json({ suggestions });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to generate suggestions" });
+    }
   });
 
   // --- AI Assistant Chat ---

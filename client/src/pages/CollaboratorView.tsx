@@ -234,6 +234,20 @@ export default function CollaboratorView() {
     }
   }, []);
 
+  const handleQuestionSetActive = useCallback((data: any) => {
+    if (data.questionId) {
+      setActiveQuestionId(data.questionId);
+    }
+    if (data.questionText) {
+      setQuestionSummary(data.questionText);
+      const q = questions.find(q => q.questionNumber === data.questionId);
+      if (q) {
+        setQuestionNum(q.questionNumber.toString());
+      }
+    }
+    toast({ title: 'Active question updated', description: `"${data.questionText?.substring(0, 60)}..." set by ${data.setBy}` });
+  }, [questions, toast]);
+
   const { status, sendTypingStart, sendTypingStop, addToWriteQueue, writeQueueLength } = useCollaborativeSession({
     sessionId: session?.sessionId || null,
     isOwner: false,
@@ -248,6 +262,7 @@ export default function CollaboratorView() {
     onDuplicate: handleDuplicate,
     onTypingStart: handleTypingStart,
     onTypingStop: handleTypingStop,
+    onQuestionSetActive: handleQuestionSetActive,
   });
 
   const loadReportData = async () => {

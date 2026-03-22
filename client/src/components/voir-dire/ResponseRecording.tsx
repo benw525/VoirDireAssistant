@@ -186,6 +186,15 @@ export function ResponseRecording({
         api.getActiveParticipants(activeSession.id).then(setSessionParticipants).catch(() => {});
       }
     }, [toast, activeSession]),
+    onQuestionSetActive: useCallback((data: any) => {
+      if (data.questionId) {
+        setQuestionNum(data.questionId.toString());
+      }
+      if (data.questionText) {
+        setQuestionSummary(data.questionText);
+      }
+      toast({ title: 'Active question updated', description: `"${data.questionText?.substring(0, 60)}${data.questionText?.length > 60 ? '...' : ''}" set by ${data.setBy}` });
+    }, [toast]),
   };
 
   const { status: wsStatus } = useCollaborativeSession({

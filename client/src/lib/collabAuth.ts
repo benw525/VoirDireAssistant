@@ -8,6 +8,7 @@ export interface CollabSession {
   displayName: string;
   caseId: string;
   caseName: string;
+  role: "recorder" | "questioner";
 }
 
 export function getCollabToken(): string | null {
