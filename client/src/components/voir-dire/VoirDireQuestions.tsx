@@ -418,7 +418,7 @@ export function VoirDireQuestions({
       <div className="mb-6 flex justify-between items-end shrink-0">
         <div>
           <h2 className="text-2xl font-bold text-slate-900" data-testid="text-phase-title">
-            Phase 3: Voir Dire Questions
+            Phase 2: Voir Dire Questions
           </h2>
           <p className="text-slate-600 mt-1">
             {hasContent

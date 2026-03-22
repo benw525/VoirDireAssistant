@@ -299,7 +299,7 @@ export function StrikeList({
       <div className="mb-6 flex justify-between items-end shrink-0">
         <div>
           <h2 className="text-2xl font-bold text-slate-900" data-testid="text-phase-title">
-            Phase 2: Strike List
+            Phase 3: Strike List
           </h2>
           <p className="text-slate-600 mt-1">
             Upload or paste the court-provided strike list to initialize the

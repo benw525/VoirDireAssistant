@@ -31,8 +31,8 @@ interface SidebarProps {
 
 const PHASES = [
   { id: 1, label: 'New Case', short: 'Setup' },
-  { id: 2, label: 'Strike List', short: 'Jurors' },
-  { id: 3, label: 'Voir Dire Questions', short: 'Questions' },
+  { id: 2, label: 'Voir Dire Questions', short: 'Questions' },
+  { id: 3, label: 'Strike List', short: 'Jurors' },
   { id: 4, label: 'Record Responses', short: 'Record' },
   { id: 5, label: 'Review & Strategy', short: 'Review' },
   { id: 6, label: 'End Voir Dire', short: 'Report' },

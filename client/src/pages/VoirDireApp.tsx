@@ -31,7 +31,7 @@ const WELCOME_TOUR_STEPS: TourStep[] = [
   {
     target: 'welcome-features',
     title: 'Welcome to Voir Dire Analyst',
-    content: 'This app guides you through the entire jury selection process in 6 phases — from ingesting your strike list to generating final strike recommendations.',
+    content: 'This app guides you through the entire jury selection process in 6 phases — from generating your voir dire questions to recording responses and getting final strike recommendations.',
     placement: 'bottom',
   },
   {
@@ -274,7 +274,7 @@ export default function VoirDireApp() {
 
   const handleJurorsLoaded = async (j: Juror[]) => {
     setJurors(j);
-    if (j.length > 0) markPhaseComplete(2);
+    if (j.length > 0) markPhaseComplete(3);
     if (activeCaseId) {
       try {
         await api.saveJurors(activeCaseId, j);
@@ -286,7 +286,7 @@ export default function VoirDireApp() {
 
   const handleQuestionsProcessed = async (q: VoirDireQuestion[]) => {
     setQuestions(q);
-    if (q.length > 0) markPhaseComplete(3);
+    if (q.length > 0) markPhaseComplete(2);
     if (activeCaseId) {
       try {
         await api.saveQuestions(activeCaseId, q);
@@ -441,8 +441,8 @@ export default function VoirDireApp() {
   const PHASE_LABELS: Record<number, string> = {
     0: 'Welcome',
     1: 'Case Setup',
-    2: 'Strike List',
-    3: 'Voir Dire Questions',
+    2: 'Voir Dire Questions',
+    3: 'Strike List',
     4: 'Record Responses',
     5: 'Review & Strategy',
     6: 'Final Report',
@@ -474,25 +474,25 @@ export default function VoirDireApp() {
         );
       case 2:
         return (
-          <StrikeList
-            jurors={jurors}
-            onJurorsLoaded={handleJurorsLoaded}
-            onProceed={() => proceedToPhase(3)}
-            generateSampleJurors={generateSampleJurors}
-          />
-        );
-      case 3:
-        return (
           <VoirDireQuestions
             questions={questions}
             onQuestionsProcessed={handleQuestionsProcessed}
             locked={questionsLocked}
             onLockQuestions={handleLockQuestions}
             onUnlockQuestions={handleUnlockQuestions}
-            onProceed={() => proceedToPhase(4)}
+            onProceed={() => proceedToPhase(3)}
             caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
             jurors={jurors}
             caseId={activeCaseId}
+          />
+        );
+      case 3:
+        return (
+          <StrikeList
+            jurors={jurors}
+            onJurorsLoaded={handleJurorsLoaded}
+            onProceed={() => proceedToPhase(4)}
+            generateSampleJurors={generateSampleJurors}
           />
         );
       case 4:
