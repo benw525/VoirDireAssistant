@@ -145,7 +145,7 @@ export function ResponseRecording({
           timestamp: r.timestamp || Date.now(),
           recordedBy: r.recordedBy,
         };
-        onRemoteResponse(mapped);
+        onRemoteResponse?.(mapped);
       }
     }, []),
     onFollowUpNew: useCallback((data: any) => {

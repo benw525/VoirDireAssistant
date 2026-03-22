@@ -1491,6 +1491,7 @@ export async function registerRoutes(
         lean: j.lean,
         riskTier: j.riskTier,
         notes: j.notes,
+        analysisSummary: j.aiAnalysis ? (j.aiAnalysis.length > 200 ? j.aiAnalysis.substring(0, 200) + '...' : j.aiAnalysis) : null,
       })),
     });
   });

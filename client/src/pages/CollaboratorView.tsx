@@ -3,7 +3,8 @@ import { useLocation } from 'wouter';
 import {
   Scale, Users, Wifi, WifiOff, Loader2, LogOut,
   Mic, Shield, Gavel, ChevronDown, ChevronUp,
-  AlertCircle, CheckCircle2, User, Send, MessageSquare
+  AlertCircle, CheckCircle2, User, Send, MessageSquare,
+  Hand, ThumbsUp, ThumbsDown, StickyNote
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getCollabSession, clearCollabSession } from '../lib/collabAuth';
@@ -58,6 +59,8 @@ export default function CollaboratorView() {
   const [expandedResponseId, setExpandedResponseId] = useState<string | null>(null);
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [followUpAnswer, setFollowUpAnswer] = useState('');
+  const [duplicateAlerts, setDuplicateAlerts] = useState<Array<{ id: string; jurorNumber: number; message: string }>>([]);
+  const [activeQuestionId, setActiveQuestionId] = useState<number | null>(null);
   const jurorInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -152,8 +155,16 @@ export default function CollaboratorView() {
   }, [toast, setLocation]);
 
   const handleDuplicate = useCallback((data: any) => {
-    toast({ title: 'Duplicate detected', description: `Someone else already recorded a response for Juror #${data.jurorNumber}. Your entry was saved as supplemental.` });
-  }, [toast]);
+    const alertId = `dup-${Date.now()}`;
+    setDuplicateAlerts(prev => [...prev, {
+      id: alertId,
+      jurorNumber: data.jurorNumber,
+      message: `Duplicate response for Juror #${data.jurorNumber} — your entry was saved as a supplemental note.`,
+    }]);
+    setTimeout(() => {
+      setDuplicateAlerts(prev => prev.filter(a => a.id !== alertId));
+    }, 8000);
+  }, []);
 
   const handleTypingStart = useCallback((data: any) => {
     if (data.jurorNumber && data.displayName) {
@@ -200,6 +211,35 @@ export default function CollaboratorView() {
 
   const yourSideLabel = caseInfo?.name ? 'Your Side' : 'Plaintiff';
   const opposingSideLabel = 'Opposing';
+
+  const handleQuickReaction = async (jurorNumber: number, reaction: string) => {
+    if (recordingDisabled) return;
+    const reactionLabels: Record<string, string> = {
+      'raised-hand': '✋ Raised Hand',
+      'head-nod': '👍 Head Nod',
+      'head-shake': '👎 Head Shake',
+      'note': '📝 Note',
+    };
+    const responseLabel = reactionLabels[reaction] || reaction;
+    const qId = activeQuestionId;
+    const payload: any = {
+      jurorNumber,
+      responseText: responseLabel,
+      side: stage,
+    };
+    if (qId) payload.questionId = qId;
+
+    try {
+      if (status !== 'connected') {
+        addToWriteQueue({ type: 'response', payload, id: `qr-${Date.now()}` });
+      } else {
+        const result = await api.collabRecordResponse(payload);
+        setResponses(prev => [...prev, mapResponse(result)]);
+      }
+    } catch (err: any) {
+      toast({ title: 'Reaction failed', description: err.message, variant: 'destructive' });
+    }
+  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -373,6 +413,11 @@ export default function CollaboratorView() {
             yourSideLabel={yourSideLabel}
             opposingSideLabel={opposingSideLabel}
             displayName={session.displayName}
+            onQuickReaction={handleQuickReaction}
+            duplicateAlerts={duplicateAlerts}
+            onDismissDuplicate={(id) => setDuplicateAlerts(prev => prev.filter(a => a.id !== id))}
+            activeQuestionId={activeQuestionId}
+            setActiveQuestionId={setActiveQuestionId}
           />
         ) : (
           <CollabReportView reportData={reportData} isLoading={!reportData} />
@@ -415,6 +460,11 @@ interface CollabRecordingProps {
   yourSideLabel: string;
   opposingSideLabel: string;
   displayName: string;
+  onQuickReaction: (jurorNumber: number, reaction: string) => void;
+  duplicateAlerts: Array<{ id: string; jurorNumber: number; message: string }>;
+  onDismissDuplicate: (id: string) => void;
+  activeQuestionId: number | null;
+  setActiveQuestionId: (id: number | null) => void;
 }
 
 function CollabRecordingView({
@@ -425,6 +475,7 @@ function CollabRecordingView({
   followUpQuestion, setFollowUpQuestion, followUpAnswer, setFollowUpAnswer,
   handleAddFollowUp, formatTime, jurorInputRef, sendTypingStart, sendTypingStop,
   yourSideLabel, opposingSideLabel, displayName,
+  onQuickReaction, duplicateAlerts, onDismissDuplicate, activeQuestionId, setActiveQuestionId,
 }: CollabRecordingProps) {
   const stageConfig = {
     yours: { label: yourSideLabel, icon: Scale, color: 'bg-amber-500', borderColor: 'border-amber-200', bgColor: 'bg-amber-50/30' },
@@ -469,6 +520,42 @@ function CollabRecordingView({
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mx-auto" />
                   </div>
                 )}
+                {!recordingDisabled && (
+                  <div className="flex justify-center gap-1 mt-1.5">
+                    <button
+                      onClick={() => onQuickReaction(j.number, 'raised-hand')}
+                      data-testid={`button-reaction-hand-${j.number}`}
+                      title="Raised Hand"
+                      className="p-1 rounded hover:bg-yellow-100 text-yellow-700 active:bg-yellow-200 transition-colors"
+                    >
+                      <Hand className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => onQuickReaction(j.number, 'head-nod')}
+                      data-testid={`button-reaction-nod-${j.number}`}
+                      title="Head Nod"
+                      className="p-1 rounded hover:bg-green-100 text-green-700 active:bg-green-200 transition-colors"
+                    >
+                      <ThumbsUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => onQuickReaction(j.number, 'head-shake')}
+                      data-testid={`button-reaction-shake-${j.number}`}
+                      title="Head Shake"
+                      className="p-1 rounded hover:bg-red-100 text-red-700 active:bg-red-200 transition-colors"
+                    >
+                      <ThumbsDown className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => onQuickReaction(j.number, 'note')}
+                      data-testid={`button-reaction-note-${j.number}`}
+                      title="Note"
+                      className="p-1 rounded hover:bg-blue-100 text-blue-700 active:bg-blue-200 transition-colors"
+                    >
+                      <StickyNote className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
                 {isTyping && (
                   <div className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-amber-100 border border-amber-300 rounded text-[10px] text-amber-700 whitespace-nowrap" data-testid={`indicator-typing-${j.number}`}>
                     {isTyping} typing...
@@ -479,6 +566,26 @@ function CollabRecordingView({
           })}
         </div>
       </div>
+
+      {duplicateAlerts.length > 0 && (
+        <div className="space-y-2" data-testid="duplicate-alerts">
+          {duplicateAlerts.map(alert => (
+            <div key={alert.id} className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                {alert.message}
+              </div>
+              <button
+                onClick={() => onDismissDuplicate(alert.id)}
+                className="text-amber-500 hover:text-amber-700 text-xs font-medium ml-4"
+                data-testid={`button-dismiss-duplicate-${alert.id}`}
+              >
+                Dismiss
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {!recordingDisabled && (
         <div className="bg-white rounded-xl border border-slate-200 p-6">
@@ -748,6 +855,7 @@ function CollabReportView({ reportData, isLoading }: { reportData: any; isLoadin
                 <th className="text-left py-2 px-3 text-slate-500 font-medium">Lean</th>
                 <th className="text-left py-2 px-3 text-slate-500 font-medium">Risk</th>
                 <th className="text-left py-2 px-3 text-slate-500 font-medium">Notes</th>
+                <th className="text-left py-2 px-3 text-slate-500 font-medium">Analysis</th>
               </tr>
             </thead>
             <tbody>
@@ -775,6 +883,7 @@ function CollabReportView({ reportData, isLoading }: { reportData: any; isLoadin
                     </span>
                   </td>
                   <td className="py-2 px-3 text-slate-500 max-w-[200px] truncate">{j.notes || '—'}</td>
+                  <td className="py-2 px-3 text-slate-500 max-w-[300px] text-xs">{j.analysisSummary || '—'}</td>
                 </tr>
               ))}
             </tbody>
