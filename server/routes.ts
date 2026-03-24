@@ -539,21 +539,71 @@ export async function registerRoutes(
 
   app.post("/api/cases/:caseId/responses", async (req, res) => {
     if (!(await verifyCaseOwnership(req, res))) return;
+    const caseId = req.params.caseId;
     const data = {
       ...req.body,
-      caseId: req.params.caseId,
+      caseId,
       recordedBy: req.user!.name,
     };
     const parsed = insertResponseSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const response = await storage.createResponse(parsed.data);
 
-    const activeSession = await storage.getActiveSessionByCase(req.params.caseId);
+    const activeSession = await storage.getActiveSessionByCase(caseId);
     if (activeSession) {
       broadcastToSession(activeSession.id, {
         type: "response:new",
         data: response,
       });
+
+      const questionId = response.questionId;
+      const jurorNumber = response.jurorNumber;
+      const responseText = response.responseText;
+      if (questionId) {
+        (async () => {
+          try {
+            const caseRecord = await storage.getCase(caseId);
+            const allJurors = await storage.getJurorsByCase(caseId);
+            const juror = allJurors.find((j) => j.number === jurorNumber);
+            if (!juror || !caseRecord) return;
+            const allQuestions = await storage.getQuestionsByCase(caseId);
+            const question = allQuestions.find((q) => q.questionNumber === questionId);
+            if (!question) return;
+            const questionText = question.originalText || question.rephrase || "";
+            log(`[Owner→Collab] Generating follow-up suggestions for Q#${questionId}, Juror #${jurorNumber}`);
+            const OpenAI = (await import("openai")).default;
+            const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+            const completion = await openai.chat.completions.create({
+              model: "gpt-4o-mini",
+              messages: [
+                {
+                  role: "system",
+                  content: `You are a trial attorney assistant. Based on a juror's response during voir dire, suggest 2-3 brief follow-up questions that would help assess this juror further. The case is a ${caseRecord.areaOfLaw} case where you represent the ${caseRecord.side}. Keep each question to one sentence. Return ONLY a JSON array of strings, no other text.`,
+                },
+                {
+                  role: "user",
+                  content: `Juror #${jurorNumber} (${juror.name}) was asked: "${questionText}"\n\nTheir response: "${responseText}"\n\nSuggest 2-3 targeted follow-up questions.`,
+                },
+              ],
+              temperature: 0.6,
+              max_tokens: 300,
+            });
+            const raw = completion.choices[0]?.message?.content || "[]";
+            let suggestions: string[];
+            try { suggestions = JSON.parse(raw); } catch { suggestions = []; }
+            log(`[Owner→Collab] Generated ${suggestions.length} follow-up suggestions for Q#${questionId}`);
+            if (suggestions.length > 0) {
+              broadcastToSession(activeSession.id, {
+                type: "followup:suggestions",
+                data: { questionId, jurorNumber, jurorName: juror.name, suggestions },
+              });
+              log(`[Owner→Collab] Broadcast followup:suggestions to session ${activeSession.id}`);
+            }
+          } catch (err) {
+            log(`[Owner→Collab] Follow-up suggestion generation failed: ${err}`);
+          }
+        })();
+      }
     }
 
     res.status(201).json(response);
