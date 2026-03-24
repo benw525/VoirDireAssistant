@@ -4,7 +4,7 @@ import {
   Scale, Users, Wifi, WifiOff, Loader2, LogOut,
   Mic, Shield, Gavel, ChevronDown, ChevronUp,
   AlertCircle, CheckCircle2, User, Send, MessageSquare,
-  Hand, ThumbsUp, ThumbsDown, StickyNote
+  Hand, ThumbsUp, ThumbsDown, StickyNote, Sparkles, X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getCollabSession, clearCollabSession } from '../lib/collabAuth';
@@ -72,6 +72,7 @@ export default function CollaboratorView() {
   const [followUpAnswer, setFollowUpAnswer] = useState('');
   const [duplicateAlerts, setDuplicateAlerts] = useState<Array<{ id: string; jurorNumber: number; message: string; responseId?: string; resolved: boolean }>>([]);
   const [activeQuestionId, setActiveQuestionId] = useState<number | null>(null);
+  const [activeQuestionBanner, setActiveQuestionBanner] = useState<{ text: string; isFollowUp: boolean; setBy: string } | null>(null);
   const [noteJurorNumber, setNoteJurorNumber] = useState<number | null>(null);
   const [noteText, setNoteText] = useState('');
   const jurorInputRef = useRef<HTMLInputElement>(null);
@@ -244,8 +245,13 @@ export default function CollaboratorView() {
       if (q) {
         setQuestionNum(q.questionNumber.toString());
       }
+      setActiveQuestionBanner({
+        text: data.questionText,
+        isFollowUp: !!data.isFollowUp,
+        setBy: data.setBy || 'Questioner',
+      });
     }
-    toast({ title: 'Active question updated', description: `"${data.questionText?.substring(0, 60)}..." set by ${data.setBy}` });
+    toast({ title: data.isFollowUp ? 'Follow-up question' : 'Active question updated', description: `"${data.questionText?.substring(0, 60)}..." set by ${data.setBy}` });
   }, [questions, toast]);
 
   const { status, sendTypingStart, sendTypingStop, addToWriteQueue, writeQueueLength } = useCollaborativeSession({
@@ -496,6 +502,8 @@ export default function CollaboratorView() {
             onDuplicateDiscard={handleDuplicateDiscard}
             activeQuestionId={activeQuestionId}
             setActiveQuestionId={setActiveQuestionId}
+            activeQuestionBanner={activeQuestionBanner}
+            onDismissBanner={() => setActiveQuestionBanner(null)}
             noteJurorNumber={noteJurorNumber}
             setNoteJurorNumber={setNoteJurorNumber}
             noteText={noteText}
@@ -549,6 +557,8 @@ interface CollabRecordingProps {
   onDuplicateDiscard: (id: string, responseId?: string) => void;
   activeQuestionId: number | null;
   setActiveQuestionId: (id: number | null) => void;
+  activeQuestionBanner: { text: string; isFollowUp: boolean; setBy: string } | null;
+  onDismissBanner: () => void;
   noteJurorNumber: number | null;
   setNoteJurorNumber: (n: number | null) => void;
   noteText: string;
@@ -565,6 +575,7 @@ function CollabRecordingView({
   handleAddFollowUp, formatTime, jurorInputRef, sendTypingStart, sendTypingStop,
   yourSideLabel, opposingSideLabel, displayName,
   onQuickReaction, duplicateAlerts, onDuplicateKeep, onDuplicateDiscard, activeQuestionId, setActiveQuestionId,
+  activeQuestionBanner, onDismissBanner,
   noteJurorNumber, setNoteJurorNumber, noteText, setNoteText, onSaveNote,
 }: CollabRecordingProps) {
   const stageConfig = {
@@ -716,6 +727,52 @@ function CollabRecordingView({
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {activeQuestionBanner && (
+        <div
+          className={`rounded-xl border-2 p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300 ${
+            activeQuestionBanner.isFollowUp
+              ? 'bg-amber-50 border-amber-400'
+              : 'bg-blue-50 border-blue-400'
+          }`}
+          data-testid="banner-active-question"
+        >
+          <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-0.5 ${
+            activeQuestionBanner.isFollowUp ? 'bg-amber-100' : 'bg-blue-100'
+          }`}>
+            {activeQuestionBanner.isFollowUp ? (
+              <Sparkles className="w-4 h-4 text-amber-600" />
+            ) : (
+              <Mic className="w-4 h-4 text-blue-600" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
+              activeQuestionBanner.isFollowUp ? 'text-amber-600' : 'text-blue-600'
+            }`}>
+              {activeQuestionBanner.isFollowUp ? 'Follow-up Question' : 'Now Asking'}
+            </p>
+            <p className={`text-sm font-medium ${
+              activeQuestionBanner.isFollowUp ? 'text-amber-900' : 'text-blue-900'
+            }`}>
+              {activeQuestionBanner.text}
+            </p>
+            <p className={`text-[11px] mt-1 ${
+              activeQuestionBanner.isFollowUp ? 'text-amber-500' : 'text-blue-500'
+            }`}>
+              Set by {activeQuestionBanner.setBy} — enter the juror's response below
+            </p>
+          </div>
+          <button
+            onClick={onDismissBanner}
+            className="shrink-0 p-1 rounded hover:bg-black/5 transition-colors"
+            aria-label="Dismiss"
+            data-testid="button-dismiss-active-question"
+          >
+            <X className="w-4 h-4 text-slate-400" />
+          </button>
         </div>
       )}
 

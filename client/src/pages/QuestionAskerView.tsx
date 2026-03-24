@@ -60,14 +60,19 @@ export default function QuestionAskerView() {
   const [questions, setQuestions] = useState<CollabQuestion[]>([]);
   const [caseInfo, setCaseInfo] = useState<{ id: string; name: string; lastPhase: number } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, FollowUpSuggestion[]>>({});
   const [sentQuestion, setSentQuestion] = useState<string | null>(null);
+  const [sentFollowUpKey, setSentFollowUpKey] = useState<string | null>(null);
+  const [collapsedQuestions, setCollapsedQuestions] = useState<Set<string>>(new Set());
+  const [newSuggestionQuestionId, setNewSuggestionQuestionId] = useState<string | null>(null);
   const [fontSizeIdx, setFontSizeIdx] = useState(() => {
     const saved = localStorage.getItem('qa-font-size');
     return saved ? Math.min(parseInt(saved, 10), 4) : 0;
   });
   const sentTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sentFollowUpTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestionHighlightRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const fontSize = FONT_SIZES[fontSizeIdx];
 
@@ -120,6 +125,23 @@ export default function QuestionAskerView() {
       ...prev,
       [questionId]: [...(prev[questionId] || []), ...newSuggestions],
     }));
+
+    setCollapsedQuestions(prev => {
+      const next = new Set(prev);
+      next.delete(questionId);
+      return next;
+    });
+
+    setNewSuggestionQuestionId(questionId);
+    if (suggestionHighlightRef.current) clearTimeout(suggestionHighlightRef.current);
+    suggestionHighlightRef.current = setTimeout(() => setNewSuggestionQuestionId(null), 3000);
+
+    setTimeout(() => {
+      const el = document.getElementById(`suggestions-${questionId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 100);
   }, []);
 
   const handleParticipantJoined = useCallback((data: any) => {
@@ -173,12 +195,12 @@ export default function QuestionAskerView() {
     }
   };
 
-  const handleTapFollowUp = async (text: string, parentQuestionNumber: number) => {
+  const handleTapFollowUp = async (text: string, parentQuestionNumber: number, followUpKey: string) => {
     try {
       await api.collabSetActiveQuestion(parentQuestionNumber, text, true);
-      setSentQuestion(text);
-      if (sentTimeoutRef.current) clearTimeout(sentTimeoutRef.current);
-      sentTimeoutRef.current = setTimeout(() => setSentQuestion(null), 2000);
+      setSentFollowUpKey(followUpKey);
+      if (sentFollowUpTimeoutRef.current) clearTimeout(sentFollowUpTimeoutRef.current);
+      sentFollowUpTimeoutRef.current = setTimeout(() => setSentFollowUpKey(null), 2000);
       toast({ title: 'Follow-up sent to recorders' });
     } catch (err: any) {
       toast({ title: 'Failed to send follow-up', description: err.message || 'Please try again', variant: 'destructive' });
@@ -190,8 +212,24 @@ export default function QuestionAskerView() {
     setLocation('/team');
   };
 
-  const toggleExpand = (id: string) => {
-    setExpandedQuestionId(prev => prev === id ? null : id);
+  const toggleCollapse = (questionNumber: string) => {
+    setCollapsedQuestions(prev => {
+      const next = new Set(prev);
+      if (next.has(questionNumber)) {
+        next.delete(questionNumber);
+      } else {
+        next.add(questionNumber);
+      }
+      return next;
+    });
+  };
+
+  const handleDismissSuggestion = (questionId: string, idx: number) => {
+    setAiSuggestions(prev => {
+      const list = [...(prev[questionId] || [])];
+      list.splice(idx, 1);
+      return { ...prev, [questionId]: list };
+    });
   };
 
   if (!session) return null;
@@ -206,6 +244,8 @@ export default function QuestionAskerView() {
       </div>
     );
   }
+
+  const totalSuggestions = Object.values(aiSuggestions).reduce((acc, arr) => acc + arr.length, 0);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -260,19 +300,31 @@ export default function QuestionAskerView() {
 
       </header>
 
-      <main className="flex-1 overflow-y-auto pb-safe">
+      <main className="flex-1 overflow-y-auto pb-safe" ref={scrollContainerRef}>
         <div className="p-4 space-y-3 max-w-2xl mx-auto">
-          <div className="text-xs text-slate-500 uppercase tracking-wider font-medium px-1 mb-2">
-            Tap a question to send it to recorders
+          <div className="text-xs text-slate-500 uppercase tracking-wider font-medium px-1 mb-2 flex items-center justify-between">
+            <span>Tap a question to send it to recorders</span>
+            {totalSuggestions > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold normal-case tracking-normal" data-testid="badge-total-suggestions">
+                <Sparkles className="w-3 h-3" />
+                {totalSuggestions} AI suggestion{totalSuggestions !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
 
           {questions.map((q) => {
-            const isExpanded = expandedQuestionId === q.id;
-            const qSuggestions = aiSuggestions[q.questionNumber.toString()] || [];
+            const qKey = q.questionNumber.toString();
+            const qSuggestions = aiSuggestions[qKey] || [];
             const hasFollowUps = q.followUps.length > 0 || qSuggestions.length > 0;
+            const isCollapsed = collapsedQuestions.has(qKey);
+            const isHighlighted = newSuggestionQuestionId === qKey;
 
             return (
-              <div key={q.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden" data-testid={`card-question-${q.id}`}>
+              <div
+                key={q.id}
+                className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all duration-300 ${isHighlighted ? 'border-amber-400 ring-2 ring-amber-200' : 'border-slate-200'}`}
+                data-testid={`card-question-${q.id}`}
+              >
                 <button
                   onClick={() => handleTapQuestion(q)}
                   className="w-full text-left p-4 active:bg-amber-50 transition-colors"
@@ -299,9 +351,9 @@ export default function QuestionAskerView() {
                 {hasFollowUps && (
                   <>
                     <button
-                      onClick={() => toggleExpand(q.id)}
+                      onClick={() => toggleCollapse(qKey)}
                       className="w-full flex items-center justify-between px-4 py-2 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 hover:bg-slate-100 transition-colors"
-                      data-testid={`button-expand-followups-${q.id}`}
+                      data-testid={`button-toggle-followups-${q.id}`}
                     >
                       <span className="flex items-center gap-1.5">
                         <MessageSquare className="w-3.5 h-3.5" />
@@ -313,45 +365,120 @@ export default function QuestionAskerView() {
                           </span>
                         )}
                       </span>
-                      {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
                     </button>
 
-                    {isExpanded && (
-                      <div className="border-t border-slate-100">
-                        {q.followUps.map((fu, idx) => (
-                          <button
-                            key={`prepared-${idx}`}
-                            onClick={() => handleTapFollowUp(fu, q.questionNumber)}
-                            className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 active:bg-amber-50 transition-colors flex items-start gap-3"
-                            data-testid={`button-followup-prepared-${q.id}-${idx}`}
-                          >
-                            <div className="shrink-0 w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center mt-0.5">
-                              <MessageSquare className="w-3 h-3 text-slate-400" />
+                    {!isCollapsed && (
+                      <div className="border-t border-slate-100" id={`suggestions-${qKey}`}>
+                        {q.followUps.map((fu, idx) => {
+                          const fuKey = `prepared-${q.questionNumber}-${idx}`;
+                          const isSent = sentFollowUpKey === fuKey;
+                          return (
+                            <div
+                              key={fuKey}
+                              className="flex items-center border-b border-slate-50 last:border-b-0"
+                            >
+                              <button
+                                onClick={() => handleTapFollowUp(fu, q.questionNumber, fuKey)}
+                                className="flex-1 text-left px-4 py-3 active:bg-amber-50 transition-colors flex items-start gap-3"
+                                data-testid={`button-followup-prepared-${q.id}-${idx}`}
+                              >
+                                <div className="shrink-0 w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center mt-0.5">
+                                  <MessageSquare className="w-3 h-3 text-slate-400" />
+                                </div>
+                                <p className={`${fontSize.text} text-slate-700 ${fontSize.leading} flex-1`}>{fu}</p>
+                              </button>
+                              <button
+                                onClick={() => handleTapFollowUp(fu, q.questionNumber, fuKey)}
+                                className={`shrink-0 mr-3 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                  isSent
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-amber-500 text-white active:bg-amber-600 hover:bg-amber-600'
+                                }`}
+                                data-testid={`button-ask-followup-${q.id}-${idx}`}
+                              >
+                                {isSent ? (
+                                  <span className="flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    Sent
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1">
+                                    <Send className="w-3 h-3" />
+                                    Ask
+                                  </span>
+                                )}
+                              </button>
                             </div>
-                            <p className={`${fontSize.text} text-slate-700 ${fontSize.leading} flex-1`}>{fu}</p>
-                            <Send className="w-3.5 h-3.5 text-slate-300 shrink-0 mt-0.5" />
-                          </button>
-                        ))}
+                          );
+                        })}
 
-                        {qSuggestions.map((s, idx) => (
-                          <button
-                            key={`ai-${idx}-${s.timestamp}`}
-                            onClick={() => handleTapFollowUp(s.text, q.questionNumber)}
-                            className="w-full text-left px-4 py-3 border-b border-slate-50 last:border-b-0 active:bg-amber-50 transition-colors flex items-start gap-3 bg-amber-50/30"
-                            data-testid={`button-followup-ai-${q.id}-${idx}`}
-                          >
-                            <div className="shrink-0 w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center mt-0.5">
-                              <Sparkles className="w-3 h-3 text-amber-600" />
+                        {qSuggestions.length > 0 && q.followUps.length > 0 && (
+                          <div className="px-4 py-1.5 bg-amber-50/50 border-b border-amber-100/50">
+                            <p className="text-[10px] uppercase tracking-wider text-amber-600 font-semibold flex items-center gap-1">
+                              <Sparkles className="w-3 h-3" />
+                              AI-Suggested Follow-ups
+                            </p>
+                          </div>
+                        )}
+
+                        {qSuggestions.map((s, idx) => {
+                          const sKey = `ai-${q.questionNumber}-${idx}-${s.timestamp}`;
+                          const isSent = sentFollowUpKey === sKey;
+                          return (
+                            <div
+                              key={sKey}
+                              className="flex items-center border-b border-amber-100/30 last:border-b-0 bg-amber-50/40"
+                            >
+                              <button
+                                onClick={() => handleTapFollowUp(s.text, q.questionNumber, sKey)}
+                                className="flex-1 text-left px-4 py-3 active:bg-amber-100/50 transition-colors flex items-start gap-3"
+                                data-testid={`button-followup-ai-${q.id}-${idx}`}
+                              >
+                                <div className="shrink-0 w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center mt-0.5">
+                                  <Sparkles className="w-3 h-3 text-amber-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`${fontSize.text} text-slate-700 ${fontSize.leading}`}>{s.text}</p>
+                                  <p className="text-[10px] text-amber-600/70 mt-0.5">
+                                    Based on Juror #{s.jurorNumber} ({s.jurorName})
+                                  </p>
+                                </div>
+                              </button>
+                              <div className="shrink-0 mr-3 flex items-center gap-1">
+                                <button
+                                  onClick={() => handleTapFollowUp(s.text, q.questionNumber, sKey)}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                    isSent
+                                      ? 'bg-emerald-100 text-emerald-700'
+                                      : 'bg-amber-500 text-white active:bg-amber-600 hover:bg-amber-600'
+                                  }`}
+                                  data-testid={`button-ask-ai-followup-${q.id}-${idx}`}
+                                >
+                                  {isSent ? (
+                                    <span className="flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      Sent
+                                    </span>
+                                  ) : (
+                                    <span className="flex items-center gap-1">
+                                      <Send className="w-3 h-3" />
+                                      Ask
+                                    </span>
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => handleDismissSuggestion(qKey, idx)}
+                                  className="p-1 rounded text-slate-300 hover:text-slate-500 transition-colors"
+                                  aria-label="Dismiss suggestion"
+                                  data-testid={`button-dismiss-ai-followup-${q.id}-${idx}`}
+                                >
+                                  ×
+                                </button>
+                              </div>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className={`${fontSize.text} text-slate-700 ${fontSize.leading}`}>{s.text}</p>
-                              <p className="text-[10px] text-slate-400 mt-0.5">
-                                Based on Juror #{s.jurorNumber} ({s.jurorName})
-                              </p>
-                            </div>
-                            <Send className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                          </button>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </>
