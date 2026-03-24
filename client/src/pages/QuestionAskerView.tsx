@@ -2,9 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'wouter';
 import {
   Scale, Wifi, WifiOff, Loader2, LogOut,
-  MessageSquare, ChevronDown, ChevronUp,
-  CheckCircle2, Sparkles, Send,
-  AArrowUp, AArrowDown
+  MessageSquare, CheckCircle2, Sparkles, Send,
+  AArrowUp, AArrowDown, Bookmark, BookmarkCheck
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getCollabSession, clearCollabSession } from '../lib/collabAuth';
@@ -25,6 +24,14 @@ interface FollowUpSuggestion {
   jurorNumber: number;
   jurorName: string;
   questionId: string;
+  timestamp: number;
+}
+
+interface SavedFollowUp {
+  text: string;
+  jurorNumber: number;
+  jurorName: string;
+  status: 'asked' | 'marked';
   timestamp: number;
 }
 
@@ -60,19 +67,17 @@ export default function QuestionAskerView() {
   const [questions, setQuestions] = useState<CollabQuestion[]>([]);
   const [caseInfo, setCaseInfo] = useState<{ id: string; name: string; lastPhase: number } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [aiSuggestions, setAiSuggestions] = useState<Record<string, FollowUpSuggestion[]>>({});
+  const [pendingSuggestions, setPendingSuggestions] = useState<Record<string, FollowUpSuggestion[]>>({});
+  const [savedFollowUps, setSavedFollowUps] = useState<Record<string, SavedFollowUp[]>>({});
   const [sentQuestion, setSentQuestion] = useState<string | null>(null);
   const [sentFollowUpKey, setSentFollowUpKey] = useState<string | null>(null);
-  const [collapsedQuestions, setCollapsedQuestions] = useState<Set<string>>(new Set());
-  const [newSuggestionQuestionId, setNewSuggestionQuestionId] = useState<string | null>(null);
+  const [activeQuestionKey, setActiveQuestionKey] = useState<string | null>(null);
   const [fontSizeIdx, setFontSizeIdx] = useState(() => {
     const saved = localStorage.getItem('qa-font-size');
     return saved ? Math.min(parseInt(saved, 10), 4) : 0;
   });
   const sentTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sentFollowUpTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const suggestionHighlightRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const fontSize = FONT_SIZES[fontSizeIdx];
 
@@ -111,6 +116,9 @@ export default function QuestionAskerView() {
     }
   };
 
+  const activeQuestionKeyRef = useRef<string | null>(null);
+  activeQuestionKeyRef.current = activeQuestionKey;
+
   const handleFollowUpSuggestions = useCallback((data: any) => {
     if (!data.suggestions || !data.questionId) return;
     const questionId = data.questionId.toString();
@@ -121,20 +129,26 @@ export default function QuestionAskerView() {
       questionId,
       timestamp: Date.now(),
     }));
-    setAiSuggestions(prev => ({
+
+    const currentActive = activeQuestionKeyRef.current;
+    if (currentActive && questionId !== currentActive) {
+      setSavedFollowUps(prev => ({
+        ...prev,
+        [questionId]: [...(prev[questionId] || []), ...newSuggestions.map(s => ({
+          text: s.text,
+          jurorNumber: s.jurorNumber,
+          jurorName: s.jurorName,
+          status: 'marked' as const,
+          timestamp: s.timestamp,
+        }))],
+      }));
+      return;
+    }
+
+    setPendingSuggestions(prev => ({
       ...prev,
       [questionId]: [...(prev[questionId] || []), ...newSuggestions],
     }));
-
-    setCollapsedQuestions(prev => {
-      const next = new Set(prev);
-      next.delete(questionId);
-      return next;
-    });
-
-    setNewSuggestionQuestionId(questionId);
-    if (suggestionHighlightRef.current) clearTimeout(suggestionHighlightRef.current);
-    suggestionHighlightRef.current = setTimeout(() => setNewSuggestionQuestionId(null), 3000);
 
     setTimeout(() => {
       const el = document.getElementById(`suggestions-${questionId}`);
@@ -184,18 +198,104 @@ export default function QuestionAskerView() {
 
   const handleTapQuestion = async (question: CollabQuestion) => {
     const text = question.rephrase || question.originalText;
+    const qKey = question.questionNumber.toString();
     try {
       await api.collabSetActiveQuestion(question.questionNumber, text, false);
       setSentQuestion(text);
       if (sentTimeoutRef.current) clearTimeout(sentTimeoutRef.current);
       sentTimeoutRef.current = setTimeout(() => setSentQuestion(null), 2000);
+
+      if (activeQuestionKey && activeQuestionKey !== qKey) {
+        setPendingSuggestions(prev => {
+          const next = { ...prev };
+          delete next[activeQuestionKey!];
+          return next;
+        });
+      }
+      setActiveQuestionKey(qKey);
+
       toast({ title: 'Question sent to recorders' });
     } catch (err: any) {
       toast({ title: 'Failed to send question', description: err.message || 'Please try again', variant: 'destructive' });
     }
   };
 
-  const handleTapFollowUp = async (text: string, parentQuestionNumber: number, followUpKey: string) => {
+  const handleAskFollowUp = async (suggestion: FollowUpSuggestion, parentQuestionNumber: number, suggestionIdx: number) => {
+    const qKey = parentQuestionNumber.toString();
+    const followUpKey = `ask-${qKey}-${suggestionIdx}-${suggestion.timestamp}`;
+    try {
+      await api.collabSetActiveQuestion(parentQuestionNumber, suggestion.text, true);
+      setSentFollowUpKey(followUpKey);
+      if (sentFollowUpTimeoutRef.current) clearTimeout(sentFollowUpTimeoutRef.current);
+      sentFollowUpTimeoutRef.current = setTimeout(() => setSentFollowUpKey(null), 2000);
+
+      setSavedFollowUps(prev => ({
+        ...prev,
+        [qKey]: [...(prev[qKey] || []), {
+          text: suggestion.text,
+          jurorNumber: suggestion.jurorNumber,
+          jurorName: suggestion.jurorName,
+          status: 'asked',
+          timestamp: suggestion.timestamp,
+        }],
+      }));
+
+      setPendingSuggestions(prev => {
+        const list = [...(prev[qKey] || [])];
+        list.splice(suggestionIdx, 1);
+        return { ...prev, [qKey]: list };
+      });
+
+      toast({ title: 'Follow-up sent to recorders' });
+    } catch (err: any) {
+      toast({ title: 'Failed to send follow-up', description: err.message || 'Please try again', variant: 'destructive' });
+    }
+  };
+
+  const handleMarkFollowUp = (suggestion: FollowUpSuggestion, parentQuestionNumber: number, suggestionIdx: number) => {
+    const qKey = parentQuestionNumber.toString();
+    setSavedFollowUps(prev => ({
+      ...prev,
+      [qKey]: [...(prev[qKey] || []), {
+        text: suggestion.text,
+        jurorNumber: suggestion.jurorNumber,
+        jurorName: suggestion.jurorName,
+        status: 'marked',
+        timestamp: suggestion.timestamp,
+      }],
+    }));
+
+    setPendingSuggestions(prev => {
+      const list = [...(prev[qKey] || [])];
+      list.splice(suggestionIdx, 1);
+      return { ...prev, [qKey]: list };
+    });
+
+    toast({ title: 'Follow-up marked for later' });
+  };
+
+  const handleAskSavedFollowUp = async (saved: SavedFollowUp, parentQuestionNumber: number, savedIdx: number) => {
+    const qKey = parentQuestionNumber.toString();
+    const followUpKey = `saved-${qKey}-${savedIdx}-${saved.timestamp}`;
+    try {
+      await api.collabSetActiveQuestion(parentQuestionNumber, saved.text, true);
+      setSentFollowUpKey(followUpKey);
+      if (sentFollowUpTimeoutRef.current) clearTimeout(sentFollowUpTimeoutRef.current);
+      sentFollowUpTimeoutRef.current = setTimeout(() => setSentFollowUpKey(null), 2000);
+
+      setSavedFollowUps(prev => {
+        const list = [...(prev[qKey] || [])];
+        list[savedIdx] = { ...list[savedIdx], status: 'asked' };
+        return { ...prev, [qKey]: list };
+      });
+
+      toast({ title: 'Follow-up sent to recorders' });
+    } catch (err: any) {
+      toast({ title: 'Failed to send follow-up', description: err.message || 'Please try again', variant: 'destructive' });
+    }
+  };
+
+  const handleTapPreparedFollowUp = async (text: string, parentQuestionNumber: number, followUpKey: string) => {
     try {
       await api.collabSetActiveQuestion(parentQuestionNumber, text, true);
       setSentFollowUpKey(followUpKey);
@@ -212,26 +312,6 @@ export default function QuestionAskerView() {
     setLocation('/team');
   };
 
-  const toggleCollapse = (questionNumber: string) => {
-    setCollapsedQuestions(prev => {
-      const next = new Set(prev);
-      if (next.has(questionNumber)) {
-        next.delete(questionNumber);
-      } else {
-        next.add(questionNumber);
-      }
-      return next;
-    });
-  };
-
-  const handleDismissSuggestion = (questionId: string, idx: number) => {
-    setAiSuggestions(prev => {
-      const list = [...(prev[questionId] || [])];
-      list.splice(idx, 1);
-      return { ...prev, [questionId]: list };
-    });
-  };
-
   if (!session) return null;
 
   if (isLoading) {
@@ -244,8 +324,6 @@ export default function QuestionAskerView() {
       </div>
     );
   }
-
-  const totalSuggestions = Object.values(aiSuggestions).reduce((acc, arr) => acc + arr.length, 0);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -297,41 +375,34 @@ export default function QuestionAskerView() {
             <span className="truncate">Sent to recorders</span>
           </div>
         )}
-
       </header>
 
-      <main className="flex-1 overflow-y-auto pb-safe" ref={scrollContainerRef}>
+      <main className="flex-1 overflow-y-auto pb-safe">
         <div className="p-4 space-y-3 max-w-2xl mx-auto">
-          <div className="text-xs text-slate-500 uppercase tracking-wider font-medium px-1 mb-2 flex items-center justify-between">
-            <span>Tap a question to send it to recorders</span>
-            {totalSuggestions > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold normal-case tracking-normal" data-testid="badge-total-suggestions">
-                <Sparkles className="w-3 h-3" />
-                {totalSuggestions} AI suggestion{totalSuggestions !== 1 ? 's' : ''}
-              </span>
-            )}
+          <div className="text-xs text-slate-500 uppercase tracking-wider font-medium px-1 mb-2">
+            Tap a question to send it to recorders
           </div>
 
           {questions.map((q) => {
             const qKey = q.questionNumber.toString();
-            const qSuggestions = aiSuggestions[qKey] || [];
-            const hasFollowUps = q.followUps.length > 0 || qSuggestions.length > 0;
-            const isCollapsed = collapsedQuestions.has(qKey);
-            const isHighlighted = newSuggestionQuestionId === qKey;
+            const qPending = pendingSuggestions[qKey] || [];
+            const qSaved = savedFollowUps[qKey] || [];
+            const isActive = activeQuestionKey === qKey;
 
             return (
               <div
                 key={q.id}
-                className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all duration-300 ${isHighlighted ? 'border-amber-400 ring-2 ring-amber-200' : 'border-slate-200'}`}
+                className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all duration-300 ${isActive ? 'border-amber-400 ring-1 ring-amber-200' : 'border-slate-200'}`}
                 data-testid={`card-question-${q.id}`}
               >
+                {/* Main question button */}
                 <button
                   onClick={() => handleTapQuestion(q)}
                   className="w-full text-left p-4 active:bg-amber-50 transition-colors"
                   data-testid={`button-ask-question-${q.id}`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="shrink-0 w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-600">
+                    <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${isActive ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
                       {q.questionNumber}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -348,140 +419,132 @@ export default function QuestionAskerView() {
                   </div>
                 </button>
 
-                {hasFollowUps && (
-                  <>
-                    <button
-                      onClick={() => toggleCollapse(qKey)}
-                      className="w-full flex items-center justify-between px-4 py-2 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 hover:bg-slate-100 transition-colors"
-                      data-testid={`button-toggle-followups-${q.id}`}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        {q.followUps.length + qSuggestions.length} follow-up{q.followUps.length + qSuggestions.length !== 1 ? 's' : ''}
-                        {qSuggestions.length > 0 && (
-                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-medium">
-                            <Sparkles className="w-2.5 h-2.5" />
-                            {qSuggestions.length} AI
-                          </span>
-                        )}
-                      </span>
-                      {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-                    </button>
-
-                    {!isCollapsed && (
-                      <div className="border-t border-slate-100" id={`suggestions-${qKey}`}>
-                        {q.followUps.map((fu, idx) => {
-                          const fuKey = `prepared-${q.questionNumber}-${idx}`;
-                          const isSent = sentFollowUpKey === fuKey;
-                          return (
-                            <div
-                              key={fuKey}
-                              className="flex items-center border-b border-slate-50 last:border-b-0"
-                            >
-                              <button
-                                onClick={() => handleTapFollowUp(fu, q.questionNumber, fuKey)}
-                                className="flex-1 text-left px-4 py-3 active:bg-amber-50 transition-colors flex items-start gap-3"
-                                data-testid={`button-followup-prepared-${q.id}-${idx}`}
-                              >
-                                <div className="shrink-0 w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center mt-0.5">
-                                  <MessageSquare className="w-3 h-3 text-slate-400" />
-                                </div>
-                                <p className={`${fontSize.text} text-slate-700 ${fontSize.leading} flex-1`}>{fu}</p>
-                              </button>
-                              <button
-                                onClick={() => handleTapFollowUp(fu, q.questionNumber, fuKey)}
-                                className={`shrink-0 mr-3 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                                  isSent
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : 'bg-amber-500 text-white active:bg-amber-600 hover:bg-amber-600'
-                                }`}
-                                data-testid={`button-ask-followup-${q.id}-${idx}`}
-                              >
-                                {isSent ? (
-                                  <span className="flex items-center gap-1">
-                                    <CheckCircle2 className="w-3 h-3" />
-                                    Sent
-                                  </span>
-                                ) : (
-                                  <span className="flex items-center gap-1">
-                                    <Send className="w-3 h-3" />
-                                    Ask
-                                  </span>
-                                )}
-                              </button>
-                            </div>
-                          );
-                        })}
-
-                        {qSuggestions.length > 0 && q.followUps.length > 0 && (
-                          <div className="px-4 py-1.5 bg-amber-50/50 border-b border-amber-100/50">
-                            <p className="text-[10px] uppercase tracking-wider text-amber-600 font-semibold flex items-center gap-1">
-                              <Sparkles className="w-3 h-3" />
-                              AI-Suggested Follow-ups
-                            </p>
+                {/* Prepared follow-ups (always visible if they exist) */}
+                {q.followUps.length > 0 && (
+                  <div className="border-t border-slate-100">
+                    {q.followUps.map((fu, idx) => {
+                      const fuKey = `prepared-${q.questionNumber}-${idx}`;
+                      const isSent = sentFollowUpKey === fuKey;
+                      return (
+                        <div
+                          key={fuKey}
+                          className="flex items-center border-b border-slate-50 last:border-b-0 px-4 py-2.5"
+                        >
+                          <div className="flex-1 flex items-start gap-2.5 min-w-0">
+                            <MessageSquare className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                            <p className={`${fontSize.sub} text-slate-600 ${fontSize.leading} flex-1`}>{fu}</p>
                           </div>
-                        )}
+                          <button
+                            onClick={() => handleTapPreparedFollowUp(fu, q.questionNumber, fuKey)}
+                            className={`shrink-0 ml-2 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                              isSent
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-amber-500 text-white active:bg-amber-600 hover:bg-amber-600'
+                            }`}
+                            data-testid={`button-ask-followup-${q.id}-${idx}`}
+                          >
+                            {isSent ? (
+                              <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Sent</span>
+                            ) : (
+                              <span className="flex items-center gap-1"><Send className="w-3 h-3" /> Ask</span>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-                        {qSuggestions.map((s, idx) => {
-                          const sKey = `ai-${q.questionNumber}-${idx}-${s.timestamp}`;
-                          const isSent = sentFollowUpKey === sKey;
-                          return (
-                            <div
-                              key={sKey}
-                              className="flex items-center border-b border-amber-100/30 last:border-b-0 bg-amber-50/40"
-                            >
-                              <button
-                                onClick={() => handleTapFollowUp(s.text, q.questionNumber, sKey)}
-                                className="flex-1 text-left px-4 py-3 active:bg-amber-100/50 transition-colors flex items-start gap-3"
-                                data-testid={`button-followup-ai-${q.id}-${idx}`}
-                              >
-                                <div className="shrink-0 w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center mt-0.5">
-                                  <Sparkles className="w-3 h-3 text-amber-600" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className={`${fontSize.text} text-slate-700 ${fontSize.leading}`}>{s.text}</p>
-                                  <p className="text-[10px] text-amber-600/70 mt-0.5">
-                                    Based on Juror #{s.jurorNumber} ({s.jurorName})
-                                  </p>
-                                </div>
-                              </button>
-                              <div className="shrink-0 mr-3 flex items-center gap-1">
-                                <button
-                                  onClick={() => handleTapFollowUp(s.text, q.questionNumber, sKey)}
-                                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                                    isSent
-                                      ? 'bg-emerald-100 text-emerald-700'
-                                      : 'bg-amber-500 text-white active:bg-amber-600 hover:bg-amber-600'
-                                  }`}
-                                  data-testid={`button-ask-ai-followup-${q.id}-${idx}`}
-                                >
-                                  {isSent ? (
-                                    <span className="flex items-center gap-1">
-                                      <CheckCircle2 className="w-3 h-3" />
-                                      Sent
-                                    </span>
-                                  ) : (
-                                    <span className="flex items-center gap-1">
-                                      <Send className="w-3 h-3" />
-                                      Ask
-                                    </span>
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => handleDismissSuggestion(qKey, idx)}
-                                  className="p-1 rounded text-slate-300 hover:text-slate-500 transition-colors"
-                                  aria-label="Dismiss suggestion"
-                                  data-testid={`button-dismiss-ai-followup-${q.id}-${idx}`}
-                                >
-                                  ×
-                                </button>
-                              </div>
+                {/* Saved follow-ups (asked or marked — always visible) */}
+                {qSaved.length > 0 && (
+                  <div className="border-t border-slate-100">
+                    {qSaved.map((s, idx) => {
+                      const sKey = `saved-${q.questionNumber}-${idx}-${s.timestamp}`;
+                      const isSent = sentFollowUpKey === sKey;
+                      return (
+                        <div
+                          key={sKey}
+                          className={`flex items-center border-b border-slate-50 last:border-b-0 px-4 py-2.5 ${
+                            s.status === 'asked' ? 'bg-emerald-50/40' : 'bg-violet-50/40'
+                          }`}
+                          data-testid={`saved-followup-${q.id}-${idx}`}
+                        >
+                          <div className="flex-1 min-w-0 flex items-start gap-2.5">
+                            {s.status === 'asked' ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                            ) : (
+                              <BookmarkCheck className="w-3.5 h-3.5 text-violet-500 shrink-0 mt-0.5" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className={`${fontSize.sub} text-slate-700 ${fontSize.leading}`}>{s.text}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                {s.status === 'asked' ? 'Asked' : 'Marked'} · re: Juror #{s.jurorNumber} ({s.jurorName})
+                              </p>
                             </div>
-                          );
-                        })}
+                          </div>
+                          {s.status === 'marked' && (
+                            <button
+                              onClick={() => handleAskSavedFollowUp(s, q.questionNumber, idx)}
+                              className={`shrink-0 ml-2 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                                isSent
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-amber-500 text-white active:bg-amber-600 hover:bg-amber-600'
+                              }`}
+                              data-testid={`button-ask-saved-${q.id}-${idx}`}
+                            >
+                              {isSent ? (
+                                <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Sent</span>
+                              ) : (
+                                <span className="flex items-center gap-1"><Send className="w-3 h-3" /> Ask</span>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Pending AI suggestions (only shown for active question, cleared when switching) */}
+                {qPending.length > 0 && isActive && (
+                  <div className="border-t-2 border-amber-200" id={`suggestions-${qKey}`}>
+                    <div className="px-4 py-2 bg-amber-50 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      <p className="text-[11px] uppercase tracking-wider text-amber-700 font-semibold">
+                        Suggested Follow-ups
+                      </p>
+                    </div>
+                    {qPending.map((s, idx) => (
+                      <div
+                        key={`pending-${idx}-${s.timestamp}`}
+                        className="flex items-start border-b border-amber-100/50 last:border-b-0 bg-amber-50/30 px-4 py-3"
+                        data-testid={`pending-suggestion-${q.id}-${idx}`}
+                      >
+                        <div className="flex-1 min-w-0 mr-3">
+                          <p className={`${fontSize.text} text-slate-800 ${fontSize.leading}`}>{s.text}</p>
+                          <p className="text-[10px] text-amber-600/70 mt-0.5">
+                            re: Juror #{s.jurorNumber} ({s.jurorName})
+                          </p>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleAskFollowUp(s, q.questionNumber, idx)}
+                            className="px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-500 text-white active:bg-amber-600 hover:bg-amber-600 transition-all"
+                            data-testid={`button-ask-suggestion-${q.id}-${idx}`}
+                          >
+                            <span className="flex items-center gap-1"><Send className="w-3 h-3" /> Ask</span>
+                          </button>
+                          <button
+                            onClick={() => handleMarkFollowUp(s, q.questionNumber, idx)}
+                            className="px-3 py-1.5 rounded-md text-xs font-semibold bg-violet-100 text-violet-700 active:bg-violet-200 hover:bg-violet-200 transition-all"
+                            data-testid={`button-mark-suggestion-${q.id}-${idx}`}
+                          >
+                            <span className="flex items-center gap-1"><Bookmark className="w-3 h-3" /> Mark</span>
+                          </button>
+                        </div>
                       </div>
-                    )}
-                  </>
+                    ))}
+                  </div>
                 )}
               </div>
             );
