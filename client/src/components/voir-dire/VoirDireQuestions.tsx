@@ -54,6 +54,7 @@ export function VoirDireQuestions({
 }: VoirDireQuestionsProps) {
   const [inputText, setInputText] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [structuredItems, setStructuredItems] = useState<Array<{ text: string; children: string[] }> | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -212,17 +213,62 @@ export function VoirDireQuestions({
 
   const handleUseAsIs = () => {
     if (!inputText.trim()) return;
-    const lines = inputText
-      .split(/\n/)
-      .map(l => l.replace(/^\s*\d+[\.\)\-:]\s*/, '').trim())
-      .filter(l => l.length > 0);
-    const questionsFromText: VoirDireQuestion[] = lines.map((text, idx) => ({
-      id: idx + 1,
-      originalText: text,
-      rephrase: '',
-      followUps: [],
-      locked: false,
-    }));
+
+    if (structuredItems && structuredItems.length > 0) {
+      const questionsFromStructured: VoirDireQuestion[] = structuredItems
+        .filter(item => item.text.trim().length > 0)
+        .map((item, idx) => ({
+          id: idx + 1,
+          originalText: item.text.replace(/^\s*\d+[\.\)\-:]\s*/, '').trim(),
+          rephrase: '',
+          followUps: item.children.map(c => c.replace(/^\s*[\-\u2013\u2022\u25e6\u25aa\u25cb\u2023]\s*/, '').trim()).filter(c => c.length > 0),
+          locked: false,
+        }));
+      if (questionsFromStructured.length > 0) {
+        onQuestionsProcessed(questionsFromStructured);
+        setInputText('');
+        setUploadedFileName(null);
+        setStructuredItems(null);
+        return;
+      }
+    }
+
+    const lines = inputText.split(/\n/);
+    const bulletOrNumberRegex = /^(\s*)([\d]+[\.\)\-:]|\u2022|\u25e6|\u25aa|\u25cb|\u2023|[-–—•◦▪○‣])\s*/;
+    const indentRegex = /^(\s{2,}|\t+)/;
+    const questionsFromText: VoirDireQuestion[] = [];
+    let currentQuestion: VoirDireQuestion | null = null;
+    let topLevelIndent: number | null = null;
+
+    for (const raw of lines) {
+      if (!raw.trim()) continue;
+
+      const bulletMatch = raw.match(bulletOrNumberRegex);
+      const indentMatch = raw.match(/^(\s*)/);
+      const indentLevel = indentMatch ? indentMatch[1].replace(/\t/g, '    ').length : 0;
+      const cleanText = raw.replace(bulletOrNumberRegex, '').replace(/^\s*\d+[\.\)\-:]\s*/, '').trim();
+      if (!cleanText) continue;
+
+      if (topLevelIndent === null) {
+        topLevelIndent = indentLevel;
+      }
+
+      const isSubItem = indentLevel > (topLevelIndent ?? 0) + 1;
+
+      if (isSubItem && currentQuestion) {
+        currentQuestion.followUps.push(cleanText);
+      } else {
+        currentQuestion = {
+          id: questionsFromText.length + 1,
+          originalText: cleanText,
+          rephrase: '',
+          followUps: [],
+          locked: false,
+        };
+        questionsFromText.push(currentQuestion);
+      }
+    }
+
     if (questionsFromText.length === 0) {
       setError('No questions could be extracted from the text.');
       return;
@@ -230,6 +276,7 @@ export function VoirDireQuestions({
     onQuestionsProcessed(questionsFromText);
     setInputText('');
     setUploadedFileName(null);
+    setStructuredItems(null);
   };
 
   const updateQuestion = (id: number, field: keyof VoirDireQuestion, value: any) => {
@@ -265,6 +312,7 @@ export function VoirDireQuestions({
       const result = await api.parseQuestionsDocument(file);
       setInputText(result.text);
       setUploadedFileName(result.filename);
+      setStructuredItems(result.structuredItems || null);
     } catch (err: any) {
       setError(err.message || 'Failed to parse document.');
     } finally {
@@ -519,7 +567,7 @@ export function VoirDireQuestions({
               <div className="relative flex-1 flex flex-col mb-4">
                 <textarea
                   value={inputText}
-                  onChange={(e) => { setInputText(e.target.value); setUploadedFileName(null); }}
+                  onChange={(e) => { setInputText(e.target.value); setUploadedFileName(null); setStructuredItems(null); }}
                   data-testid="input-raw-questions"
                   placeholder={"Have you or a family member ever been involved in a lawsuit?\nDo you have any strong feelings about awarding damages for emotional distress?\nHave you ever had a negative experience with a large corporation?"}
                   className="flex-1 w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-slate-50 resize-none transition-colors min-h-[200px]"
@@ -529,7 +577,7 @@ export function VoirDireQuestions({
                     <FileText className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">{uploadedFileName}</span>
                     <button
-                      onClick={() => { setUploadedFileName(null); setInputText(''); }}
+                      onClick={() => { setUploadedFileName(null); setInputText(''); setStructuredItems(null); }}
                       className="ml-auto text-blue-400 hover:text-blue-600"
                       data-testid="button-clear-upload"
                     >

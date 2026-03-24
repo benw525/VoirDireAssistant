@@ -745,6 +745,104 @@ export async function registerRoutes(
     }
   });
 
+  function parseHtmlToStructuredItems(html: string): Array<{ text: string; children: string[] }> {
+    const items: Array<{ text: string; children: string[] }> = [];
+
+    function stripTags(s: string): string {
+      return s.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&nbsp;/g, ' ').trim();
+    }
+
+    function findMatchingClose(s: string, tag: string, startPos: number): number {
+      let depth = 1;
+      const openRegex = new RegExp(`<${tag}[^>]*>`, 'gi');
+      const closeRegex = new RegExp(`</${tag}>`, 'gi');
+      openRegex.lastIndex = startPos;
+      closeRegex.lastIndex = startPos;
+      const events: Array<{ pos: number; type: 'open' | 'close' }> = [];
+      let m;
+      while ((m = openRegex.exec(s)) !== null) events.push({ pos: m.index, type: 'open' });
+      while ((m = closeRegex.exec(s)) !== null) events.push({ pos: m.index + m[0].length, type: 'close' });
+      events.sort((a, b) => a.pos - b.pos);
+      for (const ev of events) {
+        if (ev.type === 'open') depth++;
+        else { depth--; if (depth === 0) return ev.pos; }
+      }
+      return s.length;
+    }
+
+    function extractTopLevelLis(listContent: string): string[] {
+      const lis: string[] = [];
+      const liOpenRegex = /<li[^>]*>/gi;
+      let m;
+      while ((m = liOpenRegex.exec(listContent)) !== null) {
+        const contentStart = m.index + m[0].length;
+        const closePos = findMatchingClose(listContent, 'li', contentStart);
+        const closingTagLen = '</li>'.length;
+        const liInner = listContent.slice(contentStart, closePos - closingTagLen);
+        lis.push(liInner);
+        liOpenRegex.lastIndex = closePos;
+      }
+      return lis;
+    }
+
+    function parseLiContent(liHtml: string): { text: string; children: string[] } {
+      const children: string[] = [];
+      const listRanges: Array<{ start: number; end: number }> = [];
+      const listOpenRegex = /<[uo]l[^>]*>/gi;
+      let m;
+      while ((m = listOpenRegex.exec(liHtml)) !== null) {
+        const tag = liHtml.slice(m.index + 1, m.index + 3).replace(/[^a-z]/g, '') === 'ul' ? 'ul' : 'ol';
+        const contentStart = m.index + m[0].length;
+        const closePos = findMatchingClose(liHtml, tag, contentStart);
+        listRanges.push({ start: m.index, end: closePos });
+        const nestedContent = liHtml.slice(contentStart, closePos - `</${tag}>`.length);
+        const nestedLis = extractTopLevelLis(nestedContent);
+        for (const nli of nestedLis) {
+          const childText = stripTags(nli.replace(/<[uo]l[^>]*>[\s\S]*?<\/[uo]l>/gi, ''));
+          if (childText) children.push(childText);
+        }
+        listOpenRegex.lastIndex = closePos;
+      }
+      let parentHtml = '';
+      let cursor = 0;
+      for (const range of listRanges) {
+        parentHtml += liHtml.slice(cursor, range.start);
+        cursor = range.end;
+      }
+      parentHtml += liHtml.slice(cursor);
+      const parentText = stripTags(parentHtml);
+      return { text: parentText, children };
+    }
+
+    const topListOpenRegex = /<[uo]l[^>]*>/gi;
+    let hasLists = false;
+    let m;
+    while ((m = topListOpenRegex.exec(html)) !== null) {
+      hasLists = true;
+      const tag = html.slice(m.index + 1, m.index + 3).replace(/[^a-z]/g, '') === 'ul' ? 'ul' : 'ol';
+      const contentStart = m.index + m[0].length;
+      const closePos = findMatchingClose(html, tag, contentStart);
+      const listContent = html.slice(contentStart, closePos - `</${tag}>`.length);
+      const lis = extractTopLevelLis(listContent);
+      for (const li of lis) {
+        const parsed = parseLiContent(li);
+        if (parsed.text) items.push(parsed);
+      }
+      topListOpenRegex.lastIndex = closePos;
+    }
+
+    if (!hasLists) {
+      const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+      let pMatch;
+      while ((pMatch = pRegex.exec(html)) !== null) {
+        const text = stripTags(pMatch[1]);
+        if (text) items.push({ text, children: [] });
+      }
+    }
+
+    return items;
+  }
+
   app.post("/api/parse-questions-document", upload.single("file"), async (req, res) => {
     try {
       const file = req.file;
@@ -763,8 +861,20 @@ export async function registerRoutes(
         text = parsed.text;
       } else if (ext === 'docx' || ext === 'doc') {
         const mammoth = await import('mammoth');
-        const result = await mammoth.extractRawText({ buffer: file.buffer });
-        text = result.value;
+        const htmlResult = await mammoth.convertToHtml({ buffer: file.buffer });
+        const html = htmlResult.value;
+
+        const structuredItems = parseHtmlToStructuredItems(html);
+
+        const rawResult = await mammoth.extractRawText({ buffer: file.buffer });
+        text = rawResult.value;
+
+        text = text.trim();
+        if (!text) {
+          return res.status(400).json({ message: "Could not extract any text from the uploaded file." });
+        }
+
+        return res.json({ text, filename: file.originalname, structuredItems });
       } else if (ext === 'rtf') {
         text = file.buffer.toString('utf-8').replace(/\{\\[^{}]*\}/g, '').replace(/\\[a-z]+\d*\s?/g, ' ').replace(/[{}]/g, '').trim();
       } else {

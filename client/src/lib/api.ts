@@ -413,7 +413,7 @@ export async function refineQuestions(rawText: string, caseInfo: CaseInfo, juror
   }));
 }
 
-export async function parseQuestionsDocument(file: File): Promise<{ text: string; filename: string }> {
+export async function parseQuestionsDocument(file: File): Promise<{ text: string; filename: string; structuredItems?: Array<{ text: string; children: string[] }> }> {
   const token = getAuthToken();
   const formData = new FormData();
   formData.append('file', file);
