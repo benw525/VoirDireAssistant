@@ -3,7 +3,8 @@ import { useLocation } from 'wouter';
 import {
   Scale, Wifi, WifiOff, Loader2, LogOut,
   MessageSquare, ChevronDown, ChevronUp,
-  CheckCircle2, Sparkles, Send
+  CheckCircle2, Sparkles, Send,
+  AArrowUp, AArrowDown
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getCollabSession, clearCollabSession } from '../lib/collabAuth';
@@ -48,13 +49,39 @@ export default function QuestionAskerView() {
   const { toast } = useToast();
   const session = getCollabSession();
 
+  const FONT_SIZES = [
+    { label: 'S', text: 'text-sm', sub: 'text-xs', leading: 'leading-relaxed' },
+    { label: 'M', text: 'text-base', sub: 'text-sm', leading: 'leading-relaxed' },
+    { label: 'L', text: 'text-lg', sub: 'text-sm', leading: 'leading-relaxed' },
+    { label: 'XL', text: 'text-xl', sub: 'text-base', leading: 'leading-relaxed' },
+    { label: '2XL', text: 'text-2xl', sub: 'text-lg', leading: 'leading-snug' },
+  ];
+
   const [questions, setQuestions] = useState<CollabQuestion[]>([]);
   const [caseInfo, setCaseInfo] = useState<{ id: string; name: string; lastPhase: number } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, FollowUpSuggestion[]>>({});
   const [sentQuestion, setSentQuestion] = useState<string | null>(null);
+  const [fontSizeIdx, setFontSizeIdx] = useState(() => {
+    const saved = localStorage.getItem('qa-font-size');
+    return saved ? Math.min(parseInt(saved, 10), 4) : 0;
+  });
   const sentTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fontSize = FONT_SIZES[fontSizeIdx];
+
+  const increaseFontSize = () => {
+    const next = Math.min(fontSizeIdx + 1, FONT_SIZES.length - 1);
+    setFontSizeIdx(next);
+    localStorage.setItem('qa-font-size', next.toString());
+  };
+
+  const decreaseFontSize = () => {
+    const next = Math.max(fontSizeIdx - 1, 0);
+    setFontSizeIdx(next);
+    localStorage.setItem('qa-font-size', next.toString());
+  };
 
   useEffect(() => {
     if (!session) {
@@ -192,6 +219,27 @@ export default function QuestionAskerView() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center bg-slate-800 rounded-lg" data-testid="control-font-size">
+              <button
+                onClick={decreaseFontSize}
+                disabled={fontSizeIdx === 0}
+                data-testid="button-font-decrease"
+                className="p-1.5 rounded-l-lg hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Decrease font size"
+              >
+                <AArrowDown className="w-4 h-4" />
+              </button>
+              <span className="px-1 text-[10px] text-slate-400 font-medium min-w-[24px] text-center">{fontSize.label}</span>
+              <button
+                onClick={increaseFontSize}
+                disabled={fontSizeIdx === FONT_SIZES.length - 1}
+                data-testid="button-font-increase"
+                className="p-1.5 rounded-r-lg hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Increase font size"
+              >
+                <AArrowUp className="w-4 h-4" />
+              </button>
+            </div>
             <ConnectionIndicator status={status} />
             <button
               onClick={handleLeave}
@@ -235,11 +283,11 @@ export default function QuestionAskerView() {
                       {q.questionNumber}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900 leading-relaxed">
+                      <p className={`${fontSize.text} font-medium text-slate-900 ${fontSize.leading}`}>
                         {q.rephrase || q.originalText}
                       </p>
                       {q.rephrase && q.originalText && q.rephrase !== q.originalText && (
-                        <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                        <p className={`${fontSize.sub} text-slate-400 mt-1 ${fontSize.leading}`}>
                           Original: {q.originalText}
                         </p>
                       )}
@@ -280,7 +328,7 @@ export default function QuestionAskerView() {
                             <div className="shrink-0 w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center mt-0.5">
                               <MessageSquare className="w-3 h-3 text-slate-400" />
                             </div>
-                            <p className="text-sm text-slate-700 leading-relaxed flex-1">{fu}</p>
+                            <p className={`${fontSize.text} text-slate-700 ${fontSize.leading} flex-1`}>{fu}</p>
                             <Send className="w-3.5 h-3.5 text-slate-300 shrink-0 mt-0.5" />
                           </button>
                         ))}
@@ -296,7 +344,7 @@ export default function QuestionAskerView() {
                               <Sparkles className="w-3 h-3 text-amber-600" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm text-slate-700 leading-relaxed">{s.text}</p>
+                              <p className={`${fontSize.text} text-slate-700 ${fontSize.leading}`}>{s.text}</p>
                               <p className="text-[10px] text-slate-400 mt-0.5">
                                 Based on Juror #{s.jurorNumber} ({s.jurorName})
                               </p>

@@ -1572,7 +1572,7 @@ export async function registerRoutes(
         });
       }
 
-      if (questionId && side === "yours") {
+      if (questionId) {
         (async () => {
           try {
             const allJurors = await storage.getJurorsByCase(caseId);
@@ -1582,6 +1582,7 @@ export async function registerRoutes(
             const question = allQuestions.find((q) => q.questionNumber === questionId);
             if (!question) return;
             const questionText = question.originalText || question.rephrase || "";
+            log(`[Collab] Generating follow-up suggestions for Q#${questionId}, Juror #${jurorNumber}`);
             const OpenAI = (await import("openai")).default;
             const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
             const completion = await openai.chat.completions.create({
@@ -1602,14 +1603,16 @@ export async function registerRoutes(
             const raw = completion.choices[0]?.message?.content || "[]";
             let suggestions: string[];
             try { suggestions = JSON.parse(raw); } catch { suggestions = []; }
+            log(`[Collab] Generated ${suggestions.length} follow-up suggestions for Q#${questionId}`);
             if (suggestions.length > 0) {
               broadcastToSession(req.collab!.sessionId, {
                 type: "followup:suggestions",
                 data: { questionId, jurorNumber, jurorName: juror.name, suggestions },
               });
+              log(`[Collab] Broadcast followup:suggestions to session ${req.collab!.sessionId}`);
             }
           } catch (err) {
-            console.error("[Collab] Follow-up suggestion generation failed:", err);
+            log(`[Collab] Follow-up suggestion generation failed: ${err}`);
           }
         })();
       }
