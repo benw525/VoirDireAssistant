@@ -570,7 +570,7 @@ export async function registerRoutes(
             const question = allQuestions.find((q) => q.questionNumber === questionId);
             if (!question) return;
             const questionText = question.originalText || question.rephrase || "";
-            log(`[Owner→Collab] Generating follow-up suggestions for Q#${questionId}, Juror #${jurorNumber}`);
+            console.log(`[Owner→Collab] Generating follow-up suggestions for Q#${questionId}, Juror #${jurorNumber}`);
             const OpenAI = (await import("openai")).default;
             const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
             const completion = await openai.chat.completions.create({
@@ -591,16 +591,16 @@ export async function registerRoutes(
             const raw = completion.choices[0]?.message?.content || "[]";
             let suggestions: string[];
             try { suggestions = JSON.parse(raw); } catch { suggestions = []; }
-            log(`[Owner→Collab] Generated ${suggestions.length} follow-up suggestions for Q#${questionId}`);
+            console.log(`[Owner→Collab] Generated ${suggestions.length} follow-up suggestions for Q#${questionId}`);
             if (suggestions.length > 0) {
               broadcastToSession(activeSession.id, {
                 type: "followup:suggestions",
                 data: { questionId, jurorNumber, jurorName: juror.name, suggestions },
               });
-              log(`[Owner→Collab] Broadcast followup:suggestions to session ${activeSession.id}`);
+              console.log(`[Owner→Collab] Broadcast followup:suggestions to session ${activeSession.id}`);
             }
           } catch (err) {
-            log(`[Owner→Collab] Follow-up suggestion generation failed: ${err}`);
+            console.log(`[Owner→Collab] Follow-up suggestion generation failed: ${err}`);
           }
         })();
       }
@@ -1742,7 +1742,7 @@ export async function registerRoutes(
             const question = allQuestions.find((q) => q.questionNumber === questionId);
             if (!question) return;
             const questionText = question.originalText || question.rephrase || "";
-            log(`[Collab] Generating follow-up suggestions for Q#${questionId}, Juror #${jurorNumber}`);
+            console.log(`[Collab] Generating follow-up suggestions for Q#${questionId}, Juror #${jurorNumber}`);
             const OpenAI = (await import("openai")).default;
             const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
             const completion = await openai.chat.completions.create({
@@ -1763,16 +1763,16 @@ export async function registerRoutes(
             const raw = completion.choices[0]?.message?.content || "[]";
             let suggestions: string[];
             try { suggestions = JSON.parse(raw); } catch { suggestions = []; }
-            log(`[Collab] Generated ${suggestions.length} follow-up suggestions for Q#${questionId}`);
+            console.log(`[Collab] Generated ${suggestions.length} follow-up suggestions for Q#${questionId}`);
             if (suggestions.length > 0) {
               broadcastToSession(req.collab!.sessionId, {
                 type: "followup:suggestions",
                 data: { questionId, jurorNumber, jurorName: juror.name, suggestions },
               });
-              log(`[Collab] Broadcast followup:suggestions to session ${req.collab!.sessionId}`);
+              console.log(`[Collab] Broadcast followup:suggestions to session ${req.collab!.sessionId}`);
             }
           } catch (err) {
-            log(`[Collab] Follow-up suggestion generation failed: ${err}`);
+            console.log(`[Collab] Follow-up suggestion generation failed: ${err}`);
           }
         })();
       }
