@@ -909,10 +909,10 @@ export async function collabUpdateJurorNotes(jurorNumber: number, notes: string)
   });
 }
 
-export async function collabSetActiveQuestion(questionId: number | null, questionText: string, isFollowUp?: boolean): Promise<any> {
+export async function collabSetActiveQuestion(questionId: number | null, questionText: string, isFollowUp?: boolean, jurorNumber?: number | null): Promise<any> {
   return collabFetchJson(`${API_BASE}/collab/set-active-question`, {
     method: 'POST',
-    body: JSON.stringify({ questionId, questionText, isFollowUp: !!isFollowUp }),
+    body: JSON.stringify({ questionId, questionText, isFollowUp: !!isFollowUp, jurorNumber: jurorNumber || null }),
   });
 }
 

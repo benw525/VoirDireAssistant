@@ -72,7 +72,7 @@ export default function CollaboratorView() {
   const [followUpAnswer, setFollowUpAnswer] = useState('');
   const [duplicateAlerts, setDuplicateAlerts] = useState<Array<{ id: string; jurorNumber: number; message: string; responseId?: string; resolved: boolean }>>([]);
   const [activeQuestionId, setActiveQuestionId] = useState<number | null>(null);
-  const [activeQuestionBanner, setActiveQuestionBanner] = useState<{ text: string; isFollowUp: boolean; setBy: string } | null>(null);
+  const [activeQuestionBanner, setActiveQuestionBanner] = useState<{ text: string; isFollowUp: boolean; jurorNumber?: number | null; setBy: string } | null>(null);
   const [noteJurorNumber, setNoteJurorNumber] = useState<number | null>(null);
   const [noteText, setNoteText] = useState('');
   const jurorInputRef = useRef<HTMLInputElement>(null);
@@ -248,11 +248,23 @@ export default function CollaboratorView() {
       setActiveQuestionBanner({
         text: data.questionText,
         isFollowUp: !!data.isFollowUp,
+        jurorNumber: data.jurorNumber || null,
         setBy: data.setBy || 'Questioner',
       });
+
+      if (data.isFollowUp && data.jurorNumber && data.questionId) {
+        const matchingResponse = responses.find(
+          r => r.jurorNumber === data.jurorNumber && r.questionId === data.questionId
+        );
+        if (matchingResponse) {
+          setExpandedResponseId(matchingResponse.id);
+          setFollowUpQuestion(data.questionText);
+          setFollowUpAnswer('');
+        }
+      }
     }
     toast({ title: data.isFollowUp ? 'Follow-up question' : 'Active question updated', description: `"${data.questionText?.substring(0, 60)}..." set by ${data.setBy}` });
-  }, [questions, toast]);
+  }, [questions, responses, toast]);
 
   const { status, sendTypingStart, sendTypingStop, addToWriteQueue, writeQueueLength } = useCollaborativeSession({
     sessionId: session?.sessionId || null,
@@ -557,7 +569,7 @@ interface CollabRecordingProps {
   onDuplicateDiscard: (id: string, responseId?: string) => void;
   activeQuestionId: number | null;
   setActiveQuestionId: (id: number | null) => void;
-  activeQuestionBanner: { text: string; isFollowUp: boolean; setBy: string } | null;
+  activeQuestionBanner: { text: string; isFollowUp: boolean; jurorNumber?: number | null; setBy: string } | null;
   onDismissBanner: () => void;
   noteJurorNumber: number | null;
   setNoteJurorNumber: (n: number | null) => void;
@@ -752,7 +764,9 @@ function CollabRecordingView({
             <p className={`text-xs font-semibold uppercase tracking-wider mb-1 ${
               activeQuestionBanner.isFollowUp ? 'text-amber-600' : 'text-blue-600'
             }`}>
-              {activeQuestionBanner.isFollowUp ? 'Follow-up Question' : 'Now Asking'}
+              {activeQuestionBanner.isFollowUp
+                ? `Follow-up for Juror #${activeQuestionBanner.jurorNumber || '?'}`
+                : 'Now Asking'}
             </p>
             <p className={`text-sm font-medium ${
               activeQuestionBanner.isFollowUp ? 'text-amber-900' : 'text-blue-900'
@@ -762,7 +776,9 @@ function CollabRecordingView({
             <p className={`text-[11px] mt-1 ${
               activeQuestionBanner.isFollowUp ? 'text-amber-500' : 'text-blue-500'
             }`}>
-              Set by {activeQuestionBanner.setBy} — enter the juror's response below
+              Set by {activeQuestionBanner.setBy}{activeQuestionBanner.isFollowUp && activeQuestionBanner.jurorNumber
+                ? ' — response card expanded below, enter their answer'
+                : ' — enter the juror\'s response below'}
             </p>
           </div>
           <button

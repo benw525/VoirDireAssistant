@@ -224,7 +224,7 @@ export default function QuestionAskerView() {
     const qKey = parentQuestionNumber.toString();
     const followUpKey = `ask-${qKey}-${suggestionIdx}-${suggestion.timestamp}`;
     try {
-      await api.collabSetActiveQuestion(parentQuestionNumber, suggestion.text, true);
+      await api.collabSetActiveQuestion(parentQuestionNumber, suggestion.text, true, suggestion.jurorNumber);
       setSentFollowUpKey(followUpKey);
       if (sentFollowUpTimeoutRef.current) clearTimeout(sentFollowUpTimeoutRef.current);
       sentFollowUpTimeoutRef.current = setTimeout(() => setSentFollowUpKey(null), 2000);
@@ -278,7 +278,7 @@ export default function QuestionAskerView() {
     const qKey = parentQuestionNumber.toString();
     const followUpKey = `saved-${qKey}-${savedIdx}-${saved.timestamp}`;
     try {
-      await api.collabSetActiveQuestion(parentQuestionNumber, saved.text, true);
+      await api.collabSetActiveQuestion(parentQuestionNumber, saved.text, true, saved.jurorNumber);
       setSentFollowUpKey(followUpKey);
       if (sentFollowUpTimeoutRef.current) clearTimeout(sentFollowUpTimeoutRef.current);
       sentFollowUpTimeoutRef.current = setTimeout(() => setSentFollowUpKey(null), 2000);

@@ -1849,7 +1849,7 @@ export async function registerRoutes(
     if (req.collab!.role !== "questioner") {
       return res.status(403).json({ message: "Only questioners can set the active question" });
     }
-    const { questionId, questionText, isFollowUp } = req.body;
+    const { questionId, questionText, isFollowUp, jurorNumber } = req.body;
     if (!questionText) {
       return res.status(400).json({ message: "questionText is required" });
     }
@@ -1860,6 +1860,7 @@ export async function registerRoutes(
         questionId: questionId || null,
         questionText,
         isFollowUp: !!isFollowUp,
+        jurorNumber: jurorNumber || null,
         setBy: req.collab!.displayName,
       },
     });

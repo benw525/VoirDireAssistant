@@ -218,6 +218,7 @@ export function setupCollabWebSocket(httpServer: HttpServer) {
                 questionId: msg.questionId || null,
                 questionText: msg.questionText || "",
                 isFollowUp: !!msg.isFollowUp,
+                jurorNumber: msg.jurorNumber || null,
                 setBy: ws.collabPayload?.displayName || "Case Owner",
               },
             }, ws);
