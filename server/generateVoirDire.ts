@@ -1,9 +1,5 @@
-import OpenAI from "openai";
 import { getStrategyModule } from "./strategyModules";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { claudeJson, CLAUDE_OPUS } from "./anthropic";
 
 interface CaseContext {
   areaOfLaw: string;
@@ -237,23 +233,15 @@ export async function generateFullVoirDire(
   const strategyModuleText = getStrategyModule(caseInfo.areaOfLaw, normalizedSide);
   const systemPrompt = STRATEGY_SYSTEM_PROMPT.replace('{{STRATEGY_MODULE_INJECTION}}', strategyModuleText);
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-5.4-2026-03-05",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: `Generate a complete, courtroom-ready voir dire for this case.\n\n${context}` },
-    ],
-    response_format: { type: "json_object" },
+  const { parsed } = await claudeJson<any>({
+    model: CLAUDE_OPUS,
+    system: systemPrompt,
+    userPrompt: `Generate a complete, courtroom-ready voir dire for this case.\n\n${context}`,
     temperature: 0.3,
-    store: false,
+    maxTokens: 16000,
   });
 
-  const content = response.choices[0]?.message?.content || "{}";
-  let parsed: any;
-
-  try {
-    parsed = JSON.parse(content);
-  } catch {
+  if (!parsed) {
     throw new Error("AI returned invalid response. Please try again.");
   }
 
@@ -301,26 +289,15 @@ export async function refineUserQuestions(
 ): Promise<Array<{ id: number; originalText: string; rephrase: string; followUps: string[] }>> {
   const context = buildCaseContext(caseInfo, jurors, enrichmentMap);
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-5.4-2026-03-05",
-    messages: [
-      { role: "system", content: REFINE_SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: `Refine these voir dire questions for courtroom use.\n\n${context}\n\nATTORNEY'S DRAFT QUESTIONS:\n${rawQuestions}`,
-      },
-    ],
-    response_format: { type: "json_object" },
+  const { parsed } = await claudeJson<any>({
+    model: CLAUDE_OPUS,
+    system: REFINE_SYSTEM_PROMPT,
+    userPrompt: `Refine these voir dire questions for courtroom use.\n\n${context}\n\nATTORNEY'S DRAFT QUESTIONS:\n${rawQuestions}`,
     temperature: 0.3,
-    store: false,
+    maxTokens: 16000,
   });
 
-  const content = response.choices[0]?.message?.content || "{}";
-  let parsed: any;
-
-  try {
-    parsed = JSON.parse(content);
-  } catch {
+  if (!parsed) {
     throw new Error("AI returned invalid response. Please try again.");
   }
 

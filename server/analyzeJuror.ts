@@ -1,9 +1,5 @@
-import OpenAI from "openai";
 import { getArchetypesAndBias } from "./strategyModules";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { claudeComplete, claudeJson, CLAUDE_OPUS } from "./anthropic";
 
 interface CaseContext {
   name: string;
@@ -136,18 +132,15 @@ ${responsesText}
 
 Write a 1-2 sentence summary explaining this juror's classification.`;
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-5.4-2026-03-05",
-    messages: [
-      { role: "system", content: BRIEF_SUMMARY_PROMPT },
-      { role: "user", content: userPrompt },
-    ],
+  const text = await claudeComplete({
+    model: CLAUDE_OPUS,
+    system: BRIEF_SUMMARY_PROMPT,
+    userPrompt,
     temperature: 0.3,
-    max_completion_tokens: 150,
-    store: false,
+    maxTokens: 300,
   });
 
-  return completion.choices[0]?.message?.content || "Unable to generate summary.";
+  return text.trim() || "Unable to generate summary.";
 }
 
 export interface AnalysisResult {
@@ -253,38 +246,32 @@ ${responsesText}
 ${dataSufficiency}
 Provide your risk assessment analysis for this juror.`;
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-5.4-2026-03-05",
-    messages: [
-      { role: "system", content: systemPromptWithContext },
-      { role: "user", content: userPrompt },
-    ],
+  const { raw, parsed } = await claudeJson<any>({
+    model: CLAUDE_OPUS,
+    system: systemPromptWithContext,
+    userPrompt,
     temperature: 0.4,
-    max_completion_tokens: 1200,
-    response_format: { type: "json_object" },
-    store: false,
+    maxTokens: 2400,
   });
 
-  const raw = completion.choices[0]?.message?.content || '{}';
-  try {
-    const parsed = JSON.parse(raw);
-    const score = typeof parsed.riskScore === 'number' ? Math.max(1, Math.min(100, Math.round(parsed.riskScore))) : 50;
-    const validTiers = new Set(['low', 'medium', 'high']);
-    const tier = validTiers.has(parsed.aiRiskTier) ? parsed.aiRiskTier : (score >= 70 ? 'high' : score >= 35 ? 'medium' : 'low');
-    const validLeans = new Set(['favorable', 'neutral', 'unfavorable', 'unknown']);
-    const suggestedLean = validLeans.has(parsed.suggestedLean) ? parsed.suggestedLean : 'unknown';
-    const validConfidences = new Set(['high', 'moderate', 'low']);
-    const leanConfidence = validConfidences.has(parsed.leanConfidence) ? parsed.leanConfidence : 'moderate';
-    return {
-      analysis: typeof parsed.analysis === 'string' ? parsed.analysis : 'Unable to generate analysis.',
-      riskScore: score,
-      aiRiskTier: tier as 'low' | 'medium' | 'high',
-      suggestedLean: suggestedLean as 'favorable' | 'neutral' | 'unfavorable' | 'unknown',
-      leanConfidence: leanConfidence as 'high' | 'moderate' | 'low',
-    };
-  } catch {
-    return { analysis: raw, riskScore: 50, aiRiskTier: 'medium', suggestedLean: 'unknown', leanConfidence: 'low' };
+  if (!parsed) {
+    return { analysis: raw || 'Unable to generate analysis.', riskScore: 50, aiRiskTier: 'medium', suggestedLean: 'unknown', leanConfidence: 'low' };
   }
+
+  const score = typeof parsed.riskScore === 'number' ? Math.max(1, Math.min(100, Math.round(parsed.riskScore))) : 50;
+  const validTiers = new Set(['low', 'medium', 'high']);
+  const tier = validTiers.has(parsed.aiRiskTier) ? parsed.aiRiskTier : (score >= 70 ? 'high' : score >= 35 ? 'medium' : 'low');
+  const validLeans = new Set(['favorable', 'neutral', 'unfavorable', 'unknown']);
+  const suggestedLean = validLeans.has(parsed.suggestedLean) ? parsed.suggestedLean : 'unknown';
+  const validConfidences = new Set(['high', 'moderate', 'low']);
+  const leanConfidence = validConfidences.has(parsed.leanConfidence) ? parsed.leanConfidence : 'moderate';
+  return {
+    analysis: typeof parsed.analysis === 'string' ? parsed.analysis : 'Unable to generate analysis.',
+    riskScore: score,
+    aiRiskTier: tier as 'low' | 'medium' | 'high',
+    suggestedLean: suggestedLean as 'favorable' | 'neutral' | 'unfavorable' | 'unknown',
+    leanConfidence: leanConfidence as 'high' | 'moderate' | 'low',
+  };
 }
 
 export interface StrikeForCauseEntry {
@@ -409,28 +396,15 @@ ${jurorsText}
 
 Evaluate every juror for potential strikes for cause and return the JSON result.`;
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-5.4-2026-03-05",
-    messages: [
-      { role: "system", content: STRIKE_FOR_CAUSE_PROMPT },
-      { role: "user", content: userPrompt },
-    ],
+  const { parsed: parsedRaw } = await claudeJson<{ strikes: any[] }>({
+    model: CLAUDE_OPUS,
+    system: STRIKE_FOR_CAUSE_PROMPT,
+    userPrompt,
     temperature: 0.3,
-    max_completion_tokens: 8000,
-    response_format: { type: "json_object" },
-    store: false,
+    maxTokens: 16000,
   });
 
-  const raw = completion.choices[0]?.message?.content || '{"strikes":[]}';
-  let parsed: { strikes: any[] };
-  try {
-    parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed.strikes)) {
-      parsed = { strikes: [] };
-    }
-  } catch {
-    parsed = { strikes: [] };
-  }
+  const parsed = parsedRaw && Array.isArray(parsedRaw.strikes) ? parsedRaw : { strikes: [] };
 
   const VALID_CATEGORIES = new Set(["Highly Likely", "Possible", "Unlikely"]);
 
@@ -589,25 +563,15 @@ OPPOSING STRIKES (${theirStrikes.length}): Jurors ${theirStrikes.length > 0 ? th
 
 Perform the full Batson analysis and return the JSON result.`;
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-5.4-2026-03-05",
-    messages: [
-      { role: "system", content: BATSON_PROMPT },
-      { role: "user", content: userPrompt },
-    ],
+  const { parsed: parsedRaw } = await claudeJson<any>({
+    model: CLAUDE_OPUS,
+    system: BATSON_PROMPT,
+    userPrompt,
     temperature: 0.3,
-    max_completion_tokens: 8000,
-    response_format: { type: "json_object" },
-    store: false,
+    maxTokens: 16000,
   });
 
-  const raw = completion.choices[0]?.message?.content || '{}';
-  let parsed: any;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    parsed = {};
-  }
+  const parsed = parsedRaw || {};
 
   const VALID_RISKS = new Set(["Low", "Moderate", "High"]);
   const VALID_STRENGTHS = new Set(["Strong", "Moderate", "Weak"]);

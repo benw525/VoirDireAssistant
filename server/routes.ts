@@ -15,6 +15,35 @@ import { registerChatRoutes } from "./replit_integrations/chat";
 import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession, handleWebhook } from "./billing";
 import { triggerEnrichmentForJurors, getEnrichedDataForCase, cancelEnrichmentForCase } from "./perplexityEnrichment";
 import { getAnalysisTraits } from "./strategyModules";
+import { claudeJson, CLAUDE_SONNET } from "./anthropic";
+
+async function generateFollowUpSuggestionsViaClaude(opts: {
+  areaOfLaw: string;
+  side: string;
+  jurorNumber: number;
+  jurorName: string;
+  questionText: string;
+  responseText: string;
+}): Promise<string[]> {
+  const { areaOfLaw, side, jurorNumber, jurorName, questionText, responseText } = opts;
+  const system = `You are a trial attorney assistant. Based on a juror's response during voir dire, suggest 2-3 brief follow-up questions that would help assess this juror further. The case is a ${areaOfLaw} case where you represent the ${side}. Keep each question to one sentence. Return ONLY a JSON array of strings, no other text.`;
+  const userPrompt = `Juror #${jurorNumber} (${jurorName}) was asked: "${questionText}"\n\nTheir response: "${responseText}"\n\nSuggest 2-3 targeted follow-up questions.`;
+
+  const { parsed } = await claudeJson<any>({
+    model: CLAUDE_SONNET,
+    system,
+    userPrompt,
+    temperature: 0.6,
+    maxTokens: 600,
+  });
+
+  if (Array.isArray(parsed)) return parsed.filter(s => typeof s === 'string');
+  if (parsed && typeof parsed === 'object') {
+    const list = parsed.questions || parsed.followUps || parsed.suggestions || [];
+    return Array.isArray(list) ? list.filter((s: any) => typeof s === 'string') : [];
+  }
+  return [];
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
@@ -571,26 +600,14 @@ export async function registerRoutes(
             if (!question) return;
             const questionText = question.originalText || question.rephrase || "";
             console.log(`[Owner→Collab] Generating follow-up suggestions for Q#${questionId}, Juror #${jurorNumber}`);
-            const OpenAI = (await import("openai")).default;
-            const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-            const completion = await openai.chat.completions.create({
-              model: "gpt-4o-mini",
-              messages: [
-                {
-                  role: "system",
-                  content: `You are a trial attorney assistant. Based on a juror's response during voir dire, suggest 2-3 brief follow-up questions that would help assess this juror further. The case is a ${caseRecord.areaOfLaw} case where you represent the ${caseRecord.side}. Keep each question to one sentence. Return ONLY a JSON array of strings, no other text.`,
-                },
-                {
-                  role: "user",
-                  content: `Juror #${jurorNumber} (${juror.name}) was asked: "${questionText}"\n\nTheir response: "${responseText}"\n\nSuggest 2-3 targeted follow-up questions.`,
-                },
-              ],
-              temperature: 0.6,
-              max_tokens: 300,
+            const suggestions = await generateFollowUpSuggestionsViaClaude({
+              areaOfLaw: caseRecord.areaOfLaw,
+              side: caseRecord.side,
+              jurorNumber,
+              jurorName: juror.name,
+              questionText,
+              responseText,
             });
-            const raw = completion.choices[0]?.message?.content || "[]";
-            let suggestions: string[];
-            try { suggestions = JSON.parse(raw); } catch { suggestions = []; }
             console.log(`[Owner→Collab] Generated ${suggestions.length} follow-up suggestions for Q#${questionId}`);
             if (suggestions.length > 0) {
               broadcastToSession(activeSession.id, {
@@ -959,34 +976,14 @@ export async function registerRoutes(
 
       const { questionText, responseText, jurorName, jurorNumber, caseInfo } = parsed.data;
 
-      const OpenAI = (await import("openai")).default;
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `You are a trial attorney assistant. Based on a juror's response during voir dire, suggest 2-3 brief follow-up questions that would help assess this juror further. The case is a ${caseInfo.areaOfLaw} case where you represent the ${caseInfo.side}. Keep each question to one sentence. Return ONLY a JSON array of strings, no other text.`
-          },
-          {
-            role: "user",
-            content: `Juror #${jurorNumber} (${jurorName}) was asked: "${questionText}"\n\nTheir response: "${responseText}"\n\nSuggest 2-3 targeted follow-up questions.`
-          }
-        ],
-        temperature: 0.6,
-        max_completion_tokens: 300,
-        response_format: { type: "json_object" },
-        store: false,
+      const suggestions = await generateFollowUpSuggestionsViaClaude({
+        areaOfLaw: caseInfo.areaOfLaw,
+        side: caseInfo.side,
+        jurorNumber,
+        jurorName,
+        questionText,
+        responseText,
       });
-
-      const raw = completion.choices[0]?.message?.content || '{"questions":[]}';
-      let suggestions: string[] = [];
-      try {
-        const obj = JSON.parse(raw);
-        suggestions = Array.isArray(obj) ? obj : (obj.questions || obj.followUps || obj.suggestions || []);
-      } catch {
-        suggestions = [];
-      }
 
       res.json({ suggestions });
     } catch (err: any) {
@@ -1743,26 +1740,14 @@ export async function registerRoutes(
             if (!question) return;
             const questionText = question.originalText || question.rephrase || "";
             console.log(`[Collab] Generating follow-up suggestions for Q#${questionId}, Juror #${jurorNumber}`);
-            const OpenAI = (await import("openai")).default;
-            const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-            const completion = await openai.chat.completions.create({
-              model: "gpt-4o-mini",
-              messages: [
-                {
-                  role: "system",
-                  content: `You are a trial attorney assistant. Based on a juror's response during voir dire, suggest 2-3 brief follow-up questions that would help assess this juror further. The case is a ${caseRecord.areaOfLaw} case where you represent the ${caseRecord.side}. Keep each question to one sentence. Return ONLY a JSON array of strings, no other text.`,
-                },
-                {
-                  role: "user",
-                  content: `Juror #${jurorNumber} (${juror.name}) was asked: "${questionText}"\n\nTheir response: "${responseText}"\n\nSuggest 2-3 targeted follow-up questions.`,
-                },
-              ],
-              temperature: 0.6,
-              max_tokens: 300,
+            const suggestions = await generateFollowUpSuggestionsViaClaude({
+              areaOfLaw: caseRecord.areaOfLaw,
+              side: caseRecord.side,
+              jurorNumber,
+              jurorName: juror.name,
+              questionText,
+              responseText,
             });
-            const raw = completion.choices[0]?.message?.content || "[]";
-            let suggestions: string[];
-            try { suggestions = JSON.parse(raw); } catch { suggestions = []; }
             console.log(`[Collab] Generated ${suggestions.length} follow-up suggestions for Q#${questionId}`);
             if (suggestions.length > 0) {
               broadcastToSession(req.collab!.sessionId, {
@@ -1882,38 +1867,14 @@ export async function registerRoutes(
       const caseRecord = await storage.getCase(caseId);
       if (!caseRecord) return res.status(404).json({ message: "Case not found" });
 
-      const caseInfo = {
-        name: caseRecord.name,
+      const suggestions = await generateFollowUpSuggestionsViaClaude({
         areaOfLaw: caseRecord.areaOfLaw,
-        summary: caseRecord.summary,
         side: caseRecord.side,
-      };
-
-      const OpenAI = (await import("openai")).default;
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `You are a trial attorney assistant. Based on a juror's response during voir dire, suggest 2-3 brief follow-up questions that would help assess this juror further. The case is a ${caseInfo.areaOfLaw} case where you represent the ${caseInfo.side}. Keep each question to one sentence. Return ONLY a JSON array of strings, no other text.`,
-          },
-          {
-            role: "user",
-            content: `Juror #${jurorNumber} (${jurorName}) was asked: "${questionText}"\n\nTheir response: "${responseText}"\n\nSuggest 2-3 targeted follow-up questions.`,
-          },
-        ],
-        temperature: 0.6,
-        max_tokens: 300,
+        jurorNumber,
+        jurorName,
+        questionText,
+        responseText,
       });
-
-      const raw = completion.choices[0]?.message?.content || "[]";
-      let suggestions: string[];
-      try {
-        suggestions = JSON.parse(raw);
-      } catch {
-        suggestions = [];
-      }
 
       res.json({ suggestions });
     } catch (err: any) {
