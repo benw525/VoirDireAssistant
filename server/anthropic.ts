@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resources/messages";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -20,7 +21,7 @@ function modelSupportsTemperature(model: string): boolean {
 }
 
 export async function claudeComplete(opts: ClaudeOptions): Promise<string> {
-  const params: any = {
+  const params: MessageCreateParamsNonStreaming = {
     model: opts.model,
     max_tokens: opts.maxTokens,
     system: opts.system,
@@ -37,7 +38,7 @@ export async function claudeComplete(opts: ClaudeOptions): Promise<string> {
   return "";
 }
 
-export async function claudeJson<T = any>(opts: ClaudeOptions): Promise<{ raw: string; parsed: T | null }> {
+export async function claudeJson<T = unknown>(opts: ClaudeOptions): Promise<{ raw: string; parsed: T | null }> {
   const systemWithJson =
     opts.system +
     "\n\nCRITICAL OUTPUT RULES: Respond with ONLY a single valid JSON value. No markdown code fences. No prose before or after the JSON. No explanations. Begin your response with `{` or `[` and end with `}` or `]`.";

@@ -246,7 +246,15 @@ ${responsesText}
 ${dataSufficiency}
 Provide your risk assessment analysis for this juror.`;
 
-  const { raw, parsed } = await claudeJson<any>({
+  interface JurorAnalysisJson {
+    riskScore?: unknown;
+    aiRiskTier?: unknown;
+    suggestedLean?: unknown;
+    leanConfidence?: unknown;
+    analysis?: unknown;
+  }
+
+  const { raw, parsed } = await claudeJson<JurorAnalysisJson>({
     model: CLAUDE_OPUS,
     system: systemPromptWithContext,
     userPrompt,
@@ -260,11 +268,17 @@ Provide your risk assessment analysis for this juror.`;
 
   const score = typeof parsed.riskScore === 'number' ? Math.max(1, Math.min(100, Math.round(parsed.riskScore))) : 50;
   const validTiers = new Set(['low', 'medium', 'high']);
-  const tier = validTiers.has(parsed.aiRiskTier) ? parsed.aiRiskTier : (score >= 70 ? 'high' : score >= 35 ? 'medium' : 'low');
+  const tier = (typeof parsed.aiRiskTier === 'string' && validTiers.has(parsed.aiRiskTier))
+    ? parsed.aiRiskTier
+    : (score >= 70 ? 'high' : score >= 35 ? 'medium' : 'low');
   const validLeans = new Set(['favorable', 'neutral', 'unfavorable', 'unknown']);
-  const suggestedLean = validLeans.has(parsed.suggestedLean) ? parsed.suggestedLean : 'unknown';
+  const suggestedLean = (typeof parsed.suggestedLean === 'string' && validLeans.has(parsed.suggestedLean))
+    ? parsed.suggestedLean
+    : 'unknown';
   const validConfidences = new Set(['high', 'moderate', 'low']);
-  const leanConfidence = validConfidences.has(parsed.leanConfidence) ? parsed.leanConfidence : 'moderate';
+  const leanConfidence = (typeof parsed.leanConfidence === 'string' && validConfidences.has(parsed.leanConfidence))
+    ? parsed.leanConfidence
+    : 'moderate';
   return {
     analysis: typeof parsed.analysis === 'string' ? parsed.analysis : 'Unable to generate analysis.',
     riskScore: score,
@@ -396,7 +410,16 @@ ${jurorsText}
 
 Evaluate every juror for potential strikes for cause and return the JSON result.`;
 
-  const { parsed: parsedRaw } = await claudeJson<{ strikes: any[] }>({
+  interface StrikeJsonEntry {
+    jurorNumber?: unknown;
+    category?: unknown;
+    reasoning?: unknown;
+    argument?: unknown;
+    basis?: unknown;
+  }
+  interface StrikesResponse { strikes?: StrikeJsonEntry[] }
+
+  const { parsed: parsedRaw } = await claudeJson<StrikesResponse>({
     model: CLAUDE_OPUS,
     system: STRIKE_FOR_CAUSE_PROMPT,
     userPrompt,
@@ -404,15 +427,15 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
     maxTokens: 16000,
   });
 
-  const parsed = parsedRaw && Array.isArray(parsedRaw.strikes) ? parsedRaw : { strikes: [] };
+  const rawStrikes: StrikeJsonEntry[] = parsedRaw && Array.isArray(parsedRaw.strikes) ? parsedRaw.strikes : [];
 
   const VALID_CATEGORIES = new Set(["Highly Likely", "Possible", "Unlikely"]);
 
-  const validatedStrikes: StrikeForCauseEntry[] = parsed.strikes
-    .filter((s: any) => s && typeof s.jurorNumber === 'number')
-    .map((s: any) => ({
+  const validatedStrikes: StrikeForCauseEntry[] = rawStrikes
+    .filter((s): s is StrikeJsonEntry & { jurorNumber: number } => !!s && typeof s.jurorNumber === 'number')
+    .map((s) => ({
       jurorNumber: s.jurorNumber,
-      category: VALID_CATEGORIES.has(s.category) ? s.category : "Unlikely",
+      category: (typeof s.category === 'string' && VALID_CATEGORIES.has(s.category) ? s.category : "Unlikely") as StrikeForCauseEntry['category'],
       reasoning: typeof s.reasoning === 'string' ? s.reasoning : '',
       argument: typeof s.argument === 'string' ? s.argument : 'No argument provided.',
       basis: typeof s.basis === 'string' ? s.basis : 'Not assessed',
@@ -563,7 +586,21 @@ OPPOSING STRIKES (${theirStrikes.length}): Jurors ${theirStrikes.length > 0 ? th
 
 Perform the full Batson analysis and return the JSON result.`;
 
-  const { parsed: parsedRaw } = await claudeJson<any>({
+  interface BatsonDefensiveJson {
+    jurorNumber?: unknown; jurorName?: unknown; protectedClass?: unknown; riskLevel?: unknown;
+    statisticalFlag?: unknown; comparativeConcern?: unknown; currentJustification?: unknown;
+    recommendedArticulation?: unknown; warning?: unknown;
+  }
+  interface BatsonOffensiveJson {
+    jurorNumber?: unknown; jurorName?: unknown; protectedClass?: unknown; strengthOfChallenge?: unknown;
+    statisticalPattern?: unknown; comparativeEvidence?: unknown; suggestedArgument?: unknown;
+  }
+  interface BatsonResponseJson {
+    overallRisk?: unknown; summary?: unknown;
+    defensive?: BatsonDefensiveJson[]; offensive?: BatsonOffensiveJson[];
+  }
+
+  const { parsed: parsedRaw } = await claudeJson<BatsonResponseJson>({
     model: CLAUDE_OPUS,
     system: BATSON_PROMPT,
     userPrompt,
@@ -571,37 +608,41 @@ Perform the full Batson analysis and return the JSON result.`;
     maxTokens: 16000,
   });
 
-  const parsed = parsedRaw || {};
+  const parsed: BatsonResponseJson = parsedRaw || {};
 
   const VALID_RISKS = new Set(["Low", "Moderate", "High"]);
   const VALID_STRENGTHS = new Set(["Strong", "Moderate", "Weak"]);
 
   const result: BatsonAnalysisResult = {
-    overallRisk: VALID_RISKS.has(parsed.overallRisk) ? parsed.overallRisk : "Low",
+    overallRisk: (typeof parsed.overallRisk === 'string' && VALID_RISKS.has(parsed.overallRisk) ? parsed.overallRisk : "Low") as BatsonAnalysisResult['overallRisk'],
     summary: typeof parsed.summary === 'string' ? parsed.summary : 'No Batson concerns identified.',
     defensive: Array.isArray(parsed.defensive)
-      ? parsed.defensive.filter((d: any) => d && typeof d.jurorNumber === 'number').map((d: any) => ({
-          jurorNumber: d.jurorNumber,
-          jurorName: typeof d.jurorName === 'string' ? d.jurorName : `Juror #${d.jurorNumber}`,
-          protectedClass: typeof d.protectedClass === 'string' ? d.protectedClass : 'Unknown',
-          riskLevel: VALID_RISKS.has(d.riskLevel) ? d.riskLevel : 'Low',
-          statisticalFlag: typeof d.statisticalFlag === 'string' ? d.statisticalFlag : '',
-          comparativeConcern: typeof d.comparativeConcern === 'string' ? d.comparativeConcern : '',
-          currentJustification: typeof d.currentJustification === 'string' ? d.currentJustification : '',
-          recommendedArticulation: typeof d.recommendedArticulation === 'string' ? d.recommendedArticulation : '',
-          ...(typeof d.warning === 'string' ? { warning: d.warning } : {}),
-        }))
+      ? parsed.defensive
+          .filter((d): d is BatsonDefensiveJson & { jurorNumber: number } => !!d && typeof d.jurorNumber === 'number')
+          .map((d) => ({
+            jurorNumber: d.jurorNumber,
+            jurorName: typeof d.jurorName === 'string' ? d.jurorName : `Juror #${d.jurorNumber}`,
+            protectedClass: typeof d.protectedClass === 'string' ? d.protectedClass : 'Unknown',
+            riskLevel: (typeof d.riskLevel === 'string' && VALID_RISKS.has(d.riskLevel) ? d.riskLevel : 'Low') as BatsonAnalysisResult['defensive'][number]['riskLevel'],
+            statisticalFlag: typeof d.statisticalFlag === 'string' ? d.statisticalFlag : '',
+            comparativeConcern: typeof d.comparativeConcern === 'string' ? d.comparativeConcern : '',
+            currentJustification: typeof d.currentJustification === 'string' ? d.currentJustification : '',
+            recommendedArticulation: typeof d.recommendedArticulation === 'string' ? d.recommendedArticulation : '',
+            ...(typeof d.warning === 'string' ? { warning: d.warning } : {}),
+          }))
       : [],
     offensive: Array.isArray(parsed.offensive)
-      ? parsed.offensive.filter((o: any) => o && typeof o.jurorNumber === 'number').map((o: any) => ({
-          jurorNumber: o.jurorNumber,
-          jurorName: typeof o.jurorName === 'string' ? o.jurorName : `Juror #${o.jurorNumber}`,
-          protectedClass: typeof o.protectedClass === 'string' ? o.protectedClass : 'Unknown',
-          strengthOfChallenge: VALID_STRENGTHS.has(o.strengthOfChallenge) ? o.strengthOfChallenge : 'Weak',
-          statisticalPattern: typeof o.statisticalPattern === 'string' ? o.statisticalPattern : '',
-          comparativeEvidence: typeof o.comparativeEvidence === 'string' ? o.comparativeEvidence : '',
-          suggestedArgument: typeof o.suggestedArgument === 'string' ? o.suggestedArgument : '',
-        }))
+      ? parsed.offensive
+          .filter((o): o is BatsonOffensiveJson & { jurorNumber: number } => !!o && typeof o.jurorNumber === 'number')
+          .map((o) => ({
+            jurorNumber: o.jurorNumber,
+            jurorName: typeof o.jurorName === 'string' ? o.jurorName : `Juror #${o.jurorNumber}`,
+            protectedClass: typeof o.protectedClass === 'string' ? o.protectedClass : 'Unknown',
+            strengthOfChallenge: (typeof o.strengthOfChallenge === 'string' && VALID_STRENGTHS.has(o.strengthOfChallenge) ? o.strengthOfChallenge : 'Weak') as BatsonAnalysisResult['offensive'][number]['strengthOfChallenge'],
+            statisticalPattern: typeof o.statisticalPattern === 'string' ? o.statisticalPattern : '',
+            comparativeEvidence: typeof o.comparativeEvidence === 'string' ? o.comparativeEvidence : '',
+            suggestedArgument: typeof o.suggestedArgument === 'string' ? o.suggestedArgument : '',
+          }))
       : [],
   };
 

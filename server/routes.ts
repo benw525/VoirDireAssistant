@@ -29,7 +29,9 @@ async function generateFollowUpSuggestionsViaClaude(opts: {
   const system = `You are a trial attorney assistant. Based on a juror's response during voir dire, suggest 2-3 brief follow-up questions that would help assess this juror further. The case is a ${areaOfLaw} case where you represent the ${side}. Keep each question to one sentence. Return ONLY a JSON array of strings, no other text.`;
   const userPrompt = `Juror #${jurorNumber} (${jurorName}) was asked: "${questionText}"\n\nTheir response: "${responseText}"\n\nSuggest 2-3 targeted follow-up questions.`;
 
-  const { parsed } = await claudeJson<any>({
+  type FollowUpJson = string[] | { questions?: unknown; followUps?: unknown; suggestions?: unknown };
+
+  const { parsed } = await claudeJson<FollowUpJson>({
     model: CLAUDE_SONNET,
     system,
     userPrompt,
@@ -37,10 +39,12 @@ async function generateFollowUpSuggestionsViaClaude(opts: {
     maxTokens: 600,
   });
 
-  if (Array.isArray(parsed)) return parsed.filter(s => typeof s === 'string');
+  const onlyStrings = (xs: unknown): string[] =>
+    Array.isArray(xs) ? xs.filter((s): s is string => typeof s === 'string') : [];
+
+  if (Array.isArray(parsed)) return onlyStrings(parsed);
   if (parsed && typeof parsed === 'object') {
-    const list = parsed.questions || parsed.followUps || parsed.suggestions || [];
-    return Array.isArray(list) ? list.filter((s: any) => typeof s === 'string') : [];
+    return onlyStrings(parsed.questions ?? parsed.followUps ?? parsed.suggestions ?? []);
   }
   return [];
 }

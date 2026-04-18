@@ -233,7 +233,20 @@ export async function generateFullVoirDire(
   const strategyModuleText = getStrategyModule(caseInfo.areaOfLaw, normalizedSide);
   const systemPrompt = STRATEGY_SYSTEM_PROMPT.replace('{{STRATEGY_MODULE_INJECTION}}', strategyModuleText);
 
-  const { parsed } = await claudeJson<any>({
+  interface VoirDireQuestionJson { id?: unknown; originalText?: unknown; rephrase?: unknown; followUps?: unknown; module?: unknown }
+  interface JurorFollowUpJson { jurorNumber?: unknown; jurorName?: unknown; questions?: unknown; rationale?: unknown }
+  interface CauseFlagJson { jurorNumber?: unknown; jurorName?: unknown; riskSummary?: unknown; lockDownQuestions?: unknown; inabilityQuestion?: unknown }
+  interface StrikeGuideJson { jurorNumber?: unknown; jurorName?: unknown; riskLevel?: unknown; primaryConcern?: unknown; recommendation?: unknown }
+  interface VoirDireResponseJson {
+    opening?: unknown; caseOverview?: unknown;
+    questions?: VoirDireQuestionJson[];
+    jurorFollowUps?: JurorFollowUpJson[];
+    causeFlags?: CauseFlagJson[];
+    rehabilitationOptions?: unknown;
+    strikeGuide?: StrikeGuideJson[];
+  }
+
+  const { parsed } = await claudeJson<VoirDireResponseJson>({
     model: CLAUDE_OPUS,
     system: systemPrompt,
     userPrompt: `Generate a complete, courtroom-ready voir dire for this case.\n\n${context}`,
@@ -245,38 +258,41 @@ export async function generateFullVoirDire(
     throw new Error("AI returned invalid response. Please try again.");
   }
 
+  const toStr = (v: unknown) => typeof v === 'string' ? v : '';
+  const toStrArr = (v: unknown): string[] => Array.isArray(v) ? v.map(String) : [];
+
   return {
-    opening: String(parsed.opening || ""),
-    caseOverview: String(parsed.caseOverview || ""),
-    questions: (parsed.questions || []).map((q: any, i: number) => ({
+    opening: toStr(parsed.opening),
+    caseOverview: toStr(parsed.caseOverview),
+    questions: (parsed.questions || []).map((q, i) => ({
       id: typeof q.id === "number" ? q.id : i + 1,
-      originalText: String(q.originalText || ""),
-      rephrase: String(q.rephrase || ""),
-      followUps: Array.isArray(q.followUps) ? q.followUps.map(String) : [],
-      module: String(q.module || "General"),
+      originalText: toStr(q.originalText),
+      rephrase: toStr(q.rephrase),
+      followUps: toStrArr(q.followUps),
+      module: typeof q.module === 'string' ? q.module : 'General',
     })),
-    jurorFollowUps: (parsed.jurorFollowUps || []).map((jf: any) => ({
+    jurorFollowUps: (parsed.jurorFollowUps || []).map((jf) => ({
       jurorNumber: Number(jf.jurorNumber),
-      jurorName: String(jf.jurorName || ""),
-      questions: Array.isArray(jf.questions) ? jf.questions.map(String) : [],
-      rationale: String(jf.rationale || ""),
+      jurorName: toStr(jf.jurorName),
+      questions: toStrArr(jf.questions),
+      rationale: toStr(jf.rationale),
     })),
-    causeFlags: (parsed.causeFlags || []).map((cf: any) => ({
+    causeFlags: (parsed.causeFlags || []).map((cf) => ({
       jurorNumber: Number(cf.jurorNumber),
-      jurorName: String(cf.jurorName || ""),
-      riskSummary: String(cf.riskSummary || ""),
-      lockDownQuestions: Array.isArray(cf.lockDownQuestions) ? cf.lockDownQuestions.map(String) : [],
-      inabilityQuestion: String(cf.inabilityQuestion || ""),
+      jurorName: toStr(cf.jurorName),
+      riskSummary: toStr(cf.riskSummary),
+      lockDownQuestions: toStrArr(cf.lockDownQuestions),
+      inabilityQuestion: toStr(cf.inabilityQuestion),
     })),
     rehabilitationOptions: Array.isArray(parsed.rehabilitationOptions)
       ? parsed.rehabilitationOptions.map(String)
       : [],
-    strikeGuide: (parsed.strikeGuide || []).map((sg: any) => ({
+    strikeGuide: (parsed.strikeGuide || []).map((sg) => ({
       jurorNumber: Number(sg.jurorNumber),
-      jurorName: String(sg.jurorName || ""),
-      riskLevel: (["Low", "Moderate", "High"].includes(sg.riskLevel) ? sg.riskLevel : "Moderate") as "Low" | "Moderate" | "High",
-      primaryConcern: String(sg.primaryConcern || ""),
-      recommendation: String(sg.recommendation || ""),
+      jurorName: toStr(sg.jurorName),
+      riskLevel: (typeof sg.riskLevel === 'string' && ["Low", "Moderate", "High"].includes(sg.riskLevel) ? sg.riskLevel : "Moderate") as "Low" | "Moderate" | "High",
+      primaryConcern: toStr(sg.primaryConcern),
+      recommendation: toStr(sg.recommendation),
     })),
   };
 }
@@ -289,7 +305,10 @@ export async function refineUserQuestions(
 ): Promise<Array<{ id: number; originalText: string; rephrase: string; followUps: string[] }>> {
   const context = buildCaseContext(caseInfo, jurors, enrichmentMap);
 
-  const { parsed } = await claudeJson<any>({
+  interface RefineQuestionJson { id?: unknown; originalText?: unknown; rephrase?: unknown; followUps?: unknown }
+  interface RefineResponseJson { questions?: RefineQuestionJson[] }
+
+  const { parsed } = await claudeJson<RefineResponseJson>({
     model: CLAUDE_OPUS,
     system: REFINE_SYSTEM_PROMPT,
     userPrompt: `Refine these voir dire questions for courtroom use.\n\n${context}\n\nATTORNEY'S DRAFT QUESTIONS:\n${rawQuestions}`,
@@ -302,10 +321,10 @@ export async function refineUserQuestions(
   }
 
   const questions = parsed.questions || [];
-  return questions.map((q: any, i: number) => ({
+  return questions.map((q, i) => ({
     id: typeof q.id === "number" ? q.id : i + 1,
-    originalText: String(q.originalText || ""),
-    rephrase: String(q.rephrase || ""),
+    originalText: typeof q.originalText === 'string' ? q.originalText : "",
+    rephrase: typeof q.rephrase === 'string' ? q.rephrase : "",
     followUps: Array.isArray(q.followUps) ? q.followUps.map(String) : [],
   }));
 }
