@@ -267,3 +267,16 @@ A full-stack jury selection assistant application with user authentication, AI-p
 - `file-saver` — File download utility for exports
 - `bcrypt` — Password hashing
 - `jsonwebtoken` — JWT token management
+
+## Testing
+Automated tests use Node's built-in test runner via `tsx`. Run them with:
+
+```
+npm test
+```
+
+(This runs `tsx --test server/*.test.ts` under the hood.)
+
+Current suites:
+- `server/anthropic.test.ts` — covers `extractFirstJsonValue` / `collectJsonCandidates` JSON extraction from AI responses (pure JSON, prose-wrapped, nested structures, braces inside string literals, escaped quotes, code-fenced output, and inputs with no JSON).
+
