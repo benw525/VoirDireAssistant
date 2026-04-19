@@ -15,7 +15,7 @@ import { registerChatRoutes } from "./replit_integrations/chat";
 import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession, handleWebhook } from "./billing";
 import { triggerEnrichmentForJurors, getEnrichedDataForCase, cancelEnrichmentForCase } from "./perplexityEnrichment";
 import { getAnalysisTraits } from "./strategyModules";
-import { claudeJson, CLAUDE_SONNET } from "./anthropic";
+import { claudeJson, CLAUDE_SONNET, respondWithAnthropicError } from "./anthropic";
 
 async function generateFollowUpSuggestionsViaClaude(opts: {
   areaOfLaw: string;
@@ -812,7 +812,7 @@ export async function registerRoutes(
       res.json(result);
     } catch (err: any) {
       console.error("Voir dire generation error:", err);
-      res.status(500).json({ message: err.message || "Failed to generate voir dire" });
+      respondWithAnthropicError(res, err, "Failed to generate voir dire");
     }
   });
 
@@ -1024,7 +1024,7 @@ export async function registerRoutes(
       res.json({ questions: result });
     } catch (err: any) {
       console.error("Question refinement error:", err);
-      res.status(500).json({ message: err.message || "Failed to refine questions" });
+      respondWithAnthropicError(res, err, "Failed to refine questions");
     }
   });
 
@@ -1084,7 +1084,7 @@ export async function registerRoutes(
       res.json({ analysis: result.analysis, riskScore: result.riskScore, aiRiskTier: result.aiRiskTier, suggestedLean: result.suggestedLean, leanConfidence: result.leanConfidence });
     } catch (err: any) {
       console.error("Juror analysis error:", err);
-      res.status(500).json({ message: err.message || "Failed to analyze juror" });
+      respondWithAnthropicError(res, err, "Failed to analyze juror");
     }
   });
 
@@ -1158,7 +1158,7 @@ export async function registerRoutes(
       res.json({ summaries });
     } catch (err: any) {
       console.error("Batch juror analysis error:", err);
-      res.status(500).json({ message: err.message || "Failed to analyze jurors" });
+      respondWithAnthropicError(res, err, "Failed to analyze jurors");
     }
   });
 
@@ -1216,7 +1216,7 @@ export async function registerRoutes(
       res.json({ strikes });
     } catch (err: any) {
       console.error("Strike for cause analysis error:", err);
-      res.status(500).json({ message: err.message || "Failed to analyze strikes for cause" });
+      respondWithAnthropicError(res, err, "Failed to analyze strikes for cause");
     }
   });
 
@@ -1257,7 +1257,7 @@ export async function registerRoutes(
       res.json(result);
     } catch (err: any) {
       console.error("Batson analysis error:", err);
-      res.status(500).json({ message: err.message || "Failed to analyze Batson challenge" });
+      respondWithAnthropicError(res, err, "Failed to analyze Batson challenge");
     }
   });
 

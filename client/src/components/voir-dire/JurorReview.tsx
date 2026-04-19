@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Juror, JurorResponse, VoirDireQuestion, CaseInfo } from '../../types';
 import * as api from '../../lib/api';
+import { ApiErrorBanner } from '../ApiErrorBanner';
 import { ReactionText } from './ReactionText';
 
 const DEMEANOR_TAGS = [
@@ -63,6 +64,7 @@ export function JurorReview({
   const batchCancelRef = React.useRef(false);
   const pendingLeanAnalysis = React.useRef<Juror | null>(null);
   const [failedAnalyses, setFailedAnalyses] = useState<Set<number>>(new Set());
+  const [analysisErrors, setAnalysisErrors] = useState<Record<number, any>>({});
   const [enrichmentStatus, setEnrichmentStatus] = useState<{
     enrichedJurors: Set<number>;
     pending: number;
@@ -105,6 +107,7 @@ export function JurorReview({
       const result = await api.analyzeJuror(caseInfo, juror, jurorResponses, questions, activeCaseId);
       setAiAnalysis(prev => ({ ...prev, [juror.number]: result.analysis }));
       setFailedAnalyses(prev => { const n = new Set(prev); n.delete(juror.number); return n; });
+      setAnalysisErrors(prev => { const n = { ...prev }; delete n[juror.number]; return n; });
       const jurorUpdates: Partial<Juror> = {
         aiAnalysis: result.analysis,
         riskScore: result.riskScore,
@@ -118,6 +121,7 @@ export function JurorReview({
     } catch (err) {
       console.error('Failed to analyze juror:', err);
       setFailedAnalyses(prev => new Set(prev).add(juror.number));
+      setAnalysisErrors(prev => ({ ...prev, [juror.number]: err }));
       return false;
     } finally {
       setAnalyzingJurors(prev => { const n = new Set(prev); n.delete(juror.number); return n; });
@@ -781,6 +785,14 @@ export function JurorReview({
                     <Loader2 className="w-5 h-5 animate-spin text-violet-500 mr-3" />
                     <span className="text-sm text-violet-600 font-medium">Generating risk analysis...</span>
                   </div>
+                ) : failedAnalyses.has(selectedJuror.number) ? (
+                  <ApiErrorBanner
+                    error={analysisErrors[selectedJuror.number]}
+                    fallback="Failed to analyze this juror."
+                    onRetry={() => handleAnalyzeJuror(selectedJuror)}
+                    isRetrying={analyzingJurors.has(selectedJuror.number)}
+                    testIdPrefix={`juror-analysis-error-${selectedJuror.number}`}
+                  />
                 ) : (
                   <div className="text-center py-6 bg-slate-50 rounded-xl border border-slate-200 border-dashed">
                     <Brain className="w-8 h-8 mx-auto mb-2 text-slate-300" />

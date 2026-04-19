@@ -26,6 +26,7 @@ import {
 import { CaseInfo, Juror, JurorResponse, VoirDireQuestion } from '../../types';
 import * as api from '../../lib/api';
 import type { StrikeForCauseResult, BatsonAnalysisResult } from '../../lib/api';
+import { ApiErrorBanner } from '../ApiErrorBanner';
 import { ReactionText } from './ReactionText';
 
 function isCriminalCase(areaOfLaw: string): boolean {
@@ -88,7 +89,7 @@ export function EndReport({
     return initial;
   });
   const [isGenerating, setIsGenerating] = useState(false);
-  const [summaryError, setSummaryError] = useState('');
+  const [summaryError, setSummaryError] = useState<any>(null);
   const [isSendingToMm, setIsSendingToMm] = useState(false);
   const [mmSendResult, setMmSendResult] = useState<'success' | 'error' | null>(null);
   const [mmSendMessage, setMmSendMessage] = useState('');
@@ -98,14 +99,14 @@ export function EndReport({
   const [courtDismissed, setCourtDismissed] = useState<Set<number>>(() => new Set(savedCourtDismissed || []));
   const [causeStrikes, setCauseStrikes] = useState<StrikeForCauseResult[]>(savedStrikesForCause || []);
   const [isAnalyzingCause, setIsAnalyzingCause] = useState(false);
-  const [causeAnalysisError, setCauseAnalysisError] = useState('');
+  const [causeAnalysisError, setCauseAnalysisError] = useState<any>(null);
   const [collapsedCauseCategories, setCollapsedCauseCategories] = useState<Set<string>>(new Set());
   const [peremptoryCollapsed, setPeremptoryCollapsed] = useState(false);
   const [causeCollapsed, setCauseCollapsed] = useState(false);
   const [strikeOrderCollapsed, setStrikeOrderCollapsed] = useState(false);
   const [batsonResult, setBatsonResult] = useState<BatsonAnalysisResult | null>(savedBatsonAnalysis || null);
   const [isAnalyzingBatson, setIsAnalyzingBatson] = useState(false);
-  const [batsonError, setBatsonError] = useState('');
+  const [batsonError, setBatsonError] = useState<any>(null);
   const [batsonCollapsed, setBatsonCollapsed] = useState(false);
 
   useEffect(() => {
@@ -275,7 +276,7 @@ export function EndReport({
 
   const handleGenerateSummaries = async () => {
     setIsGenerating(true);
-    setSummaryError('');
+    setSummaryError(null);
     try {
       const summaries = await api.analyzeJurorsBatch(caseInfo, jurors, responses, questions, activeCaseId);
       setAiSummaries(summaries);
@@ -287,7 +288,7 @@ export function EndReport({
       }
     } catch (err: any) {
       console.error('Failed to generate summaries:', err);
-      setSummaryError(err?.message || 'Failed to generate summaries. Please try again.');
+      setSummaryError(err);
     } finally {
       setIsGenerating(false);
     }
@@ -295,7 +296,7 @@ export function EndReport({
 
   const handleAnalyzeCauseStrikes = async () => {
     setIsAnalyzingCause(true);
-    setCauseAnalysisError('');
+    setCauseAnalysisError(null);
     try {
       const activeJurors = jurors.filter(j => !courtDismissed.has(j.number));
       const results = await api.analyzeStrikesForCause(caseInfo, activeJurors, responses, questions);
@@ -309,7 +310,7 @@ export function EndReport({
       }
     } catch (err: any) {
       console.error('Failed to analyze strikes for cause:', err);
-      setCauseAnalysisError(err.message || 'Failed to analyze strikes for cause');
+      setCauseAnalysisError(err);
     } finally {
       setIsAnalyzingCause(false);
     }
@@ -317,7 +318,7 @@ export function EndReport({
 
   const handleBatsonCheck = async () => {
     setIsAnalyzingBatson(true);
-    setBatsonError('');
+    setBatsonError(null);
     try {
       const activeJurors = jurors.filter(j => !courtDismissed.has(j.number));
       const yourStrikeNums = (caseInfo.side === 'defense'
@@ -369,7 +370,7 @@ export function EndReport({
       }
     } catch (err: any) {
       console.error('Failed to run Batson check:', err);
-      setBatsonError(err.message || 'Failed to run Batson challenge check');
+      setBatsonError(err);
     } finally {
       setIsAnalyzingBatson(false);
     }
@@ -656,8 +657,15 @@ export function EndReport({
           </div>
 
           {summaryError && (
-            <div className="mb-4 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-sm text-rose-700" data-testid="text-summary-error">
-              {summaryError}
+            <div className="mb-4">
+              <ApiErrorBanner
+                error={summaryError}
+                fallback="Failed to generate summaries. Please try again."
+                onRetry={handleGenerateSummaries}
+                onDismiss={() => setSummaryError(null)}
+                isRetrying={isGenerating}
+                testIdPrefix="summary-error"
+              />
             </div>
           )}
 
@@ -1064,9 +1072,15 @@ export function EndReport({
                   )}
 
                   {batsonError && (
-                    <div className="flex items-center gap-2 p-3 rounded-xl text-sm font-medium bg-rose-50 border border-rose-200 text-rose-700 mb-4" data-testid="text-batson-error">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                      {batsonError}
+                    <div className="mb-4">
+                      <ApiErrorBanner
+                        error={batsonError}
+                        fallback="Failed to run Batson challenge check."
+                        onRetry={handleBatsonCheck}
+                        onDismiss={() => setBatsonError(null)}
+                        isRetrying={isAnalyzingBatson}
+                        testIdPrefix="batson-error"
+                      />
                     </div>
                   )}
 
@@ -1281,9 +1295,15 @@ export function EndReport({
           )}
 
           {causeAnalysisError && (
-            <div className="flex items-center gap-2 p-3 rounded-xl text-sm font-medium bg-rose-50 border border-rose-200 text-rose-700 mb-4" data-testid="text-cause-error">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {causeAnalysisError}
+            <div className="mb-4">
+              <ApiErrorBanner
+                error={causeAnalysisError}
+                fallback="Failed to analyze strikes for cause."
+                onRetry={handleAnalyzeCauseStrikes}
+                onDismiss={() => setCauseAnalysisError(null)}
+                isRetrying={isAnalyzingCause}
+                testIdPrefix="cause-error"
+              />
             </div>
           )}
 

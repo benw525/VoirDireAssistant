@@ -3,13 +3,75 @@ import { getAuthToken } from './auth';
 
 const API_BASE = '/api';
 
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
   code?: string;
   constructor(message: string, status: number, code?: string) {
     super(message);
     this.status = status;
     this.code = code;
+  }
+}
+
+export interface FriendlyApiError {
+  title: string;
+  message: string;
+  code: string;
+  isTransient: boolean;
+}
+
+export function friendlyApiError(err: any, fallback: string): FriendlyApiError {
+  if (typeof err === 'string') {
+    return { title: 'Heads up', message: err, code: 'local_validation', isTransient: false };
+  }
+  const code: string = err?.code || '';
+  const status: number | undefined = err?.status;
+  const baseMsg: string = err?.message || fallback;
+
+  switch (code) {
+    case 'rate_limit':
+      return {
+        title: 'Anthropic rate limit reached',
+        message: "We've hit Anthropic's rate limit. Wait a few seconds and retry.",
+        code,
+        isTransient: true,
+      };
+    case 'overloaded':
+      return {
+        title: 'Claude is overloaded',
+        message: 'Claude is temporarily overloaded. Try again in a moment.',
+        code,
+        isTransient: true,
+      };
+    case 'upstream_error':
+      return {
+        title: 'Claude is having trouble',
+        message: 'The model service returned an error. Please try again.',
+        code,
+        isTransient: true,
+      };
+    case 'invalid_request':
+      return {
+        title: 'Request rejected by Claude',
+        message: baseMsg + ' Try simplifying the input.',
+        code,
+        isTransient: false,
+      };
+    case 'auth_error':
+      return {
+        title: 'Authentication problem',
+        message: 'Could not authenticate with Anthropic. Please contact support.',
+        code,
+        isTransient: false,
+      };
+    default:
+      if (status === 429) {
+        return { title: 'Rate limit reached', message: 'Please wait a moment and try again.', code: 'rate_limit', isTransient: true };
+      }
+      if (status && status >= 500) {
+        return { title: 'Server error', message: baseMsg, code: code || 'server_error', isTransient: true };
+      }
+      return { title: 'Something went wrong', message: baseMsg, code: code || 'error', isTransient: true };
   }
 }
 
@@ -341,7 +403,7 @@ export async function parseStrikeList(fileOrText: File[] | string): Promise<Pars
   }
 
   if (!res.ok) {
-    throw new Error(data.message || 'Failed to parse strike list');
+    throw new ApiError(data.message || 'Failed to parse strike list', res.status, data.code);
   }
   const jurors = (data.jurors || []).map((j: any) => ({
     number: j.number,

@@ -21,6 +21,7 @@ import { Juror } from '../../types';
 import { useDropzone } from 'react-dropzone';
 import { parseStrikeList } from '../../lib/api';
 import type { DemographicFlag } from '../../lib/api';
+import { ApiErrorBanner } from '../ApiErrorBanner';
 
 
 interface StrikeListProps {
@@ -141,7 +142,8 @@ export function StrikeList({
 }: StrikeListProps) {
   const [pasteData, setPasteData] = useState('');
   const [isParsing, setIsParsing] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<any>(null);
+  const [lastInput, setLastInput] = useState<File[] | string | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newJuror, setNewJuror] = useState({ number: '', name: '', sex: '', race: '', birthDate: '', occupation: '', employer: '' });
@@ -151,7 +153,8 @@ export function StrikeList({
 
   const handleAIParse = useCallback(async (filesOrText: File[] | string) => {
     setIsParsing(true);
-    setError('');
+    setError(null);
+    setLastInput(filesOrText);
     setDemographicFlags([]);
     setDemographicsReviewed(false);
     const fileCount = Array.isArray(filesOrText) ? filesOrText.length : 0;
@@ -163,13 +166,18 @@ export function StrikeList({
       setDemographicFlags(result.demographicFlags);
       setPasteData('');
       setStatusMessage('');
+      setLastInput(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to parse strike list. Please try again.');
+      setError(err);
       setStatusMessage('');
     } finally {
       setIsParsing(false);
     }
   }, [onJurorsLoaded]);
+
+  const handleRetryParse = useCallback(() => {
+    if (lastInput !== null) handleAIParse(lastInput);
+  }, [lastInput, handleAIParse]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -394,12 +402,18 @@ export function StrikeList({
             data-testid="input-paste-data"
             className="flex-1 w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-slate-50 font-mono text-sm resize-none transition-colors mb-4 min-h-[120px] disabled:opacity-50" />
 
-            {error &&
-          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-sm flex items-center" data-testid="text-error-message">
-                <AlertCircle className="w-4 h-4 mr-2 shrink-0" />
-                {error}
+            {error && (
+              <div className="mb-4">
+                <ApiErrorBanner
+                  error={error}
+                  fallback="Failed to parse strike list. Please try again."
+                  onRetry={lastInput !== null ? handleRetryParse : undefined}
+                  onDismiss={() => setError(null)}
+                  isRetrying={isParsing}
+                  testIdPrefix="strike-parse-error"
+                />
               </div>
-          }
+            )}
 
             <div className="flex justify-between items-center">
               <button

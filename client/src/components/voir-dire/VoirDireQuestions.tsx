@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { VoirDireQuestion, VoirDireDocument, CaseInfo, Juror } from '../../types';
 import * as api from '../../lib/api';
+import { ApiErrorBanner } from '../ApiErrorBanner';
 import { exportAsPdf, exportAsText, exportAsWord } from '../../lib/exportVoirDire';
 
 interface VoirDireQuestionsProps {
@@ -59,7 +60,8 @@ export function VoirDireQuestions({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingLabel, setProcessingLabel] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<any>(null);
+  const [lastFailedAction, setLastFailedAction] = useState<null | 'generate' | 'refine' | 'parse'>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingFollowUp, setEditingFollowUp] = useState<{ qId: number; idx: number } | null>(null);
   const [voirDireDoc, setVoirDireDoc] = useState<VoirDireDocument | null>(null);
@@ -183,8 +185,10 @@ export function VoirDireQuestions({
         locked: false,
       }));
       onQuestionsProcessed(questionsWithLock);
+      setLastFailedAction(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to generate voir dire. Please try again.');
+      setError(err);
+      setLastFailedAction('generate');
     } finally {
       setIsProcessing(false);
       setProcessingLabel('');
@@ -200,8 +204,10 @@ export function VoirDireQuestions({
       const refined = await api.refineQuestions(inputText, caseInfo, jurors, caseId);
       onQuestionsProcessed(refined);
       setInputText('');
+      setLastFailedAction(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to refine questions. Please try again.');
+      setError(err);
+      setLastFailedAction('refine');
     } finally {
       setIsProcessing(false);
       setProcessingLabel('');
@@ -314,7 +320,8 @@ export function VoirDireQuestions({
       setUploadedFileName(result.filename);
       setStructuredItems(result.structuredItems || null);
     } catch (err: any) {
-      setError(err.message || 'Failed to parse document.');
+      setError(err);
+      setLastFailedAction('parse');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -488,15 +495,19 @@ export function VoirDireQuestions({
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-4 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start"
+          className="mb-4"
         >
-          <AlertTriangle className="w-5 h-5 text-red-500 mr-3 mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <p className="text-red-800 text-sm font-medium">{error}</p>
-          </div>
-          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 ml-2">
-            <X className="w-4 h-4" />
-          </button>
+          <ApiErrorBanner
+            error={error}
+            fallback={lastFailedAction === 'parse' ? 'Failed to parse document.' : lastFailedAction === 'refine' ? 'Failed to refine questions. Please try again.' : 'Failed to generate voir dire. Please try again.'}
+            onRetry={lastFailedAction === 'generate' || lastFailedAction === 'refine' ? () => {
+              if (lastFailedAction === 'generate') executeGenerate();
+              else if (lastFailedAction === 'refine') executeRefine();
+            } : undefined}
+            onDismiss={() => { setError(null); setLastFailedAction(null); }}
+            isRetrying={isProcessing}
+            testIdPrefix={`voir-dire-${lastFailedAction || 'error'}`}
+          />
         </motion.div>
       )}
 
