@@ -112,14 +112,84 @@ export async function claudeJson<T = unknown>(opts: ClaudeOptions): Promise<{ ra
   try {
     return { raw, parsed: JSON.parse(cleaned) as T };
   } catch {
-    const match = cleaned.match(/[\[{][\s\S]*[\]}]/);
-    if (match) {
+    const candidates = collectJsonCandidates(cleaned);
+    for (const candidate of candidates) {
       try {
-        return { raw, parsed: JSON.parse(match[0]) as T };
+        return { raw, parsed: JSON.parse(candidate) as T };
       } catch {
-        return { raw, parsed: null };
+        // try next candidate
       }
     }
     return { raw, parsed: null };
   }
+}
+
+export function extractFirstJsonValue(text: string): string | null {
+  for (const candidate of collectJsonCandidates(text)) {
+    try {
+      JSON.parse(candidate);
+      return candidate;
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
+export function collectJsonCandidates(text: string): string[] {
+  const candidates: string[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch !== "{" && ch !== "[") continue;
+    const end = findMatchingClose(text, i);
+    if (end !== -1) {
+      candidates.push(text.slice(i, end + 1));
+    }
+  }
+  return candidates;
+}
+
+function findMatchingClose(text: string, start: number): number {
+  const open = text[start];
+  const close = open === "{" ? "}" : "]";
+  const stack: string[] = [open];
+  let inString = false;
+  let escape = false;
+
+  for (let i = start + 1; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escape) {
+        escape = false;
+      } else if (ch === "\\") {
+        escape = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === "{" || ch === "[") {
+      stack.push(ch);
+      continue;
+    }
+
+    if (ch === "}" || ch === "]") {
+      const top = stack[stack.length - 1];
+      const expected = top === "{" ? "}" : "]";
+      if (ch !== expected) return -1;
+      stack.pop();
+      if (stack.length === 0) {
+        return ch === close ? i : -1;
+      }
+    }
+  }
+
+  return -1;
 }
