@@ -187,6 +187,33 @@ export function ResponseRecording({
       }
     }, [toast, activeSession]),
     onQuestionSetActive: useCallback((data: any) => {
+      if (data.isFollowUp && data.jurorNumber && data.questionId) {
+        const matchingResponse = responses.find(
+          r => r.jurorNumber === data.jurorNumber && r.questionId === data.questionId
+        );
+        if (matchingResponse) {
+          setExpandedResponseId(matchingResponse.id);
+          setFollowUpQuestion(data.questionText || '');
+          setFollowUpAnswer('');
+          setTimeout(() => {
+            const card = document.querySelector(`[data-testid="card-response-${matchingResponse.id}"]`)
+              || document.getElementById(`response-${matchingResponse.id}`);
+            card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            followUpAnswerRef.current?.focus();
+          }, 100);
+          toast({
+            title: 'Follow-up requested',
+            description: `Juror #${data.jurorNumber}: "${(data.questionText || '').substring(0, 60)}${(data.questionText || '').length > 60 ? '...' : ''}" — set by ${data.setBy}`,
+          });
+        } else {
+          toast({
+            title: 'Follow-up requested',
+            description: `Juror #${data.jurorNumber} has no recorded answer for Q${data.questionId} yet — record their response first, then the follow-up will attach.`,
+            variant: 'destructive',
+          });
+        }
+        return;
+      }
       if (data.questionId) {
         setQuestionNum(data.questionId.toString());
       }
@@ -194,7 +221,7 @@ export function ResponseRecording({
         setQuestionSummary(data.questionText);
       }
       toast({ title: 'Active question updated', description: `"${data.questionText?.substring(0, 60)}${data.questionText?.length > 60 ? '...' : ''}" set by ${data.setBy}` });
-    }, [toast]),
+    }, [toast, responses]),
   };
 
   const { status: wsStatus } = useCollaborativeSession({
