@@ -1,6 +1,12 @@
-import { describe, it } from "node:test";
+import { describe, it, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { extractFirstJsonValue, collectJsonCandidates } from "./anthropic";
+import {
+  extractFirstJsonValue,
+  collectJsonCandidates,
+  classifyAnthropicError,
+  claudeJson,
+  anthropic,
+} from "./anthropic";
 
 function expectParsed(input: string, expected: unknown) {
   const extracted = extractFirstJsonValue(input);
@@ -112,5 +118,174 @@ describe("collectJsonCandidates", () => {
 
   it("returns an empty list when no opening bracket exists", () => {
     assert.deepEqual(collectJsonCandidates("plain text"), []);
+  });
+});
+
+describe("classifyAnthropicError", () => {
+  const fallback = "Something went wrong.";
+
+  it("classifies rate limit by status 429", () => {
+    const result = classifyAnthropicError({ status: 429 }, fallback);
+    assert.equal(result.status, 429);
+    assert.equal(result.code, "rate_limit");
+    assert.match(result.message, /rate-limit/i);
+  });
+
+  it("classifies rate limit by error type", () => {
+    const result = classifyAnthropicError(
+      { error: { error: { type: "rate_limit_error" } } },
+      fallback,
+    );
+    assert.equal(result.code, "rate_limit");
+  });
+
+  it("classifies overloaded by status 529", () => {
+    const result = classifyAnthropicError({ status: 529 }, fallback);
+    assert.equal(result.status, 503);
+    assert.equal(result.code, "overloaded");
+    assert.match(result.message, /overloaded/i);
+  });
+
+  it("classifies overloaded by error type", () => {
+    const result = classifyAnthropicError(
+      { error: { type: "overloaded_error" } },
+      fallback,
+    );
+    assert.equal(result.code, "overloaded");
+  });
+
+  it("classifies invalid request by status 400", () => {
+    const result = classifyAnthropicError({ status: 400 }, fallback);
+    assert.equal(result.status, 422);
+    assert.equal(result.code, "invalid_request");
+  });
+
+  it("classifies invalid request by error type", () => {
+    const result = classifyAnthropicError(
+      { error: { error: { type: "invalid_request_error" } } },
+      fallback,
+    );
+    assert.equal(result.code, "invalid_request");
+  });
+
+  it("classifies auth by 401", () => {
+    const result = classifyAnthropicError({ status: 401 }, fallback);
+    assert.equal(result.status, 500);
+    assert.equal(result.code, "auth_error");
+  });
+
+  it("classifies auth by 403", () => {
+    const result = classifyAnthropicError({ status: 403 }, fallback);
+    assert.equal(result.code, "auth_error");
+  });
+
+  it("classifies auth by authentication_error type", () => {
+    const result = classifyAnthropicError(
+      { error: { error: { type: "authentication_error" } } },
+      fallback,
+    );
+    assert.equal(result.code, "auth_error");
+  });
+
+  it("classifies auth by permission_error type", () => {
+    const result = classifyAnthropicError(
+      { error: { error: { type: "permission_error" } } },
+      fallback,
+    );
+    assert.equal(result.code, "auth_error");
+  });
+
+  it("classifies generic 5xx as upstream_error", () => {
+    const result = classifyAnthropicError({ status: 500 }, fallback);
+    assert.equal(result.status, 502);
+    assert.equal(result.code, "upstream_error");
+  });
+
+  it("classifies 503 as upstream_error", () => {
+    const result = classifyAnthropicError({ status: 503 }, fallback);
+    assert.equal(result.code, "upstream_error");
+  });
+
+  it("falls back to server_error using err.message when unknown", () => {
+    const result = classifyAnthropicError({ message: "weird boom" }, fallback);
+    assert.equal(result.status, 500);
+    assert.equal(result.code, "server_error");
+    assert.equal(result.message, "weird boom");
+  });
+
+  it("falls back to provided message when err has no message", () => {
+    const result = classifyAnthropicError({}, fallback);
+    assert.equal(result.code, "server_error");
+    assert.equal(result.message, fallback);
+  });
+});
+
+describe("claudeJson", () => {
+  function mockResponse(text: string) {
+    mock.method(anthropic.messages, "create", async () => ({
+      id: "msg_test",
+      type: "message",
+      role: "assistant",
+      model: "claude-sonnet-4-6",
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      usage: { input_tokens: 0, output_tokens: 0 },
+      content: [{ type: "text", text, citations: null }],
+    }));
+  }
+
+  afterEach(() => {
+    mock.restoreAll();
+  });
+
+  it("parses clean JSON output", async () => {
+    mockResponse('{"a":1,"b":[2,3]}');
+    const result = await claudeJson<{ a: number; b: number[] }>({
+      model: "claude-sonnet-4-6",
+      system: "sys",
+      userPrompt: "u",
+      maxTokens: 100,
+    });
+    assert.deepEqual(result.parsed, { a: 1, b: [2, 3] });
+    assert.equal(result.raw, '{"a":1,"b":[2,3]}');
+  });
+
+  it("parses code-fenced JSON output", async () => {
+    const raw = '```json\n{"ok":true}\n```';
+    mockResponse(raw);
+    const result = await claudeJson<{ ok: boolean }>({
+      model: "claude-sonnet-4-6",
+      system: "sys",
+      userPrompt: "u",
+      maxTokens: 100,
+    });
+    assert.deepEqual(result.parsed, { ok: true });
+    assert.equal(result.raw, raw);
+  });
+
+  it("parses JSON wrapped in prose by extracting candidates", async () => {
+    const raw = 'Sure! Here you go: {"answer":42} -- hope that helps.';
+    mockResponse(raw);
+    const result = await claudeJson<{ answer: number }>({
+      model: "claude-sonnet-4-6",
+      system: "sys",
+      userPrompt: "u",
+      maxTokens: 100,
+    });
+    assert.deepEqual(result.parsed, { answer: 42 });
+    assert.equal(result.raw, raw);
+  });
+
+  it("returns parsed=null but preserves raw when output is unparseable", async () => {
+    const raw = "this is just prose with no json at all";
+    mockResponse(raw);
+    const result = await claudeJson({
+      model: "claude-sonnet-4-6",
+      system: "sys",
+      userPrompt: "u",
+      maxTokens: 100,
+    });
+    assert.equal(result.parsed, null);
+    assert.equal(result.raw, raw);
   });
 });
