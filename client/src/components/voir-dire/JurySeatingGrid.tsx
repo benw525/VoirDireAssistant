@@ -332,7 +332,7 @@ export function JurySeatingGrid({
 
               <div className="p-4 space-y-2">
                 <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-center mb-1">
-                  ← Judge's Bench →
+                  ← Gallery →
                 </div>
                 {arrangeJurorsInGrid(jurors, seatingConfig).map((row, rowIdx) => (
                   <div key={rowIdx} className="flex gap-2 justify-center">
@@ -551,7 +551,7 @@ export function JurySeatingGrid({
                   </div>
                 ))}
                 <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-center mt-1">
-                  ← Gallery →
+                  ← Judge's Bench →
                 </div>
               </div>
             </motion.div>
