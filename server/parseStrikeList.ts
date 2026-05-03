@@ -8,7 +8,7 @@ import os from "os";
 import Tesseract from "tesseract.js";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const GEMINI_PRIMARY_MODEL = "gemini-3.1-pro";
+const GEMINI_PRIMARY_MODEL = "gemini-3.1-pro-preview";
 const GEMINI_FALLBACK_MODEL = "gemini-2.0-flash";
 const MAX_BATCH_SIZE = 32 * 1024 * 1024;
 const MAX_PAGE_SIZE = 20 * 1024 * 1024;
@@ -27,13 +27,23 @@ async function geminiGenerateWithRetry(request: any): Promise<any> {
         return result;
       } catch (err: any) {
         lastErr = err;
-        const status = err?.status || err?.httpStatusCode || (err?.message?.includes('503') ? 503 : err?.message?.includes('429') ? 429 : 0);
-        const isRetryable = status === 503 || status === 429 || err?.message?.includes('high demand') || err?.message?.includes('overloaded') || err?.message?.includes('Service Unavailable');
+        const msg: string = err?.message || '';
+        const status = err?.status || err?.httpStatusCode
+          || (msg.includes('404') ? 404 : msg.includes('503') ? 503 : msg.includes('429') ? 429 : 0);
+        const isModelMissing = status === 404
+          || /not found/i.test(msg)
+          || /not supported for generateContent/i.test(msg);
+        const isRetryable = status === 503 || status === 429
+          || msg.includes('high demand') || msg.includes('overloaded') || msg.includes('Service Unavailable');
         if (isRetryable && attempt < GEMINI_MAX_RETRIES) {
           const delay = GEMINI_RETRY_DELAYS[attempt] || 8000;
           console.log(`Gemini ${modelName} ${status || 'transient'} error, retrying in ${delay / 1000}s (attempt ${attempt + 1}/${GEMINI_MAX_RETRIES})...`);
           await new Promise(r => setTimeout(r, delay));
           continue;
+        }
+        if (isModelMissing) {
+          console.log(`Gemini ${modelName} not available (${status || 'unknown'}: ${msg.slice(0, 120)}), trying fallback model...`);
+          break;
         }
         if (isRetryable) {
           console.log(`Gemini ${modelName} exhausted retries, trying fallback model...`);
