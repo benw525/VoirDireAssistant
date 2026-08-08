@@ -9,7 +9,7 @@ import Tesseract from "tesseract.js";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const GEMINI_PRIMARY_MODEL = "gemini-3.1-pro-preview";
-const GEMINI_FALLBACK_MODEL = "gemini-2.0-flash";
+const GEMINI_FALLBACK_MODEL = "gemini-3.5-flash";
 const MAX_BATCH_SIZE = 32 * 1024 * 1024;
 const MAX_PAGE_SIZE = 20 * 1024 * 1024;
 const GEMINI_MAX_RETRIES = 2;

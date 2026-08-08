@@ -3,13 +3,13 @@
  *
  * Exercises every AI agent end-to-end against a synthetic 36-juror panel:
  *   1. Gemini 3.1 Pro    — strike-list parsing
- *   2. Claude Opus 4.7   — brief summary (per juror)
- *   3. Claude Opus 4.7   — full juror analysis JSON (per juror)
- *   4. Claude Opus 4.7   — strike-for-cause panel analysis
- *   5. Claude Opus 4.7   — Batson analysis
- *   6. Claude Opus 4.7   — full voir dire generation
- *   7. Claude Opus 4.7   — refine attorney's draft questions
- *   8. Claude Sonnet 4.6 — live follow-up suggestions
+ *   2. Claude Opus 5   — brief summary (per juror)
+ *   3. Claude Opus 5   — full juror analysis JSON (per juror)
+ *   4. Claude Opus 5   — strike-for-cause panel analysis
+ *   5. Claude Opus 5   — Batson analysis
+ *   6. Claude Opus 5   — full voir dire generation
+ *   7. Claude Opus 5   — refine attorney's draft questions
+ *   8. Claude Sonnet 5 — live follow-up suggestions
  *
  * Usage: npx tsx scripts/simulate-trial.ts
  */
@@ -204,12 +204,12 @@ async function checkBriefSummary() {
   try {
     const { value, ms } = await timed(() => generateBriefSummary(caseInfo, j, makeResponses(j.number)));
     if (typeof value !== "string" || value.length < 20) {
-      fail("2. Opus 4.7 — brief summary", ms, `Output too short or wrong type: "${value}"`);
+      fail("2. Opus 5 — brief summary", ms, `Output too short or wrong type: "${value}"`);
       return;
     }
-    ok("2. Opus 4.7 — brief summary", ms, `${value.length} chars`, value.slice(0, 140) + (value.length > 140 ? "…" : ""));
+    ok("2. Opus 5 — brief summary", ms, `${value.length} chars`, value.slice(0, 140) + (value.length > 140 ? "…" : ""));
   } catch (err: any) {
-    fail("2. Opus 4.7 — brief summary", 0, err?.message || String(err));
+    fail("2. Opus 5 — brief summary", 0, err?.message || String(err));
   }
 }
 
@@ -223,14 +223,14 @@ async function checkAnalyzeJuror() {
       && ["high","moderate","low"].includes(value.leanConfidence)
       && typeof value.analysis === "string" && value.analysis.length > 30;
     if (!okShape) {
-      fail("3. Opus 4.7 — analyzeJuror JSON", ms, `Bad shape: ${JSON.stringify(value).slice(0, 200)}`);
+      fail("3. Opus 5 — analyzeJuror JSON", ms, `Bad shape: ${JSON.stringify(value).slice(0, 200)}`);
       return;
     }
-    ok("3. Opus 4.7 — analyzeJuror JSON", ms,
+    ok("3. Opus 5 — analyzeJuror JSON", ms,
        `risk=${value.riskScore} tier=${value.aiRiskTier} lean=${value.suggestedLean} conf=${value.leanConfidence}`,
        value.analysis.slice(0, 140) + "…");
   } catch (err: any) {
-    fail("3. Opus 4.7 — analyzeJuror JSON", 0, err?.message || String(err));
+    fail("3. Opus 5 — analyzeJuror JSON", 0, err?.message || String(err));
   }
 }
 
@@ -239,16 +239,16 @@ async function checkStrikeForCause() {
   try {
     const { value, ms } = await timed(() => analyzeStrikesForCause(caseInfo, jurorsForStrikes));
     if (!Array.isArray(value) || value.length === 0) {
-      fail("4. Opus 4.7 — strike-for-cause", ms, "No strikes returned");
+      fail("4. Opus 5 — strike-for-cause", ms, "No strikes returned");
       return;
     }
     const cats = value.reduce<Record<string, number>>((m, s) => { m[s.category] = (m[s.category] ?? 0) + 1; return m; }, {});
     const sample = value.find(v => v.category === "Highly Likely") ?? value[0];
-    ok("4. Opus 4.7 — strike-for-cause", ms,
+    ok("4. Opus 5 — strike-for-cause", ms,
        `${value.length} entries (${Object.entries(cats).map(([k,v]) => `${k}:${v}`).join(", ")})`,
        `#${sample.jurorNumber} [${sample.category}] ${sample.reasoning.slice(0,100)}…`);
   } catch (err: any) {
-    fail("4. Opus 4.7 — strike-for-cause", 0, err?.message || String(err));
+    fail("4. Opus 5 — strike-for-cause", 0, err?.message || String(err));
   }
 }
 
@@ -262,14 +262,14 @@ async function checkBatson() {
       && typeof value.summary === "string"
       && Array.isArray(value.defensive) && Array.isArray(value.offensive);
     if (!okShape) {
-      fail("5. Opus 4.7 — Batson analysis", ms, `Bad shape: ${JSON.stringify(value).slice(0,200)}`);
+      fail("5. Opus 5 — Batson analysis", ms, `Bad shape: ${JSON.stringify(value).slice(0,200)}`);
       return;
     }
-    ok("5. Opus 4.7 — Batson analysis", ms,
+    ok("5. Opus 5 — Batson analysis", ms,
        `risk=${value.overallRisk}, ${value.defensive.length} defensive / ${value.offensive.length} offensive`,
        value.summary.slice(0,140) + (value.summary.length > 140 ? "…" : ""));
   } catch (err: any) {
-    fail("5. Opus 4.7 — Batson analysis", 0, err?.message || String(err));
+    fail("5. Opus 5 — Batson analysis", 0, err?.message || String(err));
   }
 }
 
@@ -280,14 +280,14 @@ async function checkVoirDire() {
       && Array.isArray(value.questions) && value.questions.length >= 5
       && Array.isArray(value.strikeGuide);
     if (!okShape) {
-      fail("6. Opus 4.7 — voir dire generation", ms, `Bad shape: opening=${value.opening?.length} qs=${value.questions?.length}`);
+      fail("6. Opus 5 — voir dire generation", ms, `Bad shape: opening=${value.opening?.length} qs=${value.questions?.length}`);
       return;
     }
-    ok("6. Opus 4.7 — voir dire generation", ms,
+    ok("6. Opus 5 — voir dire generation", ms,
        `${value.questions.length} questions, ${value.jurorFollowUps.length} juror follow-ups, ${value.causeFlags.length} cause flags, ${value.strikeGuide.length} strike guide entries`,
        `Q1: "${value.questions[0]?.rephrase?.slice(0,120) || value.questions[0]?.originalText?.slice(0,120)}…"`);
   } catch (err: any) {
-    fail("6. Opus 4.7 — voir dire generation", 0, err?.message || String(err));
+    fail("6. Opus 5 — voir dire generation", 0, err?.message || String(err));
   }
 }
 
@@ -299,14 +299,14 @@ async function checkRefine() {
   try {
     const { value, ms } = await timed(() => refineUserQuestions(draft, caseInfo, panel.slice(0, 10), enrichmentMap));
     if (!Array.isArray(value) || value.length < 3) {
-      fail("7. Opus 4.7 — refine draft questions", ms, `Expected ≥3 refined questions, got ${value?.length}`);
+      fail("7. Opus 5 — refine draft questions", ms, `Expected ≥3 refined questions, got ${value?.length}`);
       return;
     }
-    ok("7. Opus 4.7 — refine draft questions", ms,
+    ok("7. Opus 5 — refine draft questions", ms,
        `${value.length} refined`,
        `"${value[0].rephrase.slice(0,140)}…"`);
   } catch (err: any) {
-    fail("7. Opus 4.7 — refine draft questions", 0, err?.message || String(err));
+    fail("7. Opus 5 — refine draft questions", 0, err?.message || String(err));
   }
 }
 
@@ -327,14 +327,14 @@ async function checkFollowUps() {
       : (parsed && typeof parsed === "object") ? onlyStrings((parsed as any).questions ?? (parsed as any).followUps ?? (parsed as any).suggestions ?? [])
       : [];
     if (list.length < 2) {
-      fail("8. Sonnet 4.6 — live follow-up suggestions", ms, `Expected ≥2 suggestions, got ${list.length}`);
+      fail("8. Sonnet 5 — live follow-up suggestions", ms, `Expected ≥2 suggestions, got ${list.length}`);
       return;
     }
-    ok("8. Sonnet 4.6 — live follow-up suggestions", ms,
+    ok("8. Sonnet 5 — live follow-up suggestions", ms,
        `${list.length} suggestions`,
        `"${list[0].slice(0,140)}…"`);
   } catch (err: any) {
-    fail("8. Sonnet 4.6 — live follow-up suggestions", 0, err?.message || String(err));
+    fail("8. Sonnet 5 — live follow-up suggestions", 0, err?.message || String(err));
   }
 }
 

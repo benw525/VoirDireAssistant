@@ -1,0 +1,1 @@
+- [Claude model quirks](claude-model-quirks.md) — 5-series Claude deprecates `temperature`; probe new models + re-run simulate-trial harness on every model swap.

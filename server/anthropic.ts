@@ -6,8 +6,8 @@ export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-export const CLAUDE_OPUS = "claude-opus-4-7";
-export const CLAUDE_SONNET = "claude-sonnet-4-6";
+export const CLAUDE_OPUS = "claude-opus-5";
+export const CLAUDE_SONNET = "claude-sonnet-5";
 
 interface ClaudeOptions {
   model: string;
@@ -18,7 +18,8 @@ interface ClaudeOptions {
 }
 
 function modelSupportsTemperature(model: string): boolean {
-  return !/^claude-opus-4-7/.test(model);
+  // temperature is unsupported on opus-4-7 and deprecated on the 5-series models
+  return !/^claude-(opus-4-7|opus-5|sonnet-5)/.test(model);
 }
 
 export async function claudeComplete(opts: ClaudeOptions): Promise<string> {
