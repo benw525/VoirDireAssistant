@@ -87,7 +87,8 @@ export interface VoirDireDocument {
 
 export interface SeatingConfig {
   rows: number;
-  direction: 'bottom-right-first' | 'top-left-first';
+  direction: 'bottom-right-first' | 'top-left-first' | 'bottom-left-first';
+  seatsPerRow?: number[];
 }
 
 export interface SavedCase {

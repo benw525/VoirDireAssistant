@@ -51,14 +51,32 @@ function arrangeJurorsInGrid(
 ): Juror[][] {
   const sorted = [...jurors].sort((a, b) => a.number - b.number);
   const rowCount = config.rows;
-  const seatsPerRow = Math.ceil(sorted.length / rowCount);
   const rows: Juror[][] = [];
 
-  for (let r = 0; r < rowCount; r++) {
-    const start = r * seatsPerRow;
-    const end = Math.min(start + seatsPerRow, sorted.length);
-    if (start < sorted.length) {
-      rows.push(sorted.slice(start, end));
+  const customSeats = config.seatsPerRow && config.seatsPerRow.length === rowCount
+    ? config.seatsPerRow
+    : null;
+
+  if (customSeats) {
+    let start = 0;
+    for (let r = 0; r < rowCount && start < sorted.length; r++) {
+      const count = Math.max(1, customSeats[r]);
+      rows.push(sorted.slice(start, start + count));
+      start += count;
+    }
+    // Any overflow jurors (config seats < panel size) go into the last row
+    const placed = rows.reduce((n, row) => n + row.length, 0);
+    if (placed < sorted.length && rows.length > 0) {
+      rows[rows.length - 1].push(...sorted.slice(placed));
+    }
+  } else {
+    const seatsPerRow = Math.ceil(sorted.length / rowCount);
+    for (let r = 0; r < rowCount; r++) {
+      const start = r * seatsPerRow;
+      const end = Math.min(start + seatsPerRow, sorted.length);
+      if (start < sorted.length) {
+        rows.push(sorted.slice(start, end));
+      }
     }
   }
 
@@ -86,6 +104,14 @@ export function JurySeatingGrid({
   const [configDirection, setConfigDirection] = useState<SeatingConfig['direction']>(
     seatingConfig?.direction || 'bottom-right-first'
   );
+  const [customSeatsEnabled, setCustomSeatsEnabled] = useState(
+    !!(seatingConfig?.seatsPerRow && seatingConfig.seatsPerRow.length)
+  );
+  const [configSeats, setConfigSeats] = useState<number[]>(
+    seatingConfig?.seatsPerRow && seatingConfig.seatsPerRow.length
+      ? seatingConfig.seatsPerRow
+      : []
+  );
   const [noteJuror, setNoteJuror] = useState<number | null>(null);
   const [noteText, setNoteText] = useState('');
   const [flashedCells, setFlashedCells] = useState<Record<number, string>>({});
@@ -100,9 +126,18 @@ export function JurySeatingGrid({
 
   const handleApplyConfig = () => {
     const config: SeatingConfig = { rows: configRows, direction: configDirection };
+    if (customSeatsEnabled) {
+      const seats = Array.from({ length: configRows }, (_, i) => configSeats[i] || defaultSeatsPerRow);
+      config.seatsPerRow = seats;
+    }
     onSeatingConfigChange(config);
     setShowConfig(false);
   };
+
+  const defaultSeatsPerRow = Math.ceil(jurors.length / configRows) || 1;
+  const customSeatsTotal = customSeatsEnabled
+    ? Array.from({ length: configRows }, (_, i) => configSeats[i] || defaultSeatsPerRow).reduce((a, b) => a + b, 0)
+    : 0;
 
   const currentQuestionResponses = responses.filter(r => {
     if (!activeQuestion) return false;
@@ -251,6 +286,49 @@ export function JurySeatingGrid({
                           {n}
                         </button>
                       ))}
+                    </div>
+                    <div className="mt-3">
+                      <label className="flex items-center gap-2 text-xs font-semibold text-blue-700 uppercase cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={customSeatsEnabled}
+                          onChange={(e) => setCustomSeatsEnabled(e.target.checked)}
+                          data-testid="checkbox-custom-seats"
+                          className="rounded border-slate-300"
+                        />
+                        Custom seats per row
+                      </label>
+                      {customSeatsEnabled && (
+                        <div className="mt-2 space-y-1.5">
+                          {Array.from({ length: configRows }, (_, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="text-xs text-slate-600 w-14">Row {i + 1}</span>
+                              <input
+                                type="number"
+                                min={1}
+                                max={30}
+                                value={configSeats[i] || defaultSeatsPerRow}
+                                onChange={(e) => {
+                                  const v = Math.max(1, parseInt(e.target.value) || 1);
+                                  setConfigSeats(prev => {
+                                    const next = [...prev];
+                                    next[i] = v;
+                                    return next;
+                                  });
+                                }}
+                                data-testid={`input-seats-row-${i + 1}`}
+                                className="w-16 px-2 py-1 rounded border border-slate-300 text-sm text-slate-700"
+                              />
+                              <span className="text-xs text-slate-400">seats</span>
+                            </div>
+                          ))}
+                          <div className={`text-xs font-medium ${customSeatsTotal === jurors.length ? 'text-green-600' : 'text-amber-600'}`}>
+                            {customSeatsTotal} seats for {jurors.length} jurors
+                            {customSeatsTotal < jurors.length && ' — extras will be added to the last row'}
+                            {customSeatsTotal > jurors.length && ' — trailing seats stay empty'}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div>
