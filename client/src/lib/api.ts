@@ -108,7 +108,7 @@ interface DbCase {
   mattrmindrCaseId?: string | null;
   strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string }>;
   courtDismissed?: number[];
-  seatingConfig?: { rows: number; direction: 'bottom-right-first' | 'top-left-first' } | null;
+  seatingConfig?: { rows: number; direction: 'bottom-right-first' | 'top-left-first' | 'bottom-left-first' } | null;
   batsonAnalysis?: {
     overallRisk: string;
     summary: string;

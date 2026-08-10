@@ -65,6 +65,8 @@ function arrangeJurorsInGrid(
   if (config.direction === 'bottom-right-first') {
     rows.reverse();
     rows.forEach(row => row.reverse());
+  } else if (config.direction === 'bottom-left-first') {
+    rows.reverse();
   }
 
   return rows;
@@ -193,7 +195,7 @@ export function JurySeatingGrid({
             <span className="font-semibold text-sm text-slate-800">Jury Seating Chart</span>
             {seatingConfig && (
               <span className="text-xs text-slate-400">
-                ({seatingConfig.rows} rows, {seatingConfig.direction === 'bottom-right-first' ? 'lowest # bottom-right' : 'lowest # top-left'})
+                ({seatingConfig.rows} rows, {seatingConfig.direction === 'bottom-right-first' ? 'lowest # bottom-right' : seatingConfig.direction === 'bottom-left-first' ? 'lowest # bottom-left' : 'lowest # top-left'})
               </span>
             )}
           </div>
@@ -277,6 +279,17 @@ export function JurySeatingGrid({
                         }`}
                       >
                         #1 top-left → last bottom-right
+                      </button>
+                      <button
+                        onClick={() => setConfigDirection('bottom-left-first')}
+                        data-testid="button-direction-bottom-left"
+                        className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium text-left transition-colors ${
+                          configDirection === 'bottom-left-first'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-slate-600 border border-slate-300 hover:bg-blue-50'
+                        }`}
+                      >
+                        #1 bottom-left → last top-right
                       </button>
                     </div>
                   </div>

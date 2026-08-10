@@ -43,7 +43,7 @@ export const cases = pgTable("cases", {
   } | null>().default(null),
   seatingConfig: jsonb("seating_config").$type<{
     rows: number;
-    direction: 'bottom-right-first' | 'top-left-first';
+    direction: 'bottom-right-first' | 'top-left-first' | 'bottom-left-first';
   } | null>().default(null),
   demographicsChangedAt: bigint("demographics_changed_at", { mode: "number" }),
   batsonAnalyzedAt: bigint("batson_analyzed_at", { mode: "number" }),
