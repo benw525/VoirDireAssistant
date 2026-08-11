@@ -164,6 +164,23 @@ export async function registerRoutes(
   });
 
   // --- Change Password ---
+  app.patch("/api/auth/profile", authMiddleware, async (req, res) => {
+    try {
+      const parsed = z.object({
+        name: z.string().min(1).max(100),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Name is required" });
+
+      const updated = await storage.updateUser(req.user!.id, { name: parsed.data.name });
+      if (!updated) return res.status(404).json({ message: "User not found" });
+
+      res.json({ user: { id: updated.id, email: updated.email, name: updated.name } });
+    } catch (err: any) {
+      console.error("Update profile error:", err);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
   app.patch("/api/auth/change-password", authMiddleware, async (req, res) => {
     try {
       const parsed = z.object({
