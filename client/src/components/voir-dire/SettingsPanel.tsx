@@ -37,7 +37,13 @@ export function SettingsPanel({
   onAiHiddenChange,
   onConnectionChange,
 }: SettingsPanelProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
+
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState('');
+  const [nameLoading, setNameLoading] = useState(false);
+  const [nameError, setNameError] = useState('');
+  const [nameSuccess, setNameSuccess] = useState('');
 
   const [mmConnected, setMmConnected] = useState(false);
   const [mmUrl, setMmUrl] = useState('');
@@ -197,6 +203,39 @@ export function SettingsPanel({
     }
   };
 
+  const handleSaveName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = nameValue.trim();
+    if (!trimmed) {
+      setNameError('Name cannot be empty');
+      return;
+    }
+    setNameError('');
+    setNameSuccess('');
+    setNameLoading(true);
+    try {
+      const token = getAuthToken();
+      const res = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to update name');
+      updateUser({ name: data.user.name });
+      setNameSuccess('Name updated');
+      setEditingName(false);
+      setTimeout(() => setNameSuccess(''), 2000);
+    } catch (err: any) {
+      setNameError(err.message);
+    } finally {
+      setNameLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const initials = user?.name
@@ -235,9 +274,62 @@ export function SettingsPanel({
               <div className="w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
                 {initials}
               </div>
-              <div className="min-w-0">
-                <div className="font-semibold text-slate-900 truncate" data-testid="text-settings-name">{user?.name}</div>
-                <div className="text-sm text-slate-500 truncate" data-testid="text-settings-email">{user?.email}</div>
+              <div className="min-w-0 flex-1">
+                {editingName ? (
+                  <form onSubmit={handleSaveName} className="space-y-2">
+                    <input
+                      type="text"
+                      value={nameValue}
+                      onChange={e => setNameValue(e.target.value)}
+                      maxLength={100}
+                      autoFocus
+                      className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      placeholder="Your name"
+                      data-testid="input-settings-edit-name"
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="submit"
+                        disabled={nameLoading}
+                        className="px-3 py-1 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-1"
+                        data-testid="button-save-name"
+                      >
+                        {nameLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setEditingName(false); setNameError(''); }}
+                        className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-slate-800"
+                        data-testid="button-cancel-edit-name"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {nameError && (
+                      <div className="text-xs text-red-600" data-testid="text-name-error">{nameError}</div>
+                    )}
+                  </form>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold text-slate-900 truncate" data-testid="text-settings-name">{user?.name}</div>
+                      <button
+                        onClick={() => { setNameValue(user?.name || ''); setEditingName(true); setNameSuccess(''); }}
+                        className="text-xs font-semibold text-amber-600 hover:text-amber-700 flex-shrink-0"
+                        data-testid="button-edit-name"
+                      >
+                        Edit
+                      </button>
+                      {nameSuccess && (
+                        <span className="text-xs text-green-600 flex items-center gap-1 flex-shrink-0" data-testid="text-name-success">
+                          <CheckCircle2 className="w-3 h-3" /> {nameSuccess}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm text-slate-500 truncate" data-testid="text-settings-email">{user?.email}</div>
+                  </>
+                )}
               </div>
             </div>
 

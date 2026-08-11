@@ -15,6 +15,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (updates: Partial<AuthUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -25,6 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   register: async () => {},
   logout: () => {},
+  updateUser: () => {},
 });
 
 export function useAuth() {
@@ -107,6 +109,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthState(null, null);
   }, [setAuthState]);
 
+  const updateUser = useCallback((updates: Partial<AuthUser>) => {
+    setUser(prev => (prev ? { ...prev, ...updates } : prev));
+  }, []);
+
   return React.createElement(
     AuthContext.Provider,
     {
@@ -118,6 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         register,
         logout,
+        updateUser,
       },
     },
     children
