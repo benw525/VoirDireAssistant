@@ -15,6 +15,16 @@ interface ClaudeOptions {
   userPrompt: string;
   maxTokens: number;
   temperature?: number;
+  /**
+   * Prompt caching (Lewis/Whigham Section 9): a large context block that is
+   * IDENTICAL across many calls (case context, panel roster, stats). When
+   * present, the system parameter is sent as two blocks — the static system
+   * prompt and this shared context — each marked with `cache_control:
+   * ephemeral`, so Anthropic caches the shared prefix across the 30+
+   * per-juror / per-chunk calls. Everything call-specific must stay in
+   * `userPrompt`.
+   */
+  cacheableContext?: string;
 }
 
 function modelSupportsTemperature(model: string): boolean {
@@ -23,16 +33,30 @@ function modelSupportsTemperature(model: string): boolean {
 }
 
 export async function claudeComplete(opts: ClaudeOptions): Promise<string> {
+  const system: MessageCreateParamsNonStreaming["system"] = opts.cacheableContext
+    ? [
+        { type: "text", text: opts.system, cache_control: { type: "ephemeral" } },
+        { type: "text", text: opts.cacheableContext, cache_control: { type: "ephemeral" } },
+      ]
+    : opts.system;
   const params: MessageCreateParamsNonStreaming = {
     model: opts.model,
     max_tokens: opts.maxTokens,
-    system: opts.system,
+    system,
     messages: [{ role: "user", content: opts.userPrompt }],
   };
   if (modelSupportsTemperature(opts.model)) {
     params.temperature = opts.temperature ?? 0.3;
   }
   const response = await anthropic.messages.create(params);
+
+  if (response.stop_reason === "max_tokens") {
+    // Truncated output is the silent killer of JSON parsing downstream —
+    // make it visible so a parse failure can be traced to its real cause.
+    console.warn(
+      `[claudeComplete] Output truncated at max_tokens=${opts.maxTokens} (model ${opts.model}) — JSON callers will likely fail to parse this response`,
+    );
+  }
 
   for (const block of response.content) {
     if (block.type === "text") return block.text;

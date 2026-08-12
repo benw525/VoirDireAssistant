@@ -210,23 +210,40 @@ Write the panel prognosis JSON now.`;
       strikesPerSide: opts.metrics.strikesPerSide,
     });
 
-  const runOnce = async (correction?: string): Promise<PrognosisDraft> => {
+  const runOnce = async (correction?: string): Promise<PrognosisDraft | null> => {
     const { parsed } = await claudeJson<PrognosisDraft>({
       model: CLAUDE_SONNET,
       system: PROGNOSIS_SYSTEM_PROMPT,
       userPrompt: correction ? `${userPrompt}${correction}` : userPrompt,
       temperature: 0.2,
-      maxTokens: 4000,
+      // 5-series models spend part of max_tokens on internal reasoning; the
+      // prognosis JSON is large (narrative + target lists), so a 4000 cap
+      // was observed producing mid-JSON truncation. Headroom is cheap.
+      // 5-series models spend a variable share of max_tokens on internal
+    // reasoning before the visible JSON: 8000 truncated on some attempts
+    // (visible output is only ~2-3k tokens). Cap sized ~4x visible output.
+    maxTokens: 16000,
     });
-    if (!parsed) throw new AIOutputError("AI returned invalid JSON for panel prognosis.");
     return parsed;
   };
 
+  // Parse failures get one retry with an explicit JSON-only instruction —
+  // same retry-once-then-throw policy as every other analysis path. NEVER a
+  // silent default prognosis.
+  const parseFailure = () =>
+    new AIOutputError("AI returned invalid JSON for panel prognosis after a retry. No default prognosis was generated — run the prognosis again.");
   let parsed = await runOnce();
+  if (!parsed) {
+    console.warn("[PanelPrognosis] Unparseable output on first attempt, retrying once");
+    parsed = await runOnce("\n\nIMPORTANT: Your response must be ONLY the complete, valid prognosis JSON object — no prose before or after it.");
+    if (!parsed) throw parseFailure();
+  }
   let problems = validate(parsed);
   if (problems.length > 0) {
     console.warn(`[PanelPrognosis] Validation problems, retrying once:\n- ${problems.join("\n- ")}`);
-    parsed = await runOnce(`\n\nYOUR PREVIOUS RESPONSE WAS INVALID:\n- ${problems.join("\n- ")}\nReturn the complete corrected JSON.`);
+    const corrected = await runOnce(`\n\nYOUR PREVIOUS RESPONSE WAS INVALID:\n- ${problems.join("\n- ")}\nReturn the complete corrected JSON.`);
+    if (!corrected) throw parseFailure();
+    parsed = corrected;
     problems = validate(parsed);
     if (problems.length > 0) {
       throw new AIOutputError(`Panel prognosis failed validation after retry: ${problems.join(" ")}`);

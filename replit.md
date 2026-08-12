@@ -135,7 +135,7 @@ A full-stack jury selection assistant application with user authentication, AI-p
 
 ## Batson Challenge Check (Phase 6 — End Report)
 - AI-powered analysis of peremptory strike patterns for Batson v. Kentucky (1986) violations
-- Uses `POST /api/analyze-batson` endpoint with GPT-4o (JSON response format)
+- Uses `POST /api/analyze-batson` endpoint with Claude Opus 5 via the shared `claudeJson` helper (chunked parallel calls above 6 struck jurors, deterministic merge; work-product sanitation combines model flags with a deterministic full-text demographic-pattern scan from `server/demographicRationale.ts`)
 - Two-sided analysis:
   - **Defensive** — Evaluates attorney's own strikes for vulnerability to a Batson challenge
   - **Offensive** — Evaluates opposing counsel's strikes for challengeable patterns
@@ -279,4 +279,10 @@ npm test
 
 Current suites:
 - `server/anthropic.test.ts` — covers `extractFirstJsonValue` / `collectJsonCandidates` JSON extraction from AI responses (pure JSON, prose-wrapped, nested structures, braces inside string literals, escaped quotes, code-fenced output, and inputs with no JSON).
+- `server/aiBatch.test.ts` — balanced chunking bounds/order and `mapInBatches` ordering, concurrency cap, and failure isolation.
+- `server/analysisInputs.test.ts` — analysis input hashing (determinism, null/'' equivalence, sensitivity) and thin-record detection.
+- `server/aiSplit.test.ts` — deterministic merge of chunked cause results and worst-wins Batson overall-risk aggregation.
+
+### Calibration harness (required gate)
+`npm run calibrate` replays the Lewis v. Chad and Whigham v. Morris ground truth against LIVE model output (`scripts/calibrate-trials.ts` + `scripts/calibration-fixtures.ts`). It asserts cause categories (explicit statements vs. profile theories vs. hardship), risk rankings (Winston top-3; Barefoot/Jensen high tier and top-5), thin-record behavior (fast tier + provisional + keyFollowUp), the ≤50% medium-tier cap, zero demographic rationale, Batson J.E.B. pattern detection + work-product sanitation, and the pre-strike adverse-survival floor. Flags: `--trial=lewis|whigham|both`, `--skip-batson`. Writes `/tmp/calibration-report.json`; nonzero exit on failure. **Run it before shipping any change to prompts, models, or analysis plumbing** (it makes real Anthropic calls and takes several minutes).
 

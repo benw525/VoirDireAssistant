@@ -14,6 +14,8 @@ import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMa
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession, handleWebhook } from "./billing";
 import { triggerEnrichmentForJurors, getEnrichedDataForCase, cancelEnrichmentForCase, applyMatchDecision, type EnrichedDataV2 } from "./perplexityEnrichment";
+import { schedulePrewarmAnalysis, triggerStageCloseAnalyses } from "./analysisScheduler";
+import { computeAnalysisInputHash } from "./analysisInputs";
 import { getDocketCapability } from "./alacourtDocket";
 import { getAnalysisTraits } from "./strategyModules";
 import { claudeJson, CLAUDE_SONNET, respondWithAnthropicError } from "./anthropic";
@@ -610,13 +612,28 @@ export async function registerRoutes(
     res.json(jurors);
   });
 
+  // Cache-validity fields are server-owned everywhere, including creation:
+  // a client may create jurors carrying legacy AI display values (the case
+  // save flow does), but a created row must NEVER be born cache-valid — the
+  // cached analysis path requires analysisStatus 'ok' + a hash the server
+  // itself computed and persisted.
+  const stripServerOwnedJurorFields = <T extends Record<string, any>>(
+    j: T,
+  ): Omit<T, "analysisStatus" | "analysisInputHash" | "id"> => {
+    const { analysisStatus: _s, analysisInputHash: _h, id: _id, ...rest } = j;
+    return rest;
+  };
+
   app.post("/api/cases/:caseId/jurors", async (req, res) => {
     if (!(await verifyCaseOwnership(req, res))) return;
     const caseId = req.params.caseId;
     const body = req.body;
 
     if (Array.isArray(body)) {
-      const items = body.map((j: any) => ({ ...j, caseId }));
+      // Cast: bulk legacy saves are intentionally schema-free (any[]); the
+      // strip helper narrows the spread type and TS drops the index
+      // signature, so restore the pre-existing untyped semantics.
+      const items = body.map((j: any) => ({ ...stripServerOwnedJurorFields(j), caseId })) as Parameters<typeof storage.createJurors>[0];
       const savedJurors = await storage.createJurors(items);
       res.status(201).json(savedJurors);
 
@@ -637,7 +654,7 @@ export async function registerRoutes(
         console.error("[PerplexityEnrichment] Background enrichment failed:", err.message)
       );
     } else {
-      const data = { ...body, caseId };
+      const data = { ...stripServerOwnedJurorFields(body), caseId };
       const parsed = insertJurorSchema.safeParse(data);
       if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
       const juror = await storage.createJuror(parsed.data);
@@ -661,14 +678,62 @@ export async function registerRoutes(
     }
   });
 
+  // AI result fields a client may echo back (the legacy "save analysis
+  // results" flow) but must never be able to FORGE as cache-verified.
+  const AI_RESULT_FIELDS = [
+    "aiAnalysis", "riskScore", "aiRiskTier", "informationLevel",
+    "analysisProvisional", "keyFollowUp", "damagesAnchor",
+    "aiSuggestedLean", "aiLeanConfidence",
+  ] as const;
+  // Juror fields that feed the analysis prompt/hash — editing any of them
+  // makes the stored analysis stale.
+  const ANALYSIS_INPUT_FIELDS = [
+    "name", "sex", "race", "birthDate", "occupation", "employer",
+    "lean", "riskTier", "notes",
+  ] as const;
+
   app.patch("/api/jurors/:id", async (req, res) => {
     const existing = await storage.getJurorById(req.params.id);
     if (!existing) return res.status(404).json({ message: "Juror not found" });
     const c = await storage.getCase(existing.caseId);
     if (!c || c.userId !== req.user!.id) return res.status(404).json({ message: "Juror not found" });
 
-    const juror = await storage.updateJuror(req.params.id, req.body);
+    // Cache-integrity fields are server-owned: strip them (and identity
+    // fields) from client input unconditionally. If the client writes AI
+    // result values that DIFFER from what the server stored, the row is
+    // downgraded to 'stale' with no hash — the values still display (legacy
+    // behavior) but the cache path can never serve them as verified.
+    // Identical echo-backs keep the cache warm.
+    const updates: Record<string, any> = { ...req.body };
+    delete updates.analysisStatus;
+    delete updates.analysisInputHash;
+    delete updates.id;
+    delete updates.caseId;
+    const divergentAiWrite = AI_RESULT_FIELDS.some(
+      (f) => updates[f] !== undefined && updates[f] !== (existing as any)[f],
+    );
+    const analysisInputChanged = ANALYSIS_INPUT_FIELDS.some(
+      (f) => updates[f] !== undefined && updates[f] !== (existing as any)[f],
+    );
+    if (divergentAiWrite) {
+      updates.analysisStatus = "stale";
+      updates.analysisInputHash = "";
+    } else if (analysisInputChanged && existing.analysisStatus === "ok") {
+      updates.analysisStatus = "stale";
+    }
+
+    // Stripping server-owned fields can leave nothing to write (e.g. a
+    // client sending ONLY forged cache fields) — that is a no-op, not an
+    // error.
+    const juror = Object.keys(updates).length > 0
+      ? await storage.updateJuror(req.params.id, updates)
+      : existing;
     if (!juror) return res.status(404).json({ message: "Juror not found" });
+
+    // Profile/notes edits change the prompt inputs — re-warm in background.
+    if (analysisInputChanged) {
+      schedulePrewarmAnalysis(existing.caseId, existing.number);
+    }
 
     if (req.body.race !== undefined || req.body.sex !== undefined) {
       try {
@@ -866,6 +931,13 @@ export async function registerRoutes(
 
       await storage.mergePanelPrognosis(caseId, stage === "panel_load" ? "panelLoad" : "responsesClosed", prognosis);
 
+      if (stage === "responses_closed") {
+        // Fire-and-forget (Section 8): the record is closed — pre-warm the
+        // remaining juror analyses and auto-run the batched cause analysis
+        // so the strike conference starts with results on the table.
+        triggerStageCloseAnalyses(caseId);
+      }
+
       res.json(prognosis);
     } catch (err: any) {
       console.error("Panel prognosis error:", err);
@@ -885,6 +957,7 @@ export async function registerRoutes(
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const response = await storage.createResponse(parsed.data);
     await markJurorAnalysisStale(caseId, response.jurorNumber);
+    schedulePrewarmAnalysis(caseId, response.jurorNumber);
 
     const activeSession = await storage.getActiveSessionByCase(caseId);
     if (activeSession) {
@@ -947,6 +1020,7 @@ export async function registerRoutes(
     const updated = await storage.addFollowUpToResponse(req.params.id, { question: question || '', answer });
     if (!updated) return res.status(404).json({ message: "Response not found" });
     await markJurorAnalysisStale(updated.caseId, updated.jurorNumber);
+    schedulePrewarmAnalysis(updated.caseId, updated.jurorNumber);
 
     const activeSession = await storage.getActiveSessionByCase(updated.caseId);
     if (activeSession) {
@@ -1368,26 +1442,120 @@ export async function registerRoutes(
           followUps: z.array(z.object({ question: z.string(), answer: z.string() })).default([]),
         })),
         caseId: z.string().optional(),
+        force: z.boolean().optional().default(false),
       }).safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
       }
 
       let enrichedData: Record<string, any> | null = null;
+      let jurorRecord: Awaited<ReturnType<typeof storage.getJurorsByCase>>[number] | null = null;
+      let ownedCase: Awaited<ReturnType<typeof storage.getCase>> | null = null;
       if (parsed.data.caseId) {
         try {
           const caseRecord = await storage.getCase(parsed.data.caseId);
           if (caseRecord && caseRecord.userId === req.user!.id) {
+            ownedCase = caseRecord;
             const allEnriched = await getEnrichedDataForCase(parsed.data.caseId);
             const jurorKey = parsed.data.juror.id || String(parsed.data.juror.number);
             enrichedData = allEnriched[jurorKey] || null;
             console.log(`[AnalyzeJuror] Juror #${parsed.data.juror.number} enrichment: ${enrichedData ? `found (${JSON.stringify(enrichedData).length} chars)` : 'none available'}`);
+            if (parsed.data.juror.id) {
+              const allJurors = await storage.getJurorsByCase(parsed.data.caseId);
+              jurorRecord = allJurors.find(j => j.id === parsed.data.juror.id) || null;
+            }
           }
         } catch (err) {
           console.error("[Enrichment] Failed to fetch enrichment data:", err);
         }
       }
-      const result = await analyzeJuror(parsed.data.caseInfo, parsed.data.juror, parsed.data.responses, enrichedData);
+
+      // Delta re-analysis (Section 9): if the stored analysis was computed
+      // from EXACTLY these inputs, return it instead of regenerating.
+      // Both the hash and the analysis use AUTHORITATIVE inputs where they
+      // exist — the owned case row for posture and the stored juror row for
+      // the profile — so a client replaying an old payload can never pull a
+      // stale analysis forward, and editing the case posture invalidates
+      // every cached analysis in the case. Responses stay caller-supplied
+      // (that is the API contract); DB response changes are covered because
+      // every response write marks the row 'stale', which the status gate
+      // below enforces.
+      const enrichedText = enrichedData ? (enrichedData.text || JSON.stringify(enrichedData)) : '';
+      const caseContextForAnalysis = ownedCase
+        ? {
+            name: ownedCase.name,
+            areaOfLaw: ownedCase.areaOfLaw,
+            summary: ownedCase.summary,
+            side: ownedCase.side,
+            favorableTraits: ownedCase.favorableTraits ?? [],
+            riskTraits: ownedCase.riskTraits ?? [],
+          }
+        : parsed.data.caseInfo;
+      const jurorForAnalysis = jurorRecord
+        ? {
+            number: jurorRecord.number,
+            name: jurorRecord.name,
+            sex: jurorRecord.sex,
+            race: jurorRecord.race,
+            birthDate: jurorRecord.birthDate,
+            occupation: jurorRecord.occupation,
+            employer: jurorRecord.employer,
+            lean: jurorRecord.lean,
+            riskTier: jurorRecord.riskTier,
+            notes: jurorRecord.notes,
+          }
+        : parsed.data.juror;
+      const inputHash = computeAnalysisInputHash({
+        caseContext: caseContextForAnalysis,
+        juror: jurorForAnalysis,
+        responses: parsed.data.responses,
+        enrichedText,
+      });
+      if (
+        jurorRecord && !parsed.data.force &&
+        jurorRecord.analysisStatus === 'ok' &&
+        jurorRecord.analysisInputHash === inputHash &&
+        jurorRecord.aiAnalysis
+      ) {
+        console.log(`[AnalyzeJuror] Juror #${parsed.data.juror.number}: inputs unchanged, returning stored analysis`);
+        return res.json({
+          analysis: jurorRecord.aiAnalysis,
+          riskScore: jurorRecord.riskScore,
+          aiRiskTier: jurorRecord.aiRiskTier,
+          suggestedLean: jurorRecord.aiSuggestedLean || 'unknown',
+          leanConfidence: jurorRecord.aiLeanConfidence || 'low',
+          informationLevel: jurorRecord.informationLevel || 'partial',
+          provisional: jurorRecord.analysisProvisional,
+          keyFollowUp: jurorRecord.keyFollowUp,
+          damagesAnchor: jurorRecord.damagesAnchor,
+          cached: true,
+        });
+      }
+
+      const result = await analyzeJuror(caseContextForAnalysis, jurorForAnalysis, parsed.data.responses, enrichedData);
+
+      // Persist so the hash-skip path and background pre-warm can reuse this
+      // result. Persistence failure must not fail the analysis response.
+      if (jurorRecord) {
+        try {
+          await storage.updateJuror(jurorRecord.id, {
+            aiAnalysis: result.analysis,
+            riskScore: result.riskScore,
+            aiRiskTier: result.aiRiskTier,
+            informationLevel: result.informationLevel,
+            analysisProvisional: result.provisional,
+            keyFollowUp: result.keyFollowUp,
+            damagesAnchor: result.damagesAnchor,
+            aiSuggestedLean: result.suggestedLean,
+            aiLeanConfidence: result.leanConfidence,
+            analysisStatus: 'ok',
+            analysisInputHash: inputHash,
+          });
+        } catch (persistErr) {
+          console.warn(`[AnalyzeJuror] Failed to persist analysis for juror #${parsed.data.juror.number}: ${persistErr}`);
+        }
+      }
+
       res.json({
         analysis: result.analysis,
         riskScore: result.riskScore,
@@ -1398,6 +1566,7 @@ export async function registerRoutes(
         provisional: result.provisional,
         keyFollowUp: result.keyFollowUp,
         damagesAnchor: result.damagesAnchor,
+        cached: false,
       });
     } catch (err: any) {
       console.error("Juror analysis error:", err);
@@ -1455,7 +1624,7 @@ export async function registerRoutes(
         }
       }
 
-      const BATCH_SIZE = 5;
+      const BATCH_SIZE = 8;
       const summaries: Record<number, string> = {};
       const failed: Array<{ jurorNumber: number; message: string }> = [];
       const jurorsList = parsed.data.jurors;
@@ -2053,6 +2222,7 @@ export async function registerRoutes(
         recordedByParticipantId: req.collab!.participantId,
       });
       await markJurorAnalysisStale(caseId, response.jurorNumber);
+      schedulePrewarmAnalysis(caseId, response.jurorNumber);
 
       broadcastToSession(req.collab!.sessionId, {
         type: "response:new",
@@ -2145,6 +2315,7 @@ export async function registerRoutes(
     const updated = await storage.addFollowUpToResponse(req.params.id, { question: question || "", answer });
     if (!updated) return res.status(404).json({ message: "Response not found" });
     await markJurorAnalysisStale(updated.caseId, updated.jurorNumber);
+    schedulePrewarmAnalysis(updated.caseId, updated.jurorNumber);
 
     broadcastToSession(req.collab!.sessionId, {
       type: "followup:new",
@@ -2164,8 +2335,15 @@ export async function registerRoutes(
     const juror = allJurors.find((j) => j.number === jurorNumber);
     if (!juror) return res.status(404).json({ message: "Juror not found" });
 
-    const updated = await storage.updateJuror(juror.id, { notes });
+    // Notes feed the analysis prompt — an edit makes the stored analysis
+    // stale and triggers a background re-warm.
+    const notesChanged = notes !== juror.notes;
+    const updated = await storage.updateJuror(juror.id, {
+      notes,
+      ...(notesChanged && juror.analysisStatus === "ok" ? { analysisStatus: "stale" } : {}),
+    });
     if (!updated) return res.status(500).json({ message: "Failed to update juror notes" });
+    if (notesChanged) schedulePrewarmAnalysis(caseId, jurorNumber);
 
     broadcastToSession(req.collab!.sessionId, {
       type: "juror:notes-updated",

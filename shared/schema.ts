@@ -120,6 +120,14 @@ export const jurors = pgTable("jurors", {
   keyFollowUp: text("key_follow_up").notNull().default(""),
   // Floor/ceiling/reference-point damages assessment (conceded/weak liability).
   damagesAnchor: text("damages_anchor").notNull().default(""),
+  // AI-suggested lean + confidence, kept separate from the attorney-controlled
+  // `lean`/`leanConfidence`. '' = no stored AI suggestion yet.
+  aiSuggestedLean: text("ai_suggested_lean").notNull().default(""),
+  aiLeanConfidence: text("ai_lean_confidence").notNull().default(""),
+  // Delta re-analysis key: sha256 of the analysis inputs (profile, notes,
+  // responses, enrichment). analysisStatus 'ok' + matching hash → the stored
+  // analysis is current and is served without a new AI call.
+  analysisInputHash: text("analysis_input_hash").notNull().default(""),
 });
 
 export const questions = pgTable("questions", {

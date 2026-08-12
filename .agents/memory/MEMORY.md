@@ -2,3 +2,5 @@
 - [Analysis fail-loud contract](analysis-fail-loud-contract.md) — no silent AI defaults; ALWAYS-directives enforced in code not prompts; stale-marking on answer recording; exports gated by integrity check.
 - [jsonb merge vs JSON-null defaults](jsonb-merge-null-default.md) — guard atomic `||` merges with jsonb_typeof; drizzle-kit push can default jsonb columns to JSON null, turning merges into arrays.
 - [Enrichment confidence gating](enrichment-confidence-gating.md) — auto-confirm needs API-cited URL + name-variant overlap; smoke-test lead gating via evidence snippets, not names (common-name collisions).
+- [Analysis cache integrity](analysis-cache-integrity.md) — cache-validity fields are server-owned on every client write path (create/patch/collab); divergent AI writes downgrade to stale; background persists re-verify the hash first.
+- [Background jobs in ShellExec](background-jobs-shellexec.md) — npm-wrapped setsid dies at teardown; launch direct npx tsx, verify via log mtime + bracket-pattern ps, never bare pgrep -f (self-match).

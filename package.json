@@ -10,7 +10,8 @@
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "test": "tsx --test server/*.test.ts"
+    "test": "tsx --test server/*.test.ts",
+    "calibrate": "tsx scripts/calibrate-trials.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",

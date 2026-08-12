@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { getArchetypesAndBias } from "./strategyModules";
-import { AIOutputError, claudeComplete, claudeJson, CLAUDE_OPUS } from "./anthropic";
+import { AIOutputError, claudeComplete, claudeJson, CLAUDE_OPUS, CLAUDE_SONNET } from "./anthropic";
 import { computeBatsonStats, formatBatsonStatsBlock } from "./batsonStats";
+import { chunkBalanced } from "./aiBatch";
+import { isThinRecord } from "./analysisInputs";
+import { findDemographicRationale } from "./demographicRationale";
 
 /**
  * Appended to the user prompt on the single retry after a parse/validation
@@ -12,7 +15,7 @@ const JSON_RETRY_SUFFIX = `
 
 IMPORTANT: Your previous response was not complete, valid JSON matching the required format. Return complete, valid JSON only — a single JSON value with every required field present, fully closed (no truncation), with no prose, no markdown, and no code fences.`;
 
-interface CaseContext {
+export interface CaseContext {
   name: string;
   areaOfLaw: string;
   summary: string;
@@ -21,7 +24,7 @@ interface CaseContext {
   riskTraits: string[];
 }
 
-interface JurorData {
+export interface JurorData {
   number: number;
   name: string;
   sex: string;
@@ -34,13 +37,48 @@ interface JurorData {
   notes: string;
 }
 
-interface ResponseData {
+export interface ResponseData {
   questionText: string | null;
   questionSummary: string | null;
   responseText: string;
   side: string;
   followUps: Array<{ question: string; answer: string }>;
 }
+
+/**
+ * Shared case-context block. It is identical across every per-juror /
+ * per-chunk call for a case, so it is passed as `cacheableContext` (prompt
+ * caching, Section 9) instead of being embedded in each user prompt.
+ */
+function caseContextBlock(caseContext: CaseContext): string {
+  return `CASE CONTEXT:
+Case: ${caseContext.name}
+Area of Law: ${caseContext.areaOfLaw}
+Summary: ${caseContext.summary}
+Representing: ${caseContext.side}
+Favorable Traits: ${caseContext.favorableTraits.join(', ') || 'None specified'}
+Risk Traits: ${caseContext.riskTraits.join(', ') || 'None specified'}`;
+}
+
+/**
+ * Appended to the system prompt for thin-record jurors (fewer than 2-3
+ * substantive responses, no notes, no verified background — see
+ * isThinRecord). These jurors run on the fast model with a short template;
+ * the JSON contract is unchanged.
+ */
+const THIN_RECORD_MODE = `THIN RECORD MODE: This juror's record is minimal — fewer than 2-3 substantive
+responses and no attorney notes or verified background findings. Use the short
+template. If the record contains an explicit statement of position or
+inability (signal weight 1), score it on the merits like any other record.
+Otherwise the tier must still discriminate: with NO risk-adjacent signal at
+all, anchor riskScore in the 35-45 band and set aiRiskTier "low"; with an
+unresolved risk-adjacent signal (e.g. a hand raise on a claimant-history
+question that was never followed up), anchor near 50 and set aiRiskTier
+"medium". Either way set informationLevel "minimal" (or "partial"),
+provisional=true, and put the ONE question that would most change the score
+in keyFollowUp. The analysis MUST be under 120 words — AT MOST 4 sentences:
+the anchor, the single most relevant occupational or profile note if any, and
+the strategic posture. No speculation beyond the record.`;
 
 const SYSTEM_PROMPT = `You are a Juror Risk Assessment Analyst — an expert legal strategist who evaluates individual jurors for trial attorneys during jury selection.
 
@@ -204,17 +242,15 @@ export async function generateBriefSummary(
     : 'No responses recorded.';
 
   let enrichmentSection = '';
+  let enrichedText = '';
   if (enrichedData && Object.keys(enrichedData).length > 0) {
-    const enrichText = enrichedData.text || JSON.stringify(enrichedData);
-    enrichmentSection = `\nEnriched background data: ${enrichText}\n`;
+    enrichedText = enrichedData.text || JSON.stringify(enrichedData);
+    enrichmentSection = `\nEnriched background data: ${enrichedText}\n`;
   }
 
-  const userPrompt = `Case: ${caseContext.name} (${caseContext.areaOfLaw}, representing ${caseContext.side})
-Summary: ${caseContext.summary}
-Favorable traits: ${caseContext.favorableTraits.join(', ') || 'None'}
-Risk traits: ${caseContext.riskTraits.join(', ') || 'None'}
+  const thin = isThinRecord({ responses, notes: juror.notes, enrichedText });
 
-Juror #${juror.number}: ${juror.name}, ${juror.occupation} (${juror.sex}/${juror.race}, DOB: ${juror.birthDate})
+  const userPrompt = `Juror #${juror.number}: ${juror.name}, ${juror.occupation} (${juror.sex}/${juror.race}, DOB: ${juror.birthDate})
 Lean: ${juror.lean} | Risk: ${juror.riskTier}
 Notes: ${juror.notes || 'None'}
 ${enrichmentSection}
@@ -224,8 +260,9 @@ ${responsesText}
 Write the two-sentence summary (exactly two complete sentences).`;
 
   const attemptSummary = async (suffix: string): Promise<string> => (await claudeComplete({
-    model: CLAUDE_OPUS,
+    model: thin ? CLAUDE_SONNET : CLAUDE_OPUS,
     system: BRIEF_SUMMARY_PROMPT,
+    cacheableContext: caseContextBlock(caseContext),
     userPrompt: userPrompt + suffix,
     temperature: 0.3,
     maxTokens: 300,
@@ -300,6 +337,8 @@ export interface AnalysisResult {
   provisional: boolean;
   keyFollowUp: string;
   damagesAnchor: string;
+  /** Which model tier produced this analysis: 'fast' = thin-record template model, 'full' = full model. */
+  modelTier: 'full' | 'fast';
 }
 
 export async function analyzeJuror(
@@ -367,23 +406,23 @@ export async function analyzeJuror(
     : '';
 
   let enrichmentSection = '';
+  let enrichedText = '';
   if (enrichedData && Object.keys(enrichedData).length > 0) {
-    const enrichText = enrichedData.text || JSON.stringify(enrichedData, null, 2);
-    enrichmentSection = `\nENRICHED BACKGROUND DATA (from public records / data services):\n${enrichText}\n`;
+    enrichedText = enrichedData.text || JSON.stringify(enrichedData, null, 2);
+    enrichmentSection = `\nENRICHED BACKGROUND DATA (from public records / data services):\n${enrichedText}\n`;
   }
 
+  // Model tiering (Section 9): thin records go to the fast model with the
+  // short-template directive; real signal gets the full model. The tier is
+  // recomputed on every run, so a thin juror auto-upgrades the next time it
+  // is analyzed after its record grows (the input hash changing is what
+  // triggers that re-run).
+  const thin = isThinRecord({ responses, notes: juror.notes, enrichedText });
+
   const archetypesText = getArchetypesAndBias(caseContext.areaOfLaw);
-  const systemPromptWithContext = SYSTEM_PROMPT + '\n\n' + archetypesText;
+  const systemPromptWithContext = SYSTEM_PROMPT + '\n\n' + archetypesText + (thin ? '\n\n' + THIN_RECORD_MODE : '');
 
-  const userPrompt = `CASE CONTEXT:
-Case: ${caseContext.name}
-Area of Law: ${caseContext.areaOfLaw}
-Summary: ${caseContext.summary}
-Representing: ${caseContext.side}
-Favorable Traits: ${caseContext.favorableTraits.join(', ') || 'None specified'}
-Risk Traits: ${caseContext.riskTraits.join(', ') || 'None specified'}
-
-JUROR PROFILE:
+  const userPrompt = `JUROR PROFILE:
 Juror #${juror.number}: ${juror.name}
 Sex: ${juror.sex} | Race: ${juror.race} | DOB: ${juror.birthDate}
 Occupation: ${juror.occupation} | Employer: ${juror.employer}
@@ -411,14 +450,26 @@ Provide your risk assessment analysis for this juror.`;
   });
 
   const attempt = async (suffix: string) => {
-    const { parsed } = await claudeJson<unknown>({
-      model: CLAUDE_OPUS,
+    const { raw, parsed } = await claudeJson<unknown>({
+      model: thin ? CLAUDE_SONNET : CLAUDE_OPUS,
       system: systemPromptWithContext,
+      cacheableContext: caseContextBlock(caseContext),
       userPrompt: userPrompt + suffix,
       temperature: 0.4,
-      maxTokens: 2400,
+      // The fast-tier win is the MODEL (sonnet latency/cost), not a tight
+      // output cap: 5-series models spend part of max_tokens on internal
+      // reasoning before the visible text (observed: a thin-record response
+      // truncated at max_tokens=2400 with only ~300 tokens of JSON emitted),
+      // and a mid-JSON truncation reads as a parse failure. Thin records
+      // provoke MORE reasoning, not less — give the fast tier extra headroom.
+      maxTokens: thin ? 4000 : 2400,
     });
-    if (parsed === null) return null;
+    if (parsed === null) {
+      // Log the head of the raw output so a parse failure is diagnosable
+      // (truncation vs preamble vs malformed JSON) without re-running.
+      console.error(`[analyzeJuror] Juror #${juror.number}: unparseable output (${raw.length} chars), head: ${JSON.stringify(raw.slice(0, 160))}`);
+      return null;
+    }
     const validated = jurorAnalysisSchema.safeParse(parsed);
     if (!validated.success) {
       console.error(`[analyzeJuror] Juror #${juror.number}: output failed validation: ${validated.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
@@ -461,6 +512,7 @@ Provide your risk assessment analysis for this juror.`;
     provisional: result.provisional,
     keyFollowUp: result.keyFollowUp,
     damagesAnchor: result.damagesAnchor,
+    modelTier: thin ? 'fast' : 'full',
   };
 }
 
@@ -604,9 +656,41 @@ Rules:
 - The courtroom scripts should sound natural and professional — as a seasoned trial attorney would speak to a judge
 - Use the case context (area of law, side) to determine proper party references (e.g., "the defense" vs. "the State" vs. "plaintiff's counsel")`;
 
-export async function analyzeStrikesForCause(
-  caseContext: CaseContext,
-  jurors: JurorWithResponses[]
+/**
+ * Deterministic merge of per-chunk cause results (Section 9): first entry per
+ * juror wins (chunks are disjoint, so duplicates only guard against model
+ * hallucination), sorted by category severity then juror number — the same
+ * ordering the monolithic call produced. Exported for tests.
+ */
+export function mergeCauseEntries(chunkResults: StrikeForCauseEntry[][]): StrikeForCauseEntry[] {
+  const seen = new Set<number>();
+  const merged: StrikeForCauseEntry[] = [];
+  for (const chunk of chunkResults) {
+    for (const e of chunk) {
+      if (seen.has(e.jurorNumber)) continue;
+      seen.add(e.jurorNumber);
+      merged.push(e);
+    }
+  }
+  const categoryOrder: Record<string, number> = { "Highly Likely": 0, "Possible": 1, "Unlikely": 2 };
+  merged.sort((a, b) => {
+    const catDiff = (categoryOrder[a.category] ?? 3) - (categoryOrder[b.category] ?? 3);
+    if (catDiff !== 0) return catDiff;
+    return a.jurorNumber - b.jurorNumber;
+  });
+  return merged;
+}
+
+/**
+ * Evaluate ONE batch of jurors for cause. `jurors` here is a single chunk
+ * (5-10 jurors) of the panel. The shared case context arrives as the
+ * cacheable context block, so parallel chunk calls reuse the same cached
+ * prompt prefix. Fail-loud semantics are unchanged from the monolithic call.
+ */
+async function analyzeCauseChunk(
+  caseBlock: string,
+  jurors: JurorWithResponses[],
+  panelTotal: number,
 ): Promise<StrikeForCauseEntry[]> {
   const jurorsText = jurors.map(j => {
     const responsesText = j.responses.length > 0
@@ -639,19 +723,15 @@ export async function analyzeStrikesForCause(
 ${responsesText}`;
   }).join('\n\n---\n\n');
 
-  const userPrompt = `CASE CONTEXT:
-Case: ${caseContext.name}
-Area of Law: ${caseContext.areaOfLaw}
-Summary: ${caseContext.summary}
-Representing: ${caseContext.side}
-Favorable Traits: ${caseContext.favorableTraits.join(', ') || 'None specified'}
-Risk Traits: ${caseContext.riskTraits.join(', ') || 'None specified'}
+  const scopeLine = jurors.length === panelTotal
+    ? `ALL JURORS (${panelTotal} total):`
+    : `JURORS TO EVALUATE IN THIS CALL (${jurors.length} of ${panelTotal} on the panel — the rest are evaluated in parallel calls; do NOT analyze jurors that are not listed here):`;
 
-ALL JURORS (${jurors.length} total):
+  const userPrompt = `${scopeLine}
 
 ${jurorsText}
 
-Evaluate every juror for potential strikes for cause and return the JSON result.`;
+Evaluate every juror listed above for potential strikes for cause and return the JSON result with an entry for each of these ${jurors.length} juror(s).`;
 
   const strikeEntrySchema = z.object({
     jurorNumber: z.number(),
@@ -669,9 +749,13 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
     const { parsed } = await claudeJson<unknown>({
       model: CLAUDE_OPUS,
       system: STRIKE_FOR_CAUSE_PROMPT,
+      cacheableContext: caseBlock,
       userPrompt: userPrompt + suffix,
       temperature: 0.3,
-      maxTokens: 16000,
+      // Scaled to the batch instead of a fixed 16k — enough for full
+      // courtroom scripts per juror without the giant truncation-prone
+      // completion the monolithic call needed.
+      maxTokens: Math.min(16000, 2000 + jurors.length * 900),
     });
     if (parsed === null) return null;
     const validated = strikesResponseSchema.safeParse(parsed);
@@ -697,28 +781,82 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
     return entries;
   };
 
+  // ALWAYS-directive enforcement in code (training doc): demographics must
+  // never appear as a strike rationale, argument, or lock-in question. The
+  // "basis" field is intentionally NOT scanned — it quotes the juror's own
+  // recorded words verbatim, which may legitimately mention age/etc.
+  const demographicHits = (list: StrikeForCauseEntry[]): Array<{ jurorNumber: number; snippet: string }> => {
+    const hits: Array<{ jurorNumber: number; snippet: string }> = [];
+    for (const e of list) {
+      for (const field of [e.reasoning, e.argument, ...e.lockInQuestions]) {
+        const hit = findDemographicRationale(field);
+        if (hit) { hits.push({ jurorNumber: e.jurorNumber, snippet: hit }); break; }
+      }
+    }
+    return hits;
+  };
+
   // Fail-loud contract: parse + validate, retry once, then throw. If the
-  // response is valid but omits some jurors, DO NOT fabricate "Unlikely"
-  // entries for them — return only the jurors the AI actually evaluated and
-  // let the UI surface the gap. A "Possible" entry without lock-in questions
-  // is also invalid output (the lock-in workflow is the point), so it gets a
-  // targeted retry and then a hard failure — never a silent empty list.
+  // response still omits jurors after the retry, the whole chunk fails —
+  // with chunked merging a partial chunk would blend invisibly into a
+  // full-looking panel, silently burying exactly the jurors that were
+  // omitted. NEVER fabricate "Unlikely" entries for missing jurors. A
+  // "Possible" entry without lock-in questions is also invalid output (the
+  // lock-in workflow is the point), and so is a demographic rationale —
+  // each gets a targeted retry and then a hard failure. Never a silent
+  // empty list, never a silent rewrite.
+  // The single retry must address EVERY detected violation at once — a
+  // response can simultaneously omit jurors, drop lock-ins, and cite
+  // demographics, and a correction prompt that mentions only one category
+  // wastes the sole retry on a partial fix.
+  const violationsOf = (list: StrikeForCauseEntry[]) => ({
+    missing: jurors.length - list.length,
+    lockIns: possiblesMissingLockIns(list),
+    demo: demographicHits(list),
+  });
+  const hasViolations = (v: ReturnType<typeof violationsOf>) =>
+    v.missing > 0 || v.lockIns.length > 0 || v.demo.length > 0;
+
   let entries = await attempt("");
-  const firstMissingLockIns = entries === null ? [] : possiblesMissingLockIns(entries);
-  if (entries === null || entries.length < jurors.length || firstMissingLockIns.length > 0) {
-    const retrySuffix = entries === null
-      ? JSON_RETRY_SUFFIX
-      : entries.length < jurors.length
-        ? `\n\nIMPORTANT: Your previous response omitted ${jurors.length - entries.length} juror(s). Return complete, valid JSON with an entry in "strikes" for EVERY juror listed above (all ${jurors.length} of them). No truncation, no prose, no markdown.`
-        : `\n\nIMPORTANT: Your previous response rated juror(s) ${firstMissingLockIns.map(n => `#${n}`).join(', ')} as "Possible" but provided no lockInQuestions. Every "Possible" entry MUST include 1-2 lock-in questions to ask BEFORE any rehabilitation attempt. Return the complete, valid JSON again with lockInQuestions populated for every "Possible" juror.`;
-    console.warn(`[analyzeStrikesForCause] ${entries === null ? 'Invalid output' : entries.length < jurors.length ? `Incomplete coverage (${entries.length}/${jurors.length})` : `"Possible" entries missing lock-in questions (${firstMissingLockIns.map(n => `#${n}`).join(', ')})`} on first attempt, retrying once`);
+  let firstViolations = entries === null ? null : violationsOf(entries);
+  if (entries === null || hasViolations(firstViolations!)) {
+    let retrySuffix: string;
+    let warnLabel: string;
+    if (entries === null) {
+      retrySuffix = JSON_RETRY_SUFFIX;
+      warnLabel = 'Invalid output';
+    } else {
+      const v = firstViolations!;
+      const problems: string[] = [];
+      if (v.missing > 0) problems.push(`- You omitted ${v.missing} juror(s). Include an entry in "strikes" for EVERY juror listed above (all ${jurors.length} of them).`);
+      if (v.lockIns.length > 0) problems.push(`- Juror(s) ${v.lockIns.map(n => `#${n}`).join(', ')} are rated "Possible" without lockInQuestions. Every "Possible" entry MUST include 1-2 lock-in questions to ask BEFORE any rehabilitation attempt.`);
+      if (v.demo.length > 0) problems.push(`- You cited demographics as a strike rationale for juror(s) ${v.demo.map(h => `#${h.jurorNumber} ("${h.snippet}")`).join(', ')}. Race, sex, gender, and age must NEVER appear as a rationale, argument, or lock-in question — that is Batson-discoverable work product. Rewrite those entries citing ONLY record-based facts (stated positions, recorded responses, hardship statements).`);
+      retrySuffix = `\n\nIMPORTANT: Your previous response had the following problem(s). Fix ALL of them and return the complete, valid JSON (no truncation, no prose, no markdown):\n${problems.join('\n')}`;
+      warnLabel = [
+        v.missing > 0 ? `incomplete coverage (${entries.length}/${jurors.length})` : null,
+        v.lockIns.length > 0 ? `"Possible" without lock-ins (${v.lockIns.map(n => `#${n}`).join(', ')})` : null,
+        v.demo.length > 0 ? `demographic rationale (${v.demo.map(h => `#${h.jurorNumber}`).join(', ')})` : null,
+      ].filter(Boolean).join(' + ');
+    }
+    console.warn(`[analyzeStrikesForCause] ${warnLabel} on first attempt, retrying once`);
     const second = await attempt(retrySuffix);
     if (second !== null) {
+      const v2 = violationsOf(second);
+      // Accept the retry only if it is strictly better in lexicographic
+      // priority order (coverage, then lock-ins, then demographic hits).
+      // A retry that fixes a higher-priority category while worsening a
+      // lower one IS accepted — the post-retry validation below still
+      // throws on any remaining violation, so unsafe output cannot escape;
+      // the ordering only decides which failure gets reported.
       const better =
         entries === null ||
-        second.length > entries.length ||
-        (second.length === entries.length && possiblesMissingLockIns(second).length < possiblesMissingLockIns(entries).length);
-      if (better) entries = second;
+        v2.missing < firstViolations!.missing ||
+        (v2.missing === firstViolations!.missing && v2.lockIns.length < firstViolations!.lockIns.length) ||
+        (v2.missing === firstViolations!.missing && v2.lockIns.length === firstViolations!.lockIns.length && v2.demo.length < firstViolations!.demo.length);
+      if (better) {
+        entries = second;
+        firstViolations = v2;
+      }
     }
   }
 
@@ -731,19 +869,56 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
     throw new AIOutputError(`Strike-for-cause analysis rated juror(s) ${stillMissingLockIns.map(n => `#${n}`).join(', ')} as "Possible" without the required lock-in questions, even after a retry. No empty defaults were applied — run the analysis again.`);
   }
 
-  if (entries.length < jurors.length) {
-    const missing = jurors.filter(j => !entries!.some(e => e.jurorNumber === j.number)).map(j => `#${j.number}`);
-    console.warn(`[analyzeStrikesForCause] AI omitted ${missing.length} juror(s) after retry (${missing.join(', ')}). Returning evaluated jurors only — no fabricated defaults.`);
+  const stillDemoHits = demographicHits(entries);
+  if (stillDemoHits.length > 0) {
+    throw new AIOutputError(`Strike-for-cause analysis cited demographics as a rationale for juror(s) ${stillDemoHits.map(h => `#${h.jurorNumber} ("${h.snippet}")`).join(', ')} even after a retry. No sanitized rewrite was applied — run the analysis again.`);
   }
 
-  const categoryOrder: Record<string, number> = { "Highly Likely": 0, "Possible": 1, "Unlikely": 2 };
-  entries.sort((a, b) => {
-    const catDiff = (categoryOrder[a.category] ?? 3) - (categoryOrder[b.category] ?? 3);
-    if (catDiff !== 0) return catDiff;
-    return a.jurorNumber - b.jurorNumber;
-  });
+  if (entries.length < jurors.length) {
+    const missing = jurors.filter(j => !entries!.some(e => e.jurorNumber === j.number)).map(j => `#${j.number}`);
+    throw new AIOutputError(
+      `Strike-for-cause analysis omitted juror(s) ${missing.join(', ')} even after a retry. No fabricated "Unlikely" defaults were applied — run the analysis again so every juror is evaluated.`,
+    );
+  }
 
   return entries;
+}
+
+export async function analyzeStrikesForCause(
+  caseContext: CaseContext,
+  jurors: JurorWithResponses[]
+): Promise<StrikeForCauseEntry[]> {
+  if (jurors.length === 0) return [];
+
+  // Section 9: the monolithic whole-panel call is split into parallel batches
+  // of 5-10 jurors with a deterministic merge. The output shape (sorted
+  // StrikeForCauseEntry[]) is identical to the single-call version.
+  const caseBlock = caseContextBlock(caseContext);
+  const chunks = chunkBalanced(jurors, { target: 8, max: 10 });
+  const settled = await Promise.allSettled(
+    chunks.map(chunk => analyzeCauseChunk(caseBlock, chunk, jurors.length)),
+  );
+
+  const failures: string[] = [];
+  const chunkResults: StrikeForCauseEntry[][] = [];
+  settled.forEach((s, i) => {
+    if (s.status === "fulfilled") {
+      chunkResults.push(s.value);
+    } else {
+      const nums = chunks[i].map(j => `#${j.number}`).join(", ");
+      failures.push(`batch ${i + 1} of ${chunks.length} (jurors ${nums}): ${s.reason?.message || s.reason}`);
+    }
+  });
+
+  // Fail-loud: a silently missing batch would bury exactly the jurors the
+  // attorney most needs to see. No partial panels, no fabricated defaults.
+  if (failures.length > 0) {
+    throw new AIOutputError(
+      `Strike-for-cause analysis failed for ${failures.length} of ${chunks.length} batch(es) after retries — no defaults were applied; run the analysis again. ${failures.join(" | ")}`,
+    );
+  }
+
+  return mergeCauseEntries(chunkResults);
 }
 
 export interface BatsonComparatorRow {
@@ -875,6 +1050,19 @@ Return valid JSON with this exact structure:
   "workProductFlags": [ { "jurorNumber": number, "jurorName": "string", "source": "string", "quote": "string", "replacement": "string" } ]
 }`;
 
+/**
+ * Deterministic overall-risk aggregation for the chunked Batson path. The
+ * strike pattern is as vulnerable as its worst flagged strike. Computed in
+ * code, never re-judged by the model. Exported for tests.
+ */
+export function aggregateBatsonOverallRisk(defensive: Array<{ riskLevel: string }>): "Low" | "Moderate" | "High" {
+  if (defensive.some(d => d.riskLevel === "High")) return "High";
+  if (defensive.some(d => d.riskLevel === "Moderate")) return "Moderate";
+  return "Low";
+}
+
+const BATSON_SUMMARY_PROMPT = `You are a Batson Challenge Analyst writing the executive summary of an already-completed analysis. You receive the computed strike statistics and the flagged defensive/offensive entries from that analysis. Write a 2-4 sentence plain-English summary of the Batson posture, leading with the attorney's own exposure, then any offensive opportunity. Quote statistics verbatim from the computed numbers — never recalculate or invent numbers. Never present demographics as a legitimate strike rationale. Respond with the summary text only — no JSON, no headers, no preamble.`;
+
 export async function analyzeBatson(
   caseContext: CaseContext,
   jurors: Array<JurorData & { aiSummary?: string; aiAnalysis?: string }>,
@@ -917,20 +1105,27 @@ export async function analyzeBatson(
     ? `\nMODE: PREVIEW — No strikes have been exercised. "YOUR STRIKES" below is the attorney's SUGGESTED strike order (top ${effectiveYourStrikes.length}). Apply the PREVIEW MODE instructions: analyze the suggested strikes as if exercised, flag any race/sex skew before a single strike is made, and populate suggestedAlternates for flagged entries.\n`
     : '';
 
-  const userPrompt = `CASE CONTEXT:
+  // Prompt caching (Section 9): case context + full panel + computed stats
+  // are identical across every call for this check, so they travel in the
+  // cacheable context block. Strike lists and per-call scope stay in the
+  // user prompt. Stats remain GLOBAL (computed in code over the whole panel)
+  // no matter how the calls are chunked.
+  const cacheableContext = `CASE CONTEXT:
 Case: ${caseContext.name}
 Area of Law: ${caseContext.areaOfLaw}
 Summary: ${caseContext.summary}
 Representing: ${caseContext.side}
-${modeBanner}
+
 FULL PANEL (${jurors.length} jurors):
 
 ${jurorsText}
 
-${statsBlock}
+${statsBlock}`;
 
-${isPreview ? `YOUR SUGGESTED STRIKES (PREVIEW, ${effectiveYourStrikes.length})` : `YOUR STRIKES (${effectiveYourStrikes.length})`}: Jurors ${effectiveYourStrikes.length > 0 ? effectiveYourStrikes.map(n => `#${n}`).join(', ') : 'None'}
-OPPOSING STRIKES (${theirStrikes.length}): Jurors ${theirStrikes.length > 0 ? theirStrikes.map(n => `#${n}`).join(', ') : 'None'}
+  const strikeLists = `${isPreview ? `YOUR SUGGESTED STRIKES (PREVIEW, ${effectiveYourStrikes.length})` : `YOUR STRIKES (${effectiveYourStrikes.length})`}: Jurors ${effectiveYourStrikes.length > 0 ? effectiveYourStrikes.map(n => `#${n}`).join(', ') : 'None'}
+OPPOSING STRIKES (${theirStrikes.length}): Jurors ${theirStrikes.length > 0 ? theirStrikes.map(n => `#${n}`).join(', ') : 'None'}`;
+
+  const userPromptSingle = `${modeBanner}${strikeLists}
 
 Perform the full Batson analysis and return the JSON result.`;
 
@@ -977,70 +1172,323 @@ Perform the full Batson analysis and return the JSON result.`;
     summary: z.string().min(1),
     defensive: z.array(batsonDefensiveSchema).default([]),
     offensive: z.array(batsonOffensiveSchema).default([]),
-    workProductFlags: z.array(batsonWorkProductFlagSchema).default([]),
+    // REQUIRED (no default) — see defensiveChunkSchema.
+    workProductFlags: z.array(batsonWorkProductFlagSchema),
   });
 
-  const attempt = async (suffix: string): Promise<BatsonAnalysisResult | null> => {
-    const { parsed } = await claudeJson<unknown>({
-      model: CLAUDE_OPUS,
-      system: BATSON_PROMPT,
-      userPrompt: userPrompt + suffix,
-      temperature: 0.3,
-      maxTokens: 16000,
-    });
-    if (parsed === null) return null;
-    const validated = batsonResponseSchema.safeParse(parsed);
-    if (!validated.success) {
-      console.error(`[analyzeBatson] Output failed validation: ${validated.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
-      return null;
+  const defensiveChunkSchema = z.object({
+    defensive: z.array(batsonDefensiveSchema).default([]),
+    // REQUIRED (no default): an omitted sanitation scan is invalid output —
+    // a silently-defaulted empty array would read as "clean work product" on
+    // a constitutional-exposure surface. An explicit [] is valid.
+    workProductFlags: z.array(batsonWorkProductFlagSchema),
+  });
+  const offensiveChunkSchema = z.object({
+    offensive: z.array(batsonOffensiveSchema).default([]),
+  });
+
+  const mapWpf = (w: z.infer<typeof batsonWorkProductFlagSchema>) => ({
+    jurorNumber: w.jurorNumber,
+    jurorName: w.jurorName || `Juror #${w.jurorNumber}`,
+    source: w.source,
+    quote: w.quote,
+    replacement: w.replacement,
+  });
+  const mapDefensive = (d: z.infer<typeof batsonDefensiveSchema>) => ({
+    jurorNumber: d.jurorNumber,
+    jurorName: d.jurorName || `Juror #${d.jurorNumber}`,
+    protectedClass: d.protectedClass,
+    riskLevel: d.riskLevel,
+    statisticalFlag: d.statisticalFlag,
+    comparativeConcern: d.comparativeConcern,
+    comparatorTable: d.comparatorTable,
+    currentJustification: d.currentJustification,
+    recommendedArticulation: d.recommendedArticulation,
+    ...(d.warning ? { warning: d.warning } : {}),
+    ...(d.suggestedAlternates ? { suggestedAlternates: d.suggestedAlternates } : {}),
+  });
+  const mapOffensive = (o: z.infer<typeof batsonOffensiveSchema>) => ({
+    jurorNumber: o.jurorNumber,
+    jurorName: o.jurorName || `Juror #${o.jurorNumber}`,
+    protectedClass: o.protectedClass,
+    strengthOfChallenge: o.strengthOfChallenge,
+    statisticalPattern: o.statisticalPattern,
+    comparativeEvidence: o.comparativeEvidence,
+    suggestedArgument: o.suggestedArgument,
+  });
+
+  // Deterministic work-product backstop (ALWAYS-directive enforced in code,
+  // not prompts): the model scans prompt material that truncates long stored
+  // analyses at 1500 chars, and it has missed planted rationales buried in
+  // long context. This scan covers the FULL text of every defended juror's
+  // notes, AI summary, and stored analysis, so a demographic rationale can
+  // never silently read as "clean work product". Model flags are kept (they
+  // catch phrasings the patterns miss); deterministic hits are added for
+  // (juror, source) pairs the model did not flag.
+  const deterministicWpfFlags = (): BatsonAnalysisResult['workProductFlags'] => {
+    const flags: BatsonAnalysisResult['workProductFlags'] = [];
+    for (const num of effectiveYourStrikes) {
+      const j = jurors.find(x => x.number === num);
+      if (!j) continue;
+      const sources: Array<[string, string | null | undefined]> = [
+        ['Notes', j.notes],
+        ['AI Summary', j.aiSummary],
+        ['AI Analysis', j.aiAnalysis],
+      ];
+      for (const [source, text] of sources) {
+        if (!text) continue;
+        const hit = findDemographicRationale(text);
+        if (!hit) continue;
+        const idx = text.toLowerCase().indexOf(hit.toLowerCase());
+        const start = Math.max(0, idx - 60);
+        const end = Math.min(text.length, idx + hit.length + 60);
+        flags.push({
+          jurorNumber: num,
+          jurorName: j.name,
+          source,
+          quote: `${start > 0 ? '…' : ''}${text.slice(start, end).trim()}${end < text.length ? '…' : ''}`,
+          replacement: 'Rewrite citing only record-based facts (recorded responses, stated positions, occupation function, hardship) — flagged by the deterministic demographic-pattern scan.',
+        });
+      }
     }
-    return {
-      overallRisk: validated.data.overallRisk,
-      summary: validated.data.summary,
-      mode,
-      workProductFlags: validated.data.workProductFlags.map(w => ({
-        jurorNumber: w.jurorNumber,
-        jurorName: w.jurorName || `Juror #${w.jurorNumber}`,
-        source: w.source,
-        quote: w.quote,
-        replacement: w.replacement,
-      })),
-      defensive: validated.data.defensive.map(d => ({
-        jurorNumber: d.jurorNumber,
-        jurorName: d.jurorName || `Juror #${d.jurorNumber}`,
-        protectedClass: d.protectedClass,
-        riskLevel: d.riskLevel,
-        statisticalFlag: d.statisticalFlag,
-        comparativeConcern: d.comparativeConcern,
-        comparatorTable: d.comparatorTable,
-        currentJustification: d.currentJustification,
-        recommendedArticulation: d.recommendedArticulation,
-        ...(d.warning ? { warning: d.warning } : {}),
-        ...(d.suggestedAlternates ? { suggestedAlternates: d.suggestedAlternates } : {}),
-      })),
-      offensive: validated.data.offensive.map(o => ({
-        jurorNumber: o.jurorNumber,
-        jurorName: o.jurorName || `Juror #${o.jurorNumber}`,
-        protectedClass: o.protectedClass,
-        strengthOfChallenge: o.strengthOfChallenge,
-        statisticalPattern: o.statisticalPattern,
-        comparativeEvidence: o.comparativeEvidence,
-        suggestedArgument: o.suggestedArgument,
-      })),
-    };
+    return flags;
+  };
+  const wpfSourceKey = (jurorNumber: number, source: string) =>
+    `${jurorNumber}|${source.toLowerCase().replace(/[^a-z]/g, '')}`;
+  const mergeWpfWithBackstop = (
+    modelFlags: BatsonAnalysisResult['workProductFlags'],
+  ): BatsonAnalysisResult['workProductFlags'] => {
+    const covered = new Set(modelFlags.map(f => wpfSourceKey(f.jurorNumber, f.source)));
+    const merged = [...modelFlags];
+    for (const f of deterministicWpfFlags()) {
+      if (!covered.has(wpfSourceKey(f.jurorNumber, f.source))) merged.push(f);
+    }
+    return merged;
   };
 
-  // Fail-loud contract: parse + validate, retry once, then throw. NEVER
-  // default to "No Batson concerns identified." — a fabricated all-clear on a
-  // constitutional issue is worse than an error message.
-  let result = await attempt("");
-  if (!result) {
-    console.warn(`[analyzeBatson] Invalid output on first attempt, retrying once with explicit JSON instruction`);
-    result = await attempt(JSON_RETRY_SUFFIX);
-  }
-  if (!result) {
-    throw new AIOutputError(`Batson analysis returned invalid or incomplete output after a retry. No "no concerns" default was applied — run the Batson check again.`);
+  // Deterministic ordering regardless of which path produced the entries.
+  const riskOrder: Record<string, number> = { High: 0, Moderate: 1, Low: 2 };
+  const strengthOrder: Record<string, number> = { Strong: 0, Moderate: 1, Weak: 2 };
+  const sortResult = (r: BatsonAnalysisResult): BatsonAnalysisResult => {
+    r.defensive.sort((a, b) => (riskOrder[a.riskLevel] ?? 3) - (riskOrder[b.riskLevel] ?? 3) || a.jurorNumber - b.jurorNumber);
+    r.offensive.sort((a, b) => (strengthOrder[a.strengthOfChallenge] ?? 3) - (strengthOrder[b.strengthOfChallenge] ?? 3) || a.jurorNumber - b.jurorNumber);
+    r.workProductFlags.sort((a, b) => a.jurorNumber - b.jurorNumber || a.source.localeCompare(b.source));
+    return r;
+  };
+
+  const struckTotal = effectiveYourStrikes.length + theirStrikes.length;
+
+  // ---- Single-call path: small strike sets fit in one call (unchanged) ----
+  if (struckTotal <= 6) {
+    const attempt = async (suffix: string): Promise<BatsonAnalysisResult | null> => {
+      const { parsed } = await claudeJson<unknown>({
+        model: CLAUDE_OPUS,
+        system: BATSON_PROMPT,
+        cacheableContext,
+        userPrompt: userPromptSingle + suffix,
+        temperature: 0.3,
+        maxTokens: 16000,
+      });
+      if (parsed === null) return null;
+      const validated = batsonResponseSchema.safeParse(parsed);
+      if (!validated.success) {
+        console.error(`[analyzeBatson] Output failed validation: ${validated.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
+        return null;
+      }
+      return {
+        overallRisk: validated.data.overallRisk,
+        summary: validated.data.summary,
+        mode,
+        workProductFlags: validated.data.workProductFlags.map(mapWpf),
+        defensive: validated.data.defensive.map(mapDefensive),
+        offensive: validated.data.offensive.map(mapOffensive),
+      };
+    };
+
+    // Fail-loud contract: parse + validate, retry once, then throw. NEVER
+    // default to "No Batson concerns identified." — a fabricated all-clear on
+    // a constitutional issue is worse than an error message.
+    let result = await attempt("");
+    if (!result) {
+      console.warn(`[analyzeBatson] Invalid output on first attempt, retrying once with explicit JSON instruction`);
+      result = await attempt(JSON_RETRY_SUFFIX);
+    }
+    if (!result) {
+      throw new AIOutputError(`Batson analysis returned invalid or incomplete output after a retry. No "no concerns" default was applied — run the Batson check again.`);
+    }
+    result.workProductFlags = mergeWpfWithBackstop(result.workProductFlags);
+    return sortResult(result);
   }
 
-  return result;
+  // ---- Chunked path (Section 9): larger strike sets fan out in parallel ----
+  // Defensive chunks cover the attorney's strikes (analysis + work-product
+  // sanitation); offensive chunks cover opposing strikes. The shared prefix
+  // (case + panel + stats) is cached; overallRisk is aggregated in code; the
+  // summary is one small aggregation call over deterministic inputs.
+  const runChunk = async <S extends z.ZodTypeAny>(label: string, scopePrompt: string, schema: S): Promise<z.infer<S>> => {
+    const run = async (suffix: string): Promise<z.infer<S> | null> => {
+      const { parsed } = await claudeJson<unknown>({
+        model: CLAUDE_OPUS,
+        system: BATSON_PROMPT,
+        cacheableContext,
+        userPrompt: scopePrompt + suffix,
+        temperature: 0.3,
+        // 5-series models spend part of max_tokens on internal reasoning;
+        // a 6-juror defensive chunk (comparator tables are the heaviest
+        // per-juror output) was observed truncating at 6000.
+        maxTokens: 10000,
+      });
+      if (parsed === null) return null;
+      const validated = schema.safeParse(parsed);
+      if (!validated.success) {
+        console.error(`[analyzeBatson] ${label} failed validation: ${validated.error.issues.map((i: z.ZodIssue) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
+        return null;
+      }
+      return validated.data;
+    };
+    let out = await run("");
+    if (out === null) {
+      console.warn(`[analyzeBatson] ${label}: invalid output on first attempt, retrying once with explicit JSON instruction`);
+      out = await run(JSON_RETRY_SUFFIX);
+    }
+    if (out === null) {
+      throw new AIOutputError(`Batson ${label} returned invalid output after a retry.`);
+    }
+    return out;
+  };
+
+  const scopeIntro = `${modeBanner}${strikeLists}`;
+
+  // Work-product material is REPEATED inline next to the scan instruction:
+  // in the chunked path the panel block lives ~dozens of jurors deep in the
+  // cached context, and the model was observed missing a blatant demographic
+  // rationale buried there across multiple runs (lost-in-the-middle).
+  const workProductMaterial = (nums: number[]) => nums.map(n => {
+    const j = jurors.find(x => x.number === n);
+    if (!j) return `  #${n}: (juror not found)`;
+    const stored = j.aiAnalysis
+      ? (j.aiAnalysis.length > 1500 ? j.aiAnalysis.slice(0, 1500) + ' …[truncated]' : j.aiAnalysis)
+      : 'None';
+    return `  #${n} ${j.name}:\n    Notes: ${j.notes || 'None'}\n    AI Summary: ${j.aiSummary || 'None'}\n    Stored Analysis: ${stored}`;
+  }).join('\n');
+
+  const defensiveScope = (nums: number[]) => `${scopeIntro}
+
+SCOPE FOR THIS CALL: Perform ONLY the DEFENSIVE analysis and the WORK-PRODUCT SANITATION scan, and ONLY for these struck juror(s): ${nums.map(n => `#${n}`).join(', ')}. The other struck jurors are being analyzed in parallel calls — do not analyze them here. Do NOT produce "offensive", "overallRisk", or "summary".
+
+WORK-PRODUCT SANITATION for this scope: scan the material below and report EVERY demographic rationale (race, sex, ethnicity, age, or any protected class offered as a reason to strike or as a lean predictor) in "workProductFlags" — verbatim quote plus a record-based replacement. The "workProductFlags" key is REQUIRED in your response; an empty array is only correct if the material below is genuinely clean.
+
+WORK-PRODUCT MATERIAL FOR THIS SCOPE (verbatim from the file — scan every line):
+${workProductMaterial(nums)}
+
+Return valid JSON with exactly this structure, using the same defensive-entry and work-product-flag shapes defined in the system prompt:
+{"defensive": [ ... ], "workProductFlags": [ ... ]}
+Only include jurors from the scope list that warrant flagging; empty arrays are valid.`;
+
+  const offensiveScope = (nums: number[]) => `${scopeIntro}
+
+SCOPE FOR THIS CALL: Perform ONLY the OFFENSIVE analysis, and ONLY for these opposing strike(s): ${nums.map(n => `#${n}`).join(', ')}. The other opposing strikes are being analyzed in parallel calls — do not analyze them here. Do NOT produce "defensive", "workProductFlags", "overallRisk", or "summary".
+
+Return valid JSON with exactly this structure, using the same offensive-entry shape defined in the system prompt:
+{"offensive": [ ... ]}
+Only include jurors from the scope list where a challenge has any basis; an empty array is valid.`;
+
+  // Defensive chunks are smaller than offensive ones: each defensive entry
+  // carries a full comparator table plus the work-product scan, so per-call
+  // output (and reasoning burn) is much heavier per juror.
+  const defensiveChunks = chunkBalanced(effectiveYourStrikes, { target: 3, max: 4 });
+  const offensiveChunks = chunkBalanced(theirStrikes, { target: 5, max: 6 });
+
+  const defensiveJobs = defensiveChunks.map(async nums => {
+    const label = `defensive batch (jurors ${nums.map(n => `#${n}`).join(', ')})`;
+    const data = await runChunk(label, defensiveScope(nums), defensiveChunkSchema);
+    const scope = new Set(nums);
+    return {
+      defensive: data.defensive.filter(d => scope.has(d.jurorNumber)).map(mapDefensive),
+      workProductFlags: data.workProductFlags.filter(w => scope.has(w.jurorNumber)).map(mapWpf),
+    };
+  });
+  const offensiveJobs = offensiveChunks.map(async nums => {
+    const label = `offensive batch (jurors ${nums.map(n => `#${n}`).join(', ')})`;
+    const data = await runChunk(label, offensiveScope(nums), offensiveChunkSchema);
+    const scope = new Set(nums);
+    return { offensive: data.offensive.filter(o => scope.has(o.jurorNumber)).map(mapOffensive) };
+  });
+
+  const [defSettled, offSettled] = await Promise.all([
+    Promise.allSettled(defensiveJobs),
+    Promise.allSettled(offensiveJobs),
+  ]);
+
+  const chunkFailures: string[] = [];
+  const defensive: BatsonAnalysisResult['defensive'] = [];
+  const workProductFlags: BatsonAnalysisResult['workProductFlags'] = [];
+  const offensive: BatsonAnalysisResult['offensive'] = [];
+  defSettled.forEach((s, i) => {
+    if (s.status === 'fulfilled') {
+      defensive.push(...s.value.defensive);
+      workProductFlags.push(...s.value.workProductFlags);
+    } else {
+      chunkFailures.push(`defensive batch ${i + 1} of ${defensiveChunks.length}: ${s.reason?.message || s.reason}`);
+    }
+  });
+  offSettled.forEach((s, i) => {
+    if (s.status === 'fulfilled') {
+      offensive.push(...s.value.offensive);
+    } else {
+      chunkFailures.push(`offensive batch ${i + 1} of ${offensiveChunks.length}: ${s.reason?.message || s.reason}`);
+    }
+  });
+
+  // Fail-loud: a silently missing batch could hide exactly the strike that
+  // draws the Batson challenge. No partial analysis, no "no concerns" default.
+  if (chunkFailures.length > 0) {
+    throw new AIOutputError(
+      `Batson analysis failed for ${chunkFailures.length} batch(es) after retries — no "no concerns" default was applied; run the Batson check again. ${chunkFailures.join(' | ')}`,
+    );
+  }
+
+  const overallRisk = aggregateBatsonOverallRisk(defensive);
+  const mergedWorkProductFlags = mergeWpfWithBackstop(workProductFlags);
+
+  // Executive summary: one small fast-model aggregation call over
+  // deterministic inputs (global stats + flagged entries). Retry once, then
+  // fail loud — never fabricate an all-clear.
+  const digest: string[] = [];
+  digest.push(defensive.length > 0
+    ? `DEFENSIVE FLAGS: ${defensive.map(d => `#${d.jurorNumber} ${d.jurorName} (${d.protectedClass}, risk ${d.riskLevel})`).join('; ')}`
+    : 'DEFENSIVE FLAGS: none');
+  digest.push(offensive.length > 0
+    ? `OFFENSIVE OPPORTUNITIES: ${offensive.map(o => `#${o.jurorNumber} ${o.jurorName} (${o.protectedClass}, ${o.strengthOfChallenge})`).join('; ')}`
+    : 'OFFENSIVE OPPORTUNITIES: none');
+  if (mergedWorkProductFlags.length > 0) {
+    digest.push(`WORK-PRODUCT FLAGS: ${mergedWorkProductFlags.length} demographic rationale(s) found in stored notes/summaries (must be rewritten before sidebar).`);
+  }
+
+  const summaryUserPrompt = `${isPreview ? 'MODE: PREVIEW — the analyzed strikes are a suggested order, not yet exercised.\n\n' : ''}${statsBlock}
+
+${digest.join('\n')}
+
+Computed overall vulnerability of our strike pattern: ${overallRisk}
+
+Write the 2-4 sentence executive summary.`;
+
+  const attemptSummary = async (suffix: string): Promise<string> => (await claudeComplete({
+    model: CLAUDE_SONNET,
+    system: BATSON_SUMMARY_PROMPT,
+    userPrompt: summaryUserPrompt + suffix,
+    temperature: 0.3,
+    maxTokens: 400,
+  })).trim();
+
+  let summary = await attemptSummary("");
+  if (summary.length < 20) {
+    console.warn('[analyzeBatson] Summary aggregation output too short, retrying once');
+    summary = await attemptSummary('\n\nIMPORTANT: Your previous response was empty or too short. Write the 2-4 sentence plain-English summary now.');
+  }
+  if (summary.length < 20) {
+    throw new AIOutputError('Batson summary aggregation failed after a retry — run the Batson check again.');
+  }
+
+  return sortResult({ overallRisk, summary, mode, defensive, offensive, workProductFlags: mergedWorkProductFlags });
 }
