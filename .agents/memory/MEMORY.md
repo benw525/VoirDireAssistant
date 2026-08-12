@@ -1,1 +1,2 @@
 - [Claude model quirks](claude-model-quirks.md) — 5-series Claude deprecates `temperature`; probe new models + re-run simulate-trial harness on every model swap.
+- [Analysis fail-loud contract](analysis-fail-loud-contract.md) — no silent AI defaults; answer-recording flows must mark analyses stale (server + client); all exports go through the report integrity gate.

@@ -90,6 +90,8 @@ export function EndReport({
   });
   const [isGenerating, setIsGenerating] = useState(false);
   const [summaryError, setSummaryError] = useState<any>(null);
+  const [failedSummaries, setFailedSummaries] = useState<Array<{ jurorNumber: number; message: string }>>([]);
+  const [integrityAcknowledged, setIntegrityAcknowledged] = useState(false);
   const [isSendingToMm, setIsSendingToMm] = useState(false);
   const [mmSendResult, setMmSendResult] = useState<'success' | 'error' | null>(null);
   const [mmSendMessage, setMmSendMessage] = useState('');
@@ -194,9 +196,21 @@ export function EndReport({
     return sorted;
   }, [jurorsWithResponses, sortField, sortDir]);
 
+  // Jurors whose AI analysis failed after retry: they must NEVER be silently
+  // ranked with default scores. They are excluded from the strike order and
+  // surfaced as explicit warnings instead (Whigham lesson).
+  const failedAnalysisJurors = useMemo(() =>
+    jurorsWithResponses.filter(j => !courtDismissed.has(j.number) && j.analysisStatus === 'failed'),
+    [jurorsWithResponses, courtDismissed]);
+
+  const staleAnalysisJurors = useMemo(() =>
+    jurorsWithResponses.filter(j => !courtDismissed.has(j.number) && j.analysisStatus === 'stale'),
+    [jurorsWithResponses, courtDismissed]);
+
   const strikeOrder = useMemo(() => {
+    const failedNums = new Set(failedAnalysisJurors.map(j => j.number));
     const scored = jurorsWithResponses
-      .filter(j => !courtDismissed.has(j.number))
+      .filter(j => !courtDismissed.has(j.number) && !failedNums.has(j.number))
       .map(juror => {
         let score = 0;
         if (juror.lean === 'unfavorable') score += 50;
@@ -206,7 +220,83 @@ export function EndReport({
         return { ...juror, strikeScore: score };
       });
     return scored.filter(j => j.strikeScore > 0).sort((a, b) => b.strikeScore - a.strikeScore);
-  }, [jurorsWithResponses, courtDismissed]);
+  }, [jurorsWithResponses, courtDismissed, failedAnalysisJurors]);
+
+  const strikeOrderWarnings = useMemo(() =>
+    failedAnalysisJurors.map(j => `WARNING — Juror #${j.number} ${j.name}: ANALYSIS FAILED — regenerate before relying on this ranking.`),
+    [failedAnalysisJurors]);
+
+  const causeNotEvaluated = useMemo(() => {
+    if (causeStrikes.length === 0) return [];
+    const causeNums = new Set(causeStrikes.map(s => s.jurorNumber));
+    return jurors.filter(j => !courtDismissed.has(j.number) && !causeNums.has(j.number));
+  }, [causeStrikes, jurors, courtDismissed]);
+
+  // Report integrity gate (Whigham lesson: the exported report showed
+  // "Plaintiff 0 / Defense 0" strikes and default leans without any warning).
+  // The report refuses to present itself as complete while issues remain.
+  const integrityIssues = useMemo(() => {
+    const issues: Array<{ key: string; label: string; detail?: string }> = [];
+    const active = jurors.filter(j => !courtDismissed.has(j.number));
+
+    if (failedAnalysisJurors.length > 0) {
+      issues.push({
+        key: 'failed-analyses',
+        label: `${failedAnalysisJurors.length} juror analys${failedAnalysisJurors.length === 1 ? 'is' : 'es'} FAILED`,
+        detail: `${failedAnalysisJurors.map(j => `#${j.number} ${j.name}`).join(', ')} — regenerate before relying on any ranking.`,
+      });
+    }
+    if (staleAnalysisJurors.length > 0) {
+      issues.push({
+        key: 'stale-analyses',
+        label: `${staleAnalysisJurors.length} juror analys${staleAnalysisJurors.length === 1 ? 'is' : 'es'} stale`,
+        detail: `${staleAnalysisJurors.map(j => `#${j.number} ${j.name}`).join(', ')} — new responses were recorded after the analysis. Re-analyze to refresh.`,
+      });
+    }
+    if (failedSummaries.length > 0) {
+      issues.push({
+        key: 'failed-summaries',
+        label: `${failedSummaries.length} AI summar${failedSummaries.length === 1 ? 'y' : 'ies'} failed to generate`,
+        detail: failedSummaries.map(f => `#${f.jurorNumber}`).join(', ') + ' — retry the failed summaries.',
+      });
+    }
+    if (plaintiffStrikes.size === 0 && defenseStrikes.size === 0) {
+      issues.push({
+        key: 'no-strikes',
+        label: `No peremptory strikes recorded (${plaintiffLabel} 0 / Defense 0)`,
+        detail: 'Record the strikes actually exercised by both sides before treating this report as final.',
+      });
+    }
+    if (causeStrikes.length === 0) {
+      issues.push({ key: 'no-cause', label: 'Strike-for-Cause analysis has not been run' });
+    } else if (causeNotEvaluated.length > 0) {
+      issues.push({
+        key: 'cause-gaps',
+        label: `${causeNotEvaluated.length} juror(s) not evaluated for cause`,
+        detail: `${causeNotEvaluated.map(j => `#${j.number} ${j.name}`).join(', ')} — the AI omitted them and no defaults were fabricated. Re-run the cause analysis.`,
+      });
+    }
+    if (!batsonResult) {
+      issues.push({ key: 'no-batson', label: 'Batson analysis has not been run' });
+    }
+    const nothingAssessed = active.length > 0 && active.every(j => j.lean === 'unknown' && (!j.riskTier || j.riskTier === 'unassessed'));
+    if (nothingAssessed) {
+      issues.push({
+        key: 'all-defaults',
+        label: 'Every juror still has default lean/risk values',
+        detail: 'No lean or risk assessments have been made — this report reflects no attorney judgment yet.',
+      });
+    }
+    return issues;
+  }, [jurors, courtDismissed, failedAnalysisJurors, staleAnalysisJurors, failedSummaries, plaintiffStrikes, defenseStrikes, causeStrikes, causeNotEvaluated, batsonResult, plaintiffLabel]);
+
+  const exportsBlocked = integrityIssues.length > 0 && !integrityAcknowledged;
+
+  // Any change in the set of integrity issues invalidates a prior acknowledgment.
+  const integrityIssueKey = integrityIssues.map(i => i.key).join('|');
+  useEffect(() => {
+    setIntegrityAcknowledged(false);
+  }, [integrityIssueKey]);
 
   const favorableCount = jurors.filter(j => j.lean === 'favorable').length;
   const unfavorableCount = jurors.filter(j => j.lean === 'unfavorable').length;
@@ -224,6 +314,7 @@ export function EndReport({
 
   const handleSendToMattrMindr = async () => {
     if (!mattrmindrCaseId) return;
+    if (exportsBlocked) return;
     setIsSendingToMm(true);
     setMmSendResult(null);
     setMmSendMessage('');
@@ -242,9 +333,12 @@ export function EndReport({
         aiSummary: aiSummaries[j.number] || '',
       }));
 
-      const strikeStrategy = strikeOrder.length > 0
+      const strikeStrategyBase = strikeOrder.length > 0
         ? `Suggested strike order: ${strikeOrder.map((j, i) => `${i + 1}. #${j.number} ${j.name} (${j.lean}, ${j.riskTier} risk)`).join('; ')}`
         : 'No strikes recommended based on current classifications.';
+      const strikeStrategy = strikeOrderWarnings.length > 0
+        ? `${strikeStrategyBase} | ${strikeOrderWarnings.join(' | ')}`
+        : strikeStrategyBase;
 
       const strikesForCause = causeStrikes.map(s => {
         const juror = jurors.find(j => j.number === s.jurorNumber);
@@ -274,12 +368,19 @@ export function EndReport({
     }
   };
 
-  const handleGenerateSummaries = async () => {
+  const handleGenerateSummaries = async (subset?: Juror[]) => {
     setIsGenerating(true);
     setSummaryError(null);
     try {
-      const summaries = await api.analyzeJurorsBatch(caseInfo, jurors, responses, questions, activeCaseId);
-      setAiSummaries(summaries);
+      const targetJurors = subset && subset.length > 0 ? subset : jurors;
+      const { summaries, failed } = await api.analyzeJurorsBatch(caseInfo, targetJurors, responses, questions, activeCaseId);
+      // Merge so a partial retry doesn't wipe summaries of other jurors.
+      setAiSummaries(prev => ({ ...prev, ...summaries }));
+      const retriedNums = new Set(targetJurors.map(j => j.number));
+      setFailedSummaries(prev => [
+        ...prev.filter(f => !retriedNums.has(f.jurorNumber)),
+        ...failed,
+      ]);
       if (activeCaseId && onUpdateJuror) {
         for (const [numStr, summary] of Object.entries(summaries)) {
           const jurorNumber = parseInt(numStr, 10);
@@ -292,6 +393,12 @@ export function EndReport({
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleRetryFailedSummaries = () => {
+    const failedNums = new Set(failedSummaries.map(f => f.jurorNumber));
+    const subset = jurors.filter(j => failedNums.has(j.number));
+    handleGenerateSummaries(subset);
   };
 
   const handleAnalyzeCauseStrikes = async () => {
@@ -341,7 +448,15 @@ export function EndReport({
         }
       }
 
-      if (mattrmindrCaseId && isMattrMindrConnected) {
+      // The automatic post-Batson push is an export like any other: it must
+      // respect the integrity gate. 'no-batson' is excluded because the Batson
+      // run that just succeeded resolves it (state hasn't re-rendered yet).
+      const blockingIssues = integrityIssues.filter(i => i.key !== 'no-batson');
+      const autoPushBlocked = blockingIssues.length > 0 && !integrityAcknowledged;
+      if (mattrmindrCaseId && isMattrMindrConnected && autoPushBlocked) {
+        console.warn('[EndReport] Skipping automatic MattrMindr push — report integrity issues are unacknowledged:', blockingIssues.map(i => i.key).join(', '));
+      }
+      if (mattrmindrCaseId && isMattrMindrConnected && !autoPushBlocked) {
         try {
           const jurorData = jurors.map(j => ({
             number: j.number,
@@ -356,9 +471,12 @@ export function EndReport({
             notes: j.notes,
             aiSummary: aiSummaries[j.number] || '',
           }));
-          const strikeStrategy = strikeOrder.length > 0
+          const strikeStrategyBase = strikeOrder.length > 0
             ? `Suggested strike order: ${strikeOrder.map((j, i) => `${i + 1}. #${j.number} ${j.name} (${j.lean}, ${j.riskTier} risk)`).join('; ')}`
             : 'No strikes recommended based on current classifications.';
+          const strikeStrategy = strikeOrderWarnings.length > 0
+            ? `${strikeStrategyBase} | ${strikeOrderWarnings.join(' | ')}`
+            : strikeStrategyBase;
           await api.pushJuryAnalysisToMattrMindr(mattrmindrCaseId, {
             jurors: jurorData,
             strikeStrategy,
@@ -445,6 +563,7 @@ export function EndReport({
   };
 
   const handleDownloadCsv = async () => {
+    if (exportsBlocked) return;
     setIsDownloadingCsv(true);
     try {
       let enrichmentMap: Record<string, Record<string, any>> = {};
@@ -631,7 +750,7 @@ export function EndReport({
             </button>
             {!panelCollapsed && (
               <button
-                onClick={handleGenerateSummaries}
+                onClick={() => handleGenerateSummaries()}
                 disabled={isGenerating}
                 data-testid="button-generate-summaries"
                 className="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-xl transition-colors bg-violet-100 text-violet-700 border border-violet-200 hover:bg-violet-200 disabled:opacity-50"
@@ -661,11 +780,42 @@ export function EndReport({
               <ApiErrorBanner
                 error={summaryError}
                 fallback="Failed to generate summaries. Please try again."
-                onRetry={handleGenerateSummaries}
+                onRetry={() => handleGenerateSummaries()}
                 onDismiss={() => setSummaryError(null)}
                 isRetrying={isGenerating}
                 testIdPrefix="summary-error"
               />
+            </div>
+          )}
+
+          {failedSummaries.length > 0 && !summaryError && (
+            <div className="mb-4 rounded-xl border border-red-300 bg-red-50 p-4" data-testid="banner-failed-summaries">
+              <div className="flex items-start gap-2 text-sm text-red-800">
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+                <div className="flex-1">
+                  <span className="font-bold">{failedSummaries.length} AI summar{failedSummaries.length === 1 ? 'y' : 'ies'} failed to generate:</span>{' '}
+                  {failedSummaries.map(f => {
+                    const j = jurors.find(x => x.number === f.jurorNumber);
+                    return `#${f.jurorNumber}${j ? ` ${j.name}` : ''}`;
+                  }).join(', ')}
+                  <span className="block text-xs text-red-700 mt-1">No placeholder summaries were substituted — these jurors have no AI summary until regenerated.</span>
+                </div>
+                <button
+                  onClick={handleRetryFailedSummaries}
+                  disabled={isGenerating}
+                  data-testid="button-retry-failed-summaries"
+                  className="flex-shrink-0 inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                      Retrying...
+                    </>
+                  ) : (
+                    'Retry Failed'
+                  )}
+                </button>
+              </div>
             </div>
           )}
 
@@ -1313,6 +1463,15 @@ export function EndReport({
             </div>
           )}
 
+          {causeNotEvaluated.length > 0 && (
+            <div className="mb-4 flex items-start gap-2 p-3 rounded-xl text-sm font-medium bg-amber-50 border border-amber-200 text-amber-700" data-testid="banner-cause-not-evaluated">
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>
+                Not evaluated by the AI (no "Unlikely" defaults were fabricated): {causeNotEvaluated.map(j => `#${j.number} ${j.name}`).join(', ')}. Re-run the analysis to cover them.
+              </span>
+            </div>
+          )}
+
           {causeStrikes.length > 0 && (
             <div className="space-y-4">
               {([
@@ -1428,6 +1587,22 @@ export function EndReport({
                 className="overflow-hidden"
               >
                 <div className="px-6 pb-6">
+          {failedAnalysisJurors.length > 0 && (
+            <div className="mb-4 rounded-xl border-2 border-red-300 bg-red-50 p-4 space-y-2" data-testid="strike-order-failed-warnings">
+              {failedAnalysisJurors.map(j => (
+                <div key={j.number} className="flex items-start gap-2 text-sm font-bold text-red-800" data-testid={`strike-order-failed-${j.number}`}>
+                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+                  <span>#{j.number} {j.name} — ANALYSIS FAILED — regenerate before relying on this ranking. Excluded from the ranked order below.</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {staleAnalysisJurors.length > 0 && (
+            <div className="mb-4 flex items-start gap-2 p-3 rounded-xl text-sm font-medium bg-amber-50 border border-amber-200 text-amber-700" data-testid="strike-order-stale-note">
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>Analyses for {staleAnalysisJurors.map(j => `#${j.number}`).join(', ')} predate newly recorded responses — re-analyze before relying on this order.</span>
+            </div>
+          )}
           {strikeOrder.length === 0 ? (
             <div className="bg-slate-50 rounded-xl border border-slate-200 p-8 text-center text-slate-500">
               No strike recommendations based on current classifications.
@@ -1474,7 +1649,45 @@ export function EndReport({
           </AnimatePresence>
         </section>
 
-        <div className="space-y-4 pt-8 border-t border-slate-200 no-print-controls">
+        <section className="pt-8 border-t border-slate-200 no-print-controls" data-testid="section-report-integrity">
+          {integrityIssues.length === 0 ? (
+            <div className="flex items-center gap-2 p-4 rounded-xl text-sm font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700" data-testid="banner-integrity-ok">
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+              Report integrity verified — analyses complete, strikes recorded, and cause/Batson checks run.
+            </div>
+          ) : (
+            <div className="rounded-xl border-2 border-red-300 bg-red-50 overflow-hidden" data-testid="banner-integrity-issues">
+              <div className="px-4 py-3 bg-red-100 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-700 flex-shrink-0" />
+                <h3 className="font-black text-red-800 text-sm uppercase tracking-wide">
+                  Incomplete report — {integrityIssues.length} issue{integrityIssues.length === 1 ? '' : 's'} to review before export
+                </h3>
+              </div>
+              <ul className="px-4 py-3 space-y-2">
+                {integrityIssues.map(issue => (
+                  <li key={issue.key} className="text-sm text-red-800" data-testid={`integrity-issue-${issue.key}`}>
+                    <span className="font-bold">{issue.label}</span>
+                    {issue.detail && <span className="block text-xs text-red-700 mt-0.5">{issue.detail}</span>}
+                  </li>
+                ))}
+              </ul>
+              <label className="flex items-start gap-2 px-4 py-3 border-t border-red-200 bg-white cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={integrityAcknowledged}
+                  onChange={e => setIntegrityAcknowledged(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-red-600"
+                  data-testid="checkbox-integrity-acknowledge"
+                />
+                <span className="text-sm text-slate-800 font-medium">
+                  I understand this report is incomplete and I want to proceed anyway.
+                </span>
+              </label>
+            </div>
+          )}
+        </section>
+
+        <div className="space-y-4 pt-4 no-print-controls">
           {mmSendResult && (
             <div className={`flex items-center gap-2 p-3 rounded-xl text-sm font-medium ${
               mmSendResult === 'success'
@@ -1492,9 +1705,10 @@ export function EndReport({
 
           <div className="flex justify-center gap-4">
             <button
-              onClick={() => window.print()}
+              onClick={() => { if (!exportsBlocked) window.print(); }}
+              disabled={exportsBlocked}
               data-testid="button-download-pdf"
-              className="inline-flex items-center px-8 py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-lg"
+              className="inline-flex items-center px-8 py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Download className="w-5 h-5 mr-2" />
               Download as PDF
@@ -1502,7 +1716,7 @@ export function EndReport({
 
             <button
               onClick={handleDownloadCsv}
-              disabled={isDownloadingCsv}
+              disabled={isDownloadingCsv || exportsBlocked}
               data-testid="button-download-csv"
               className="inline-flex items-center px-8 py-4 bg-emerald-700 text-white font-bold rounded-xl hover:bg-emerald-800 transition-colors shadow-lg disabled:opacity-50"
             >
@@ -1522,7 +1736,7 @@ export function EndReport({
             {isMattrMindrConnected && mattrmindrCaseId && (
               <button
                 onClick={handleSendToMattrMindr}
-                disabled={isSendingToMm}
+                disabled={isSendingToMm || exportsBlocked}
                 data-testid="button-send-mattrmindr"
                 className="inline-flex items-center px-8 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50"
               >

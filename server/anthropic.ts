@@ -40,6 +40,19 @@ export async function claudeComplete(opts: ClaudeOptions): Promise<string> {
   return "";
 }
 
+/**
+ * Thrown when the model returned output that could not be parsed/validated
+ * even after a retry. Callers must NEVER substitute default values for this
+ * error — it must surface to the UI as a failed analysis.
+ */
+export class AIOutputError extends Error {
+  readonly kind = "ai_output_invalid";
+  constructor(message: string) {
+    super(message);
+    this.name = "AIOutputError";
+  }
+}
+
 interface AnthropicErrorPayload {
   status: number;
   code: string;
@@ -47,6 +60,14 @@ interface AnthropicErrorPayload {
 }
 
 export function classifyAnthropicError(err: any, fallbackMessage: string): AnthropicErrorPayload {
+  if (err instanceof AIOutputError || err?.kind === "ai_output_invalid") {
+    return {
+      status: 502,
+      code: "ai_output_invalid",
+      message: err.message || "The AI returned an invalid or incomplete result. Please retry the analysis.",
+    };
+  }
+
   const status: number | undefined = err?.status;
   const errType: string | undefined = err?.error?.error?.type || err?.error?.type;
 

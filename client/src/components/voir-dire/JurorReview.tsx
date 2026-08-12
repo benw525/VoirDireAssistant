@@ -63,7 +63,15 @@ export function JurorReview({
   const [batchAnalyzing, setBatchAnalyzing] = useState<{ completed: number; total: number } | null>(null);
   const batchCancelRef = React.useRef(false);
   const pendingLeanAnalysis = React.useRef<Juror | null>(null);
-  const [failedAnalyses, setFailedAnalyses] = useState<Set<number>>(new Set());
+  // Always-current view of responses for freshness checks in async flows.
+  const responsesRef = React.useRef(responses);
+  useEffect(() => { responsesRef.current = responses; }, [responses]);
+  const [failedAnalyses, setFailedAnalyses] = useState<Set<number>>(() => {
+    // Seed from persisted status so failed analyses stay visible after reload.
+    const initial = new Set<number>();
+    jurors.forEach(j => { if (j.analysisStatus === 'failed') initial.add(j.number); });
+    return initial;
+  });
   const [analysisErrors, setAnalysisErrors] = useState<Record<number, any>>({});
   const [enrichmentStatus, setEnrichmentStatus] = useState<{
     enrichedJurors: Set<number>;
@@ -104,10 +112,17 @@ export function JurorReview({
     setAnalyzingJurors(prev => new Set(prev).add(juror.number));
     try {
       const jurorResponses = responses.filter(r => r.jurorNumber === juror.number);
+      const responseCountAtStart = jurorResponses.reduce((acc, r) => acc + 1 + (r.followUps?.length || 0), 0);
       const result = await api.analyzeJuror(caseInfo, juror, jurorResponses, questions, activeCaseId);
       setAiAnalysis(prev => ({ ...prev, [juror.number]: result.analysis }));
       setFailedAnalyses(prev => { const n = new Set(prev); n.delete(juror.number); return n; });
       setAnalysisErrors(prev => { const n = { ...prev }; delete n[juror.number]; return n; });
+      // If answers were recorded while this analysis was in flight, the result
+      // already predates them — persist it as 'stale', not 'ok', so it can't
+      // silently clobber the server-side stale marking.
+      const responseCountNow = (responsesRef.current || [])
+        .filter(r => r.jurorNumber === juror.number)
+        .reduce((acc, r) => acc + 1 + (r.followUps?.length || 0), 0);
       const jurorUpdates: Partial<Juror> = {
         aiAnalysis: result.analysis,
         riskScore: result.riskScore,
@@ -115,6 +130,7 @@ export function JurorReview({
         riskTier: result.aiRiskTier,
         lean: result.suggestedLean,
         leanConfidence: result.leanConfidence,
+        analysisStatus: responseCountNow > responseCountAtStart ? 'stale' : 'ok',
       };
       onUpdateJuror(juror.number, jurorUpdates);
       return true;
@@ -122,6 +138,11 @@ export function JurorReview({
       console.error('Failed to analyze juror:', err);
       setFailedAnalyses(prev => new Set(prev).add(juror.number));
       setAnalysisErrors(prev => ({ ...prev, [juror.number]: err }));
+      // Persist the failed state so it survives reloads — but never clobber a
+      // juror's older valid analysis status (they keep 'ok'/'stale' + old data).
+      if (!juror.aiAnalysis) {
+        onUpdateJuror(juror.number, { analysisStatus: 'failed' });
+      }
       return false;
     } finally {
       setAnalyzingJurors(prev => { const n = new Set(prev); n.delete(juror.number); return n; });
@@ -431,6 +452,16 @@ export function JurorReview({
                         {juror.leanConfidence} conf.
                       </span>
                     )}
+                    {(failedAnalyses.has(juror.number) || juror.analysisStatus === 'failed') && (
+                      <span className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded" data-testid={`badge-analysis-failed-${juror.number}`}>
+                        ANALYSIS FAILED
+                      </span>
+                    )}
+                    {!failedAnalyses.has(juror.number) && juror.analysisStatus === 'stale' && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded" data-testid={`badge-analysis-stale-${juror.number}`}>
+                        ANALYSIS STALE
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="p-4 bg-slate-50 flex-1">
@@ -545,6 +576,16 @@ export function JurorReview({
                         {juror.leanConfidence && juror.leanConfidence !== 'none' && (
                           <span className={`text-[10px] capitalize ${juror.leanConfidence === 'high' ? 'text-emerald-500' : juror.leanConfidence === 'moderate' ? 'text-amber-500' : 'text-slate-400'}`}>
                             {juror.leanConfidence}
+                          </span>
+                        )}
+                        {(failedAnalyses.has(juror.number) || juror.analysisStatus === 'failed') && (
+                          <span className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded whitespace-nowrap" data-testid={`badge-list-analysis-failed-${juror.number}`}>
+                            ANALYSIS FAILED
+                          </span>
+                        )}
+                        {!failedAnalyses.has(juror.number) && juror.analysisStatus === 'stale' && (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded whitespace-nowrap" data-testid={`badge-list-analysis-stale-${juror.number}`}>
+                            STALE
                           </span>
                         )}
                       </div>
@@ -760,7 +801,7 @@ export function JurorReview({
                           <Brain className="w-3 h-3 mr-1.5" />
                           Re-analyze
                         </>
-                      ) : failedAnalyses.has(selectedJuror.number) ? (
+                      ) : (failedAnalyses.has(selectedJuror.number) || jurors.find(j => j.number === selectedJuror.number)?.analysisStatus === 'failed') ? (
                         <>
                           <AlertTriangle className="w-3 h-3 mr-1.5" />
                           Retry Analysis
@@ -775,17 +816,25 @@ export function JurorReview({
                   </div>
                 </div>
                 {aiAnalysis[selectedJuror.number] ? (
-                  <div className="bg-violet-50 border border-violet-200 rounded-xl p-4">
-                    <div className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
-                      {aiAnalysis[selectedJuror.number]}
+                  <>
+                    {jurors.find(j => j.number === selectedJuror.number)?.analysisStatus === 'stale' && (
+                      <div className="flex items-center gap-2 p-3 rounded-xl text-xs font-medium bg-amber-50 border border-amber-200 text-amber-700 mb-2" data-testid="banner-analysis-stale">
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        New responses were recorded after this analysis was generated. Re-analyze to refresh it.
+                      </div>
+                    )}
+                    <div className="bg-violet-50 border border-violet-200 rounded-xl p-4">
+                      <div className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+                        {aiAnalysis[selectedJuror.number]}
+                      </div>
                     </div>
-                  </div>
+                  </>
                 ) : analyzingJurors.has(selectedJuror.number) ? (
                   <div className="bg-violet-50 border border-violet-200 rounded-xl p-6 flex items-center justify-center">
                     <Loader2 className="w-5 h-5 animate-spin text-violet-500 mr-3" />
                     <span className="text-sm text-violet-600 font-medium">Generating risk analysis...</span>
                   </div>
-                ) : failedAnalyses.has(selectedJuror.number) ? (
+                ) : (failedAnalyses.has(selectedJuror.number) || jurors.find(j => j.number === selectedJuror.number)?.analysisStatus === 'failed') ? (
                   <ApiErrorBanner
                     error={analysisErrors[selectedJuror.number]}
                     fallback="Failed to analyze this juror."

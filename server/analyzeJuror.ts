@@ -1,5 +1,15 @@
+import { z } from "zod";
 import { getArchetypesAndBias } from "./strategyModules";
-import { claudeComplete, claudeJson, CLAUDE_OPUS } from "./anthropic";
+import { AIOutputError, claudeComplete, claudeJson, CLAUDE_OPUS } from "./anthropic";
+
+/**
+ * Appended to the user prompt on the single retry after a parse/validation
+ * failure. Per the Lewis/Whigham directives: retry once with an explicit
+ * "return complete, valid JSON only" instruction, then fail loudly.
+ */
+const JSON_RETRY_SUFFIX = `
+
+IMPORTANT: Your previous response was not complete, valid JSON matching the required format. Return complete, valid JSON only — a single JSON value with every required field present, fully closed (no truncation), with no prose, no markdown, and no code fences.`;
 
 interface CaseContext {
   name: string;
@@ -132,15 +142,31 @@ ${responsesText}
 
 Write a 1-2 sentence summary explaining this juror's classification.`;
 
-  const text = await claudeComplete({
+  let text = (await claudeComplete({
     model: CLAUDE_OPUS,
     system: BRIEF_SUMMARY_PROMPT,
     userPrompt,
     temperature: 0.3,
     maxTokens: 300,
-  });
+  })).trim();
 
-  return text.trim() || "Unable to generate summary.";
+  if (!text) {
+    // Retry once with an explicit instruction, then fail loudly — never
+    // return placeholder text that could be mistaken for a real summary.
+    text = (await claudeComplete({
+      model: CLAUDE_OPUS,
+      system: BRIEF_SUMMARY_PROMPT,
+      userPrompt: userPrompt + "\n\nIMPORTANT: Your previous response was empty. You must return the 1-2 sentence summary text now.",
+      temperature: 0.3,
+      maxTokens: 300,
+    })).trim();
+  }
+
+  if (!text) {
+    throw new AIOutputError(`Summary generation for Juror #${juror.number} (${juror.name}) returned no text after retry. Re-run summary generation for this juror.`);
+  }
+
+  return text;
 }
 
 export interface AnalysisResult {
@@ -246,45 +272,51 @@ ${responsesText}
 ${dataSufficiency}
 Provide your risk assessment analysis for this juror.`;
 
-  interface JurorAnalysisJson {
-    riskScore?: unknown;
-    aiRiskTier?: unknown;
-    suggestedLean?: unknown;
-    leanConfidence?: unknown;
-    analysis?: unknown;
-  }
-
-  const { raw, parsed } = await claudeJson<JurorAnalysisJson>({
-    model: CLAUDE_OPUS,
-    system: systemPromptWithContext,
-    userPrompt,
-    temperature: 0.4,
-    maxTokens: 2400,
+  const jurorAnalysisSchema = z.object({
+    // Out-of-range scores indicate malformed output — retry/fail rather than clamp.
+    riskScore: z.number().finite().min(1).max(100),
+    aiRiskTier: z.enum(["low", "medium", "high"]),
+    suggestedLean: z.enum(["favorable", "neutral", "unfavorable", "unknown"]),
+    leanConfidence: z.enum(["high", "moderate", "low"]),
+    analysis: z.string().min(20),
   });
 
-  if (!parsed) {
-    return { analysis: raw || 'Unable to generate analysis.', riskScore: 50, aiRiskTier: 'medium', suggestedLean: 'unknown', leanConfidence: 'low' };
+  const attempt = async (suffix: string) => {
+    const { parsed } = await claudeJson<unknown>({
+      model: CLAUDE_OPUS,
+      system: systemPromptWithContext,
+      userPrompt: userPrompt + suffix,
+      temperature: 0.4,
+      maxTokens: 2400,
+    });
+    if (parsed === null) return null;
+    const validated = jurorAnalysisSchema.safeParse(parsed);
+    if (!validated.success) {
+      console.error(`[analyzeJuror] Juror #${juror.number}: output failed validation: ${validated.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
+      return null;
+    }
+    return validated.data;
+  };
+
+  // Fail-loud contract (Lewis/Whigham directives): validate, retry once with
+  // an explicit complete-JSON instruction, then throw. NEVER return default
+  // values (50/medium/unknown) — that is exactly how two high-risk Whigham
+  // jurors were buried in the strike order and ended up deliberating.
+  let result = await attempt("");
+  if (!result) {
+    console.warn(`[analyzeJuror] Juror #${juror.number}: invalid output on first attempt, retrying once with explicit JSON instruction`);
+    result = await attempt(JSON_RETRY_SUFFIX);
+  }
+  if (!result) {
+    throw new AIOutputError(`Analysis for Juror #${juror.number} (${juror.name}) was invalid or incomplete after a retry. No default score was applied — regenerate this analysis before relying on any ranking.`);
   }
 
-  const score = typeof parsed.riskScore === 'number' ? Math.max(1, Math.min(100, Math.round(parsed.riskScore))) : 50;
-  const validTiers = new Set(['low', 'medium', 'high']);
-  const tier = (typeof parsed.aiRiskTier === 'string' && validTiers.has(parsed.aiRiskTier))
-    ? parsed.aiRiskTier
-    : (score >= 70 ? 'high' : score >= 35 ? 'medium' : 'low');
-  const validLeans = new Set(['favorable', 'neutral', 'unfavorable', 'unknown']);
-  const suggestedLean = (typeof parsed.suggestedLean === 'string' && validLeans.has(parsed.suggestedLean))
-    ? parsed.suggestedLean
-    : 'unknown';
-  const validConfidences = new Set(['high', 'moderate', 'low']);
-  const leanConfidence = (typeof parsed.leanConfidence === 'string' && validConfidences.has(parsed.leanConfidence))
-    ? parsed.leanConfidence
-    : 'moderate';
   return {
-    analysis: typeof parsed.analysis === 'string' ? parsed.analysis : 'Unable to generate analysis.',
-    riskScore: score,
-    aiRiskTier: tier as 'low' | 'medium' | 'high',
-    suggestedLean: suggestedLean as 'favorable' | 'neutral' | 'unfavorable' | 'unknown',
-    leanConfidence: leanConfidence as 'high' | 'moderate' | 'low',
+    analysis: result.analysis,
+    riskScore: Math.max(1, Math.min(100, Math.round(result.riskScore))),
+    aiRiskTier: result.aiRiskTier,
+    suggestedLean: result.suggestedLean,
+    leanConfidence: result.leanConfidence,
   };
 }
 
@@ -410,58 +442,81 @@ ${jurorsText}
 
 Evaluate every juror for potential strikes for cause and return the JSON result.`;
 
-  interface StrikeJsonEntry {
-    jurorNumber?: unknown;
-    category?: unknown;
-    reasoning?: unknown;
-    argument?: unknown;
-    basis?: unknown;
-  }
-  interface StrikesResponse { strikes?: StrikeJsonEntry[] }
-
-  const { parsed: parsedRaw } = await claudeJson<StrikesResponse>({
-    model: CLAUDE_OPUS,
-    system: STRIKE_FOR_CAUSE_PROMPT,
-    userPrompt,
-    temperature: 0.3,
-    maxTokens: 16000,
+  const strikeEntrySchema = z.object({
+    jurorNumber: z.number(),
+    category: z.enum(["Highly Likely", "Possible", "Unlikely"]),
+    reasoning: z.string().default(""),
+    argument: z.string().default(""),
+    basis: z.string().default(""),
   });
+  const strikesResponseSchema = z.object({ strikes: z.array(strikeEntrySchema) });
 
-  const rawStrikes: StrikeJsonEntry[] = parsedRaw && Array.isArray(parsedRaw.strikes) ? parsedRaw.strikes : [];
+  const validJurorNumbers = new Set(jurors.map(j => j.number));
 
-  const VALID_CATEGORIES = new Set(["Highly Likely", "Possible", "Unlikely"]);
-
-  const validatedStrikes: StrikeForCauseEntry[] = rawStrikes
-    .filter((s): s is StrikeJsonEntry & { jurorNumber: number } => !!s && typeof s.jurorNumber === 'number')
-    .map((s) => ({
-      jurorNumber: s.jurorNumber,
-      category: (typeof s.category === 'string' && VALID_CATEGORIES.has(s.category) ? s.category : "Unlikely") as StrikeForCauseEntry['category'],
-      reasoning: typeof s.reasoning === 'string' ? s.reasoning : '',
-      argument: typeof s.argument === 'string' ? s.argument : 'No argument provided.',
-      basis: typeof s.basis === 'string' ? s.basis : 'Not assessed',
-    }));
-
-  const coveredJurors = new Set(validatedStrikes.map(s => s.jurorNumber));
-  for (const j of jurors) {
-    if (!coveredJurors.has(j.number)) {
-      validatedStrikes.push({
-        jurorNumber: j.number,
-        category: "Unlikely",
-        reasoning: `No concerning statements or indicators were identified in Juror #${j.number}'s responses or profile.`,
-        argument: `No specific basis for a cause challenge was identified for Juror #${j.number} (${j.name}) based on available information.`,
-        basis: "No significant basis",
+  const attempt = async (suffix: string): Promise<StrikeForCauseEntry[] | null> => {
+    const { parsed } = await claudeJson<unknown>({
+      model: CLAUDE_OPUS,
+      system: STRIKE_FOR_CAUSE_PROMPT,
+      userPrompt: userPrompt + suffix,
+      temperature: 0.3,
+      maxTokens: 16000,
+    });
+    if (parsed === null) return null;
+    const validated = strikesResponseSchema.safeParse(parsed);
+    if (!validated.success) {
+      console.error(`[analyzeStrikesForCause] Output failed validation: ${validated.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
+      return null;
+    }
+    // Drop hallucinated juror numbers and duplicates; keep the first entry per juror.
+    const seen = new Set<number>();
+    const entries: StrikeForCauseEntry[] = [];
+    for (const s of validated.data.strikes) {
+      if (!validJurorNumbers.has(s.jurorNumber) || seen.has(s.jurorNumber)) continue;
+      seen.add(s.jurorNumber);
+      entries.push({
+        jurorNumber: s.jurorNumber,
+        category: s.category,
+        reasoning: s.reasoning,
+        argument: s.argument,
+        basis: s.basis,
       });
+    }
+    return entries;
+  };
+
+  // Fail-loud contract: parse + validate, retry once, then throw. If the
+  // response is valid but omits some jurors, DO NOT fabricate "Unlikely"
+  // entries for them — return only the jurors the AI actually evaluated and
+  // let the UI surface the gap.
+  let entries = await attempt("");
+  if (entries === null || entries.length < jurors.length) {
+    const retrySuffix = entries === null
+      ? JSON_RETRY_SUFFIX
+      : `\n\nIMPORTANT: Your previous response omitted ${jurors.length - entries.length} juror(s). Return complete, valid JSON with an entry in "strikes" for EVERY juror listed above (all ${jurors.length} of them). No truncation, no prose, no markdown.`;
+    console.warn(`[analyzeStrikesForCause] ${entries === null ? 'Invalid output' : `Incomplete coverage (${entries.length}/${jurors.length})`} on first attempt, retrying once`);
+    const second = await attempt(retrySuffix);
+    if (second !== null && (entries === null || second.length > entries.length)) {
+      entries = second;
     }
   }
 
+  if (entries === null) {
+    throw new AIOutputError(`Strike-for-cause analysis returned invalid or incomplete output after a retry. No juror was defaulted to "Unlikely" — run the analysis again.`);
+  }
+
+  if (entries.length < jurors.length) {
+    const missing = jurors.filter(j => !entries!.some(e => e.jurorNumber === j.number)).map(j => `#${j.number}`);
+    console.warn(`[analyzeStrikesForCause] AI omitted ${missing.length} juror(s) after retry (${missing.join(', ')}). Returning evaluated jurors only — no fabricated defaults.`);
+  }
+
   const categoryOrder: Record<string, number> = { "Highly Likely": 0, "Possible": 1, "Unlikely": 2 };
-  validatedStrikes.sort((a, b) => {
+  entries.sort((a, b) => {
     const catDiff = (categoryOrder[a.category] ?? 3) - (categoryOrder[b.category] ?? 3);
     if (catDiff !== 0) return catDiff;
     return a.jurorNumber - b.jurorNumber;
   });
 
-  return validatedStrikes;
+  return entries;
 }
 
 interface BatsonDefensiveEntry {
@@ -586,65 +641,84 @@ OPPOSING STRIKES (${theirStrikes.length}): Jurors ${theirStrikes.length > 0 ? th
 
 Perform the full Batson analysis and return the JSON result.`;
 
-  interface BatsonDefensiveJson {
-    jurorNumber?: unknown; jurorName?: unknown; protectedClass?: unknown; riskLevel?: unknown;
-    statisticalFlag?: unknown; comparativeConcern?: unknown; currentJustification?: unknown;
-    recommendedArticulation?: unknown; warning?: unknown;
-  }
-  interface BatsonOffensiveJson {
-    jurorNumber?: unknown; jurorName?: unknown; protectedClass?: unknown; strengthOfChallenge?: unknown;
-    statisticalPattern?: unknown; comparativeEvidence?: unknown; suggestedArgument?: unknown;
-  }
-  interface BatsonResponseJson {
-    overallRisk?: unknown; summary?: unknown;
-    defensive?: BatsonDefensiveJson[]; offensive?: BatsonOffensiveJson[];
-  }
-
-  const { parsed: parsedRaw } = await claudeJson<BatsonResponseJson>({
-    model: CLAUDE_OPUS,
-    system: BATSON_PROMPT,
-    userPrompt,
-    temperature: 0.3,
-    maxTokens: 16000,
+  const batsonDefensiveSchema = z.object({
+    jurorNumber: z.number(),
+    jurorName: z.string().default(""),
+    protectedClass: z.string().default("Unknown"),
+    riskLevel: z.enum(["Low", "Moderate", "High"]),
+    statisticalFlag: z.string().default(""),
+    comparativeConcern: z.string().default(""),
+    currentJustification: z.string().default(""),
+    recommendedArticulation: z.string().default(""),
+    warning: z.string().optional(),
+  });
+  const batsonOffensiveSchema = z.object({
+    jurorNumber: z.number(),
+    jurorName: z.string().default(""),
+    protectedClass: z.string().default("Unknown"),
+    strengthOfChallenge: z.enum(["Strong", "Moderate", "Weak"]),
+    statisticalPattern: z.string().default(""),
+    comparativeEvidence: z.string().default(""),
+    suggestedArgument: z.string().default(""),
+  });
+  const batsonResponseSchema = z.object({
+    overallRisk: z.enum(["Low", "Moderate", "High"]),
+    summary: z.string().min(1),
+    defensive: z.array(batsonDefensiveSchema).default([]),
+    offensive: z.array(batsonOffensiveSchema).default([]),
   });
 
-  const parsed: BatsonResponseJson = parsedRaw || {};
-
-  const VALID_RISKS = new Set(["Low", "Moderate", "High"]);
-  const VALID_STRENGTHS = new Set(["Strong", "Moderate", "Weak"]);
-
-  const result: BatsonAnalysisResult = {
-    overallRisk: (typeof parsed.overallRisk === 'string' && VALID_RISKS.has(parsed.overallRisk) ? parsed.overallRisk : "Low") as BatsonAnalysisResult['overallRisk'],
-    summary: typeof parsed.summary === 'string' ? parsed.summary : 'No Batson concerns identified.',
-    defensive: Array.isArray(parsed.defensive)
-      ? parsed.defensive
-          .filter((d): d is BatsonDefensiveJson & { jurorNumber: number } => !!d && typeof d.jurorNumber === 'number')
-          .map((d) => ({
-            jurorNumber: d.jurorNumber,
-            jurorName: typeof d.jurorName === 'string' ? d.jurorName : `Juror #${d.jurorNumber}`,
-            protectedClass: typeof d.protectedClass === 'string' ? d.protectedClass : 'Unknown',
-            riskLevel: (typeof d.riskLevel === 'string' && VALID_RISKS.has(d.riskLevel) ? d.riskLevel : 'Low') as BatsonAnalysisResult['defensive'][number]['riskLevel'],
-            statisticalFlag: typeof d.statisticalFlag === 'string' ? d.statisticalFlag : '',
-            comparativeConcern: typeof d.comparativeConcern === 'string' ? d.comparativeConcern : '',
-            currentJustification: typeof d.currentJustification === 'string' ? d.currentJustification : '',
-            recommendedArticulation: typeof d.recommendedArticulation === 'string' ? d.recommendedArticulation : '',
-            ...(typeof d.warning === 'string' ? { warning: d.warning } : {}),
-          }))
-      : [],
-    offensive: Array.isArray(parsed.offensive)
-      ? parsed.offensive
-          .filter((o): o is BatsonOffensiveJson & { jurorNumber: number } => !!o && typeof o.jurorNumber === 'number')
-          .map((o) => ({
-            jurorNumber: o.jurorNumber,
-            jurorName: typeof o.jurorName === 'string' ? o.jurorName : `Juror #${o.jurorNumber}`,
-            protectedClass: typeof o.protectedClass === 'string' ? o.protectedClass : 'Unknown',
-            strengthOfChallenge: (typeof o.strengthOfChallenge === 'string' && VALID_STRENGTHS.has(o.strengthOfChallenge) ? o.strengthOfChallenge : 'Weak') as BatsonAnalysisResult['offensive'][number]['strengthOfChallenge'],
-            statisticalPattern: typeof o.statisticalPattern === 'string' ? o.statisticalPattern : '',
-            comparativeEvidence: typeof o.comparativeEvidence === 'string' ? o.comparativeEvidence : '',
-            suggestedArgument: typeof o.suggestedArgument === 'string' ? o.suggestedArgument : '',
-          }))
-      : [],
+  const attempt = async (suffix: string): Promise<BatsonAnalysisResult | null> => {
+    const { parsed } = await claudeJson<unknown>({
+      model: CLAUDE_OPUS,
+      system: BATSON_PROMPT,
+      userPrompt: userPrompt + suffix,
+      temperature: 0.3,
+      maxTokens: 16000,
+    });
+    if (parsed === null) return null;
+    const validated = batsonResponseSchema.safeParse(parsed);
+    if (!validated.success) {
+      console.error(`[analyzeBatson] Output failed validation: ${validated.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
+      return null;
+    }
+    return {
+      overallRisk: validated.data.overallRisk,
+      summary: validated.data.summary,
+      defensive: validated.data.defensive.map(d => ({
+        jurorNumber: d.jurorNumber,
+        jurorName: d.jurorName || `Juror #${d.jurorNumber}`,
+        protectedClass: d.protectedClass,
+        riskLevel: d.riskLevel,
+        statisticalFlag: d.statisticalFlag,
+        comparativeConcern: d.comparativeConcern,
+        currentJustification: d.currentJustification,
+        recommendedArticulation: d.recommendedArticulation,
+        ...(d.warning ? { warning: d.warning } : {}),
+      })),
+      offensive: validated.data.offensive.map(o => ({
+        jurorNumber: o.jurorNumber,
+        jurorName: o.jurorName || `Juror #${o.jurorNumber}`,
+        protectedClass: o.protectedClass,
+        strengthOfChallenge: o.strengthOfChallenge,
+        statisticalPattern: o.statisticalPattern,
+        comparativeEvidence: o.comparativeEvidence,
+        suggestedArgument: o.suggestedArgument,
+      })),
+    };
   };
+
+  // Fail-loud contract: parse + validate, retry once, then throw. NEVER
+  // default to "No Batson concerns identified." — a fabricated all-clear on a
+  // constitutional issue is worse than an error message.
+  let result = await attempt("");
+  if (!result) {
+    console.warn(`[analyzeBatson] Invalid output on first attempt, retrying once with explicit JSON instruction`);
+    result = await attempt(JSON_RETRY_SUFFIX);
+  }
+  if (!result) {
+    throw new AIOutputError(`Batson analysis returned invalid or incomplete output after a retry. No "no concerns" default was applied — run the Batson check again.`);
+  }
 
   return result;
 }

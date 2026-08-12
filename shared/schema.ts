@@ -73,6 +73,8 @@ export const jurors = pgTable("jurors", {
   notes: text("notes").notNull().default(""),
   aiSummary: text("ai_summary").notNull().default(""),
   aiAnalysis: text("ai_analysis").notNull().default(""),
+  // 'none' = never analyzed, 'ok' = valid analysis stored, 'failed' = analysis failed after retry (never show defaults), 'stale' = new responses recorded since last analysis
+  analysisStatus: text("analysis_status").notNull().default("none"),
 });
 
 export const questions = pgTable("questions", {

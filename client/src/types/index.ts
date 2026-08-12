@@ -42,6 +42,8 @@ export interface Juror {
   notes: string;
   aiSummary: string;
   aiAnalysis: string;
+  /** 'none' = never analyzed, 'ok' = valid analysis, 'failed' = failed after retry (no defaults shown), 'stale' = new responses since last analysis */
+  analysisStatus?: 'none' | 'ok' | 'failed' | 'stale';
 }
 
 export interface VoirDireQuestion {

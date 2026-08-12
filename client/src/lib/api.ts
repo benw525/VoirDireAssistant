@@ -140,6 +140,7 @@ interface DbJuror {
   notes: string;
   aiSummary: string;
   aiAnalysis: string;
+  analysisStatus?: string;
 }
 
 interface DbQuestion {
@@ -222,6 +223,7 @@ function dbJurorToJuror(j: DbJuror): Juror {
     notes: j.notes,
     aiSummary: j.aiSummary || '',
     aiAnalysis: j.aiAnalysis || '',
+    analysisStatus: (j.analysisStatus || 'none') as Juror['analysisStatus'],
   };
 }
 
@@ -548,12 +550,14 @@ export async function analyzeJuror(
       ...(caseId ? { caseId } : {}),
     }),
   });
+  // The server now fails loudly (HTTP error) instead of returning partial
+  // output, so no silent client-side defaults are applied here.
   return {
     analysis: result.analysis,
-    riskScore: result.riskScore || 50,
-    aiRiskTier: (result.aiRiskTier as any) || 'medium',
-    suggestedLean: (result.suggestedLean as any) || 'unknown',
-    leanConfidence: (result.leanConfidence as any) || 'moderate',
+    riskScore: result.riskScore,
+    aiRiskTier: result.aiRiskTier as AnalysisResult['aiRiskTier'],
+    suggestedLean: result.suggestedLean as AnalysisResult['suggestedLean'],
+    leanConfidence: result.leanConfidence as AnalysisResult['leanConfidence'],
   };
 }
 
@@ -563,7 +567,7 @@ export async function analyzeJurorsBatch(
   responses: JurorResponse[],
   questions: Array<{ id: number; originalText: string }>,
   caseId?: string | null
-): Promise<Record<number, string>> {
+): Promise<{ summaries: Record<number, string>; failed: Array<{ jurorNumber: number; message: string }> }> {
   const jurorsWithResponses = jurors.map(j => {
     const jurorResponses = responses.filter(r => r.jurorNumber === j.number);
     return {
@@ -587,11 +591,11 @@ export async function analyzeJurorsBatch(
       })),
     };
   });
-  const result = await fetchJson<{ summaries: Record<number, string> }>(`${API_BASE}/analyze-jurors-batch`, {
+  const result = await fetchJson<{ summaries: Record<number, string>; failed?: Array<{ jurorNumber: number; message: string }> }>(`${API_BASE}/analyze-jurors-batch`, {
     method: 'POST',
     body: JSON.stringify({ caseInfo, jurors: jurorsWithResponses, ...(caseId ? { caseId } : {}) }),
   });
-  return result.summaries;
+  return { summaries: result.summaries, failed: result.failed || [] };
 }
 
 export interface StrikeForCauseResult {
@@ -711,6 +715,7 @@ export async function updateJurorOnServer(caseId: string, jurorNumber: number, u
     if (updates.notes !== undefined) patchData.notes = updates.notes;
     if (updates.aiSummary !== undefined) patchData.aiSummary = updates.aiSummary;
     if (updates.aiAnalysis !== undefined) patchData.aiAnalysis = updates.aiAnalysis;
+    if (updates.analysisStatus !== undefined) patchData.analysisStatus = updates.analysisStatus;
     await fetchJson(`${API_BASE}/jurors/${dbJuror.id}`, {
       method: 'PATCH',
       body: JSON.stringify(patchData),

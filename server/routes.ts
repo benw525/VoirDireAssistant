@@ -17,6 +17,23 @@ import { triggerEnrichmentForJurors, getEnrichedDataForCase, cancelEnrichmentFor
 import { getAnalysisTraits } from "./strategyModules";
 import { claudeJson, CLAUDE_SONNET, respondWithAnthropicError } from "./anthropic";
 
+/**
+ * When a new response or follow-up answer is recorded for a juror whose
+ * analysis previously succeeded, mark that analysis 'stale' so every consumer
+ * (juror cards, strike order, final report) knows it predates the new data.
+ */
+async function markJurorAnalysisStale(caseId: string, jurorNumber: number): Promise<void> {
+  try {
+    const jurorsForCase = await storage.getJurorsByCase(caseId);
+    const juror = jurorsForCase.find(j => j.number === jurorNumber);
+    if (juror && juror.analysisStatus === 'ok') {
+      await storage.updateJuror(juror.id, { analysisStatus: 'stale' });
+    }
+  } catch (err) {
+    console.error(`[AnalysisStatus] Failed to mark juror #${jurorNumber} analysis stale:`, err);
+  }
+}
+
 async function generateFollowUpSuggestionsViaClaude(opts: {
   areaOfLaw: string;
   side: string;
@@ -598,6 +615,7 @@ export async function registerRoutes(
     const parsed = insertResponseSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const response = await storage.createResponse(parsed.data);
+    await markJurorAnalysisStale(caseId, response.jurorNumber);
 
     const activeSession = await storage.getActiveSessionByCase(caseId);
     if (activeSession) {
@@ -658,6 +676,7 @@ export async function registerRoutes(
 
     const updated = await storage.addFollowUpToResponse(req.params.id, { question: question || '', answer });
     if (!updated) return res.status(404).json({ message: "Response not found" });
+    await markJurorAnalysisStale(updated.caseId, updated.jurorNumber);
 
     const activeSession = await storage.getActiveSessionByCase(updated.caseId);
     if (activeSession) {
@@ -1157,11 +1176,14 @@ export async function registerRoutes(
 
       const BATCH_SIZE = 5;
       const summaries: Record<number, string> = {};
+      const failed: Array<{ jurorNumber: number; message: string }> = [];
       const jurorsList = parsed.data.jurors;
 
+      // Continue past failed jurors instead of aborting the whole batch —
+      // each failure is reported per-juror so the UI can fail loudly.
       for (let i = 0; i < jurorsList.length; i += BATCH_SIZE) {
         const batch = jurorsList.slice(i, i + BATCH_SIZE);
-        const results = await Promise.all(
+        const results = await Promise.allSettled(
           batch.map(j => generateBriefSummary(
             parsed.data.caseInfo,
             { number: j.number, name: j.name, sex: j.sex, race: j.race, birthDate: j.birthDate, occupation: j.occupation, employer: j.employer, lean: j.lean, riskTier: j.riskTier, notes: j.notes },
@@ -1169,10 +1191,18 @@ export async function registerRoutes(
             enrichedDataMap[j.id || String(j.number)] || null
           ))
         );
-        batch.forEach((j, idx) => { summaries[j.number] = results[idx]; });
+        batch.forEach((j, idx) => {
+          const r = results[idx];
+          if (r.status === 'fulfilled') {
+            summaries[j.number] = r.value;
+          } else {
+            console.error(`[BatchSummaries] Summary failed for juror #${j.number}:`, r.reason);
+            failed.push({ jurorNumber: j.number, message: r.reason?.message || 'Summary generation failed' });
+          }
+        });
       }
 
-      res.json({ summaries });
+      res.json({ summaries, failed });
     } catch (err: any) {
       console.error("Batch juror analysis error:", err);
       respondWithAnthropicError(res, err, "Failed to analyze jurors");
@@ -1731,6 +1761,7 @@ export async function registerRoutes(
         recordedBy: displayName,
         recordedByParticipantId: req.collab!.participantId,
       });
+      await markJurorAnalysisStale(caseId, response.jurorNumber);
 
       broadcastToSession(req.collab!.sessionId, {
         type: "response:new",
@@ -1821,6 +1852,7 @@ export async function registerRoutes(
 
     const updated = await storage.addFollowUpToResponse(req.params.id, { question: question || "", answer });
     if (!updated) return res.status(404).json({ message: "Response not found" });
+    await markJurorAnalysisStale(updated.caseId, updated.jurorNumber);
 
     broadcastToSession(req.collab!.sessionId, {
       type: "followup:new",

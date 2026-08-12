@@ -323,6 +323,17 @@ export default function VoirDireApp() {
     }
   };
 
+  // Mirror the server-side stale marking in local state so an already-open
+  // End Report / juror board immediately reflects that an analysis predates
+  // newly recorded answers (local only — the server persists it itself).
+  const markJurorStaleLocally = useCallback((jurorNumber: number) => {
+    setJurors(prev => prev.map(j =>
+      j.number === jurorNumber && j.analysisStatus === 'ok'
+        ? { ...j, analysisStatus: 'stale' as const }
+        : j
+    ));
+  }, []);
+
   const handleRecordResponse = async (
     response: Omit<JurorResponse, 'id' | 'timestamp'>
   ) => {
@@ -332,6 +343,7 @@ export default function VoirDireApp() {
       timestamp: Date.now(),
     };
     setResponses(prev => [...prev, newResponse]);
+    markJurorStaleLocally(newResponse.jurorNumber);
 
     if (activeCaseId) {
       try {
@@ -346,6 +358,7 @@ export default function VoirDireApp() {
   };
 
   const handleRemoteResponse = useCallback((response: JurorResponse) => {
+    markJurorStaleLocally(response.jurorNumber);
     setResponses(prev => {
       if (prev.some(r => r.id === response.id)) return prev;
       const pendingMatch = prev.findIndex(r =>
@@ -361,25 +374,29 @@ export default function VoirDireApp() {
       }
       return [...prev, response];
     });
-  }, []);
+  }, [markJurorStaleLocally]);
 
   const handleRemoteResponseDeleted = useCallback((responseId: string) => {
     setResponses(prev => prev.filter(r => r.id !== responseId));
   }, []);
 
   const handleRemoteFollowUp = useCallback((responseId: string, followUp: { question: string; answer: string }) => {
-    setResponses(prev =>
-      prev.map(r => {
+    setResponses(prev => {
+      const target = prev.find(r => r.id === responseId);
+      if (target) markJurorStaleLocally(target.jurorNumber);
+      return prev.map(r => {
         if (r.id !== responseId) return r;
         const existing = r.followUps || [];
         const isDup = existing.some(f => f.question === followUp.question && f.answer === followUp.answer);
         if (isDup) return r;
         return { ...r, followUps: [...existing, followUp] };
-      })
-    );
-  }, []);
+      });
+    });
+  }, [markJurorStaleLocally]);
 
   const handleAddFollowUp = async (responseId: string, followUp: { question: string; answer: string }) => {
+    const target = responses.find(r => r.id === responseId);
+    if (target) markJurorStaleLocally(target.jurorNumber);
     setResponses(prev =>
       prev.map(r =>
         r.id === responseId ? { ...r, followUps: [...(r.followUps || []), followUp] } : r
