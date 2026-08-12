@@ -1,4 +1,4 @@
-import type { CaseInfo, Juror, VoirDireQuestion, JurorResponse, SavedCase, AppPhase, VoirDireDocument } from '../types';
+import type { CaseInfo, Juror, VoirDireQuestion, JurorResponse, SavedCase, AppPhase, VoirDireDocument, PanelPrognosis, PanelPrognosisBundle, PrognosisStage } from '../types';
 import { getAuthToken } from './auth';
 
 const API_BASE = '/api';
@@ -120,6 +120,7 @@ interface DbCase {
   demographicsChangedAt?: number | null;
   batsonAnalyzedAt?: number | null;
   causeAnalyzedAt?: number | null;
+  panelPrognosis?: PanelPrognosisBundle | null;
 }
 
 interface DbJuror {
@@ -204,6 +205,7 @@ function dbCaseToSavedCase(c: DbCase, jurors: Juror[] = [], questions: VoirDireQ
     demographicsChangedAt: c.demographicsChangedAt || null,
     batsonAnalyzedAt: c.batsonAnalyzedAt || null,
     causeAnalyzedAt: c.causeAnalyzedAt || null,
+    panelPrognosis: c.panelPrognosis || null,
   };
 }
 
@@ -1047,4 +1049,14 @@ export async function collabSuggestFollowups(questionText: string, responseText:
 
 export async function getFlagRollup(caseId: string): Promise<import('../types').FlagRollupResult> {
   return fetchJson(`${API_BASE}/cases/${caseId}/flag-rollup`);
+}
+
+// --- Panel prognosis (Lewis/Whigham Section 6) ---
+// Generated at panel load and again when responses close. Server computes all
+// densities/strike arithmetic in code; the AI writes reasoning from them.
+export async function generatePanelPrognosis(caseId: string, stage: PrognosisStage): Promise<PanelPrognosis> {
+  return fetchJson(`${API_BASE}/cases/${caseId}/panel-prognosis`, {
+    method: 'POST',
+    body: JSON.stringify({ stage }),
+  });
 }

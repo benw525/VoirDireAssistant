@@ -30,6 +30,7 @@ export interface IStorage {
   getCase(id: string): Promise<Case | undefined>;
   createCase(data: InsertCase): Promise<Case>;
   updateCase(id: string, data: Partial<InsertCase>): Promise<Case | undefined>;
+  mergePanelPrognosis(id: string, stageKey: "panelLoad" | "responsesClosed", prognosis: unknown): Promise<void>;
   deleteCase(id: string): Promise<void>;
 
   getJurorsByCase(caseId: string): Promise<Juror[]>;
@@ -116,6 +117,22 @@ export class DatabaseStorage implements IStorage {
   async updateCase(id: string, data: Partial<InsertCase>): Promise<Case | undefined> {
     const [result] = await db.update(cases).set(data).where(eq(cases.id, id)).returning();
     return result;
+  }
+
+  /**
+   * Atomic JSONB merge of one prognosis stage. Concurrent generations for
+   * the other stage cannot clobber this write (no read-merge-write race).
+   */
+  async mergePanelPrognosis(id: string, stageKey: "panelLoad" | "responsesClosed", prognosis: unknown): Promise<void> {
+    await db
+      .update(cases)
+      .set({
+        // jsonb_typeof guard: a fresh column can hold JSON null (not SQL NULL),
+        // and `null || object` degrades to array-concat. Only reuse the stored
+        // value when it is actually an object.
+        panelPrognosis: sql`(CASE WHEN jsonb_typeof(${cases.panelPrognosis}) = 'object' THEN ${cases.panelPrognosis} ELSE '{}'::jsonb END) || jsonb_build_object(${stageKey}::text, ${JSON.stringify(prognosis)}::jsonb)` as any,
+      })
+      .where(eq(cases.id, id));
   }
 
   async deleteCase(id: string): Promise<void> {

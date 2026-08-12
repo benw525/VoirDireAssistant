@@ -48,11 +48,46 @@ export const cases = pgTable("cases", {
     direction: 'bottom-right-first' | 'top-left-first' | 'bottom-left-first';
     seatsPerRow?: number[];
   } | null>().default(null),
+  // Lewis/Whigham Section 6 — PANEL PROGNOSIS, generated at panel load and
+  // again when responses close. Metrics are computed deterministically in
+  // code; the model only writes reasoning from those numbers.
+  panelPrognosis: jsonb("panel_prognosis").$type<{
+    panelLoad?: PanelPrognosisRecord | null;
+    responsesClosed?: PanelPrognosisRecord | null;
+  } | null>().default(null),
   demographicsChangedAt: bigint("demographics_changed_at", { mode: "number" }),
   batsonAnalyzedAt: bigint("batson_analyzed_at", { mode: "number" }),
   causeAnalyzedAt: bigint("cause_analyzed_at", { mode: "number" }),
   savedAt: bigint("saved_at", { mode: "number" }).notNull(),
 });
+
+export type PanelPrognosisRecord = {
+  stage: "panel_load" | "responses_closed";
+  generatedAt: number;
+  metrics: {
+    panelSize: number;
+    dismissedCount: number;
+    jurySize: number;
+    strikesPerSide: number;
+    claimantHistory: { count: number; density: number; jurorNumbers: number[] };
+    clinicalAdvocacy: {
+      count: number;
+      density: number;
+      matches: Array<{ jurorNumber: number; jurorName: string; category: string; matched: string }>;
+    };
+    unresolvedFlagCount: number;
+    adverseSurvivalFloor: number;
+    settlementPostureWarning: string | null;
+  };
+  assets: Array<{ jurorNumber: number; jurorName: string; why: string; fragility: string }>;
+  strikeTargets: {
+    ours: Array<{ jurorNumber: number; jurorName: string; reason: string }>;
+    theirs: Array<{ jurorNumber: number; jurorName: string; reason: string }>;
+  };
+  bestCaseSeatedJury: { jurorNumbers: number[]; assessment: string };
+  narrative: string;
+  settlementPostureWarning: string | null;
+};
 
 export const jurors = pgTable("jurors", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -172,7 +207,10 @@ export type SessionParticipant = typeof sessionParticipants.$inferSelect;
 export type InsertSessionParticipant = z.infer<typeof insertSessionParticipantSchema>;
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
-export const insertCaseSchema = createInsertSchema(cases).omit({ id: true });
+// panelPrognosis is server-written only (via storage.mergePanelPrognosis's
+// atomic JSONB merge) — omitting it here keeps clients from setting or
+// clobbering it through case create/update payloads.
+export const insertCaseSchema = createInsertSchema(cases).omit({ id: true, panelPrognosis: true });
 export const insertJurorSchema = createInsertSchema(jurors).omit({ id: true });
 export const insertQuestionSchema = createInsertSchema(questions).omit({ id: true });
 export const insertResponseSchema = createInsertSchema(responses).omit({ id: true });

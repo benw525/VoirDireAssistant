@@ -50,6 +50,13 @@
       "when": 1786558710613,
       "tag": "0006_juror_analysis_retraining",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786561137269,
+      "tag": "0007_panel_prognosis",
+      "breakpoints": true
     }
   ]
 }

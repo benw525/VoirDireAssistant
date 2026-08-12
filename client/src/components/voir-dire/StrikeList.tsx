@@ -17,11 +17,12 @@ import {
   ShieldAlert,
   CheckCircle2
 } from 'lucide-react';
-import { Juror } from '../../types';
+import { Juror, PanelPrognosis } from '../../types';
 import { useDropzone } from 'react-dropzone';
 import { parseStrikeList } from '../../lib/api';
 import type { DemographicFlag } from '../../lib/api';
 import { ApiErrorBanner } from '../ApiErrorBanner';
+import { PanelPrognosisPanel } from './PanelPrognosisPanel';
 
 
 interface StrikeListProps {
@@ -29,6 +30,10 @@ interface StrikeListProps {
   onJurorsLoaded: (jurors: Juror[]) => void;
   onProceed: () => void;
   generateSampleJurors: () => Juror[];
+  panelPrognosis?: PanelPrognosis | null;
+  prognosisLoading?: boolean;
+  prognosisError?: any;
+  onRetryPrognosis?: () => void;
 }
 
 type EditableField = 'name' | 'phone' | 'sex' | 'race' | 'birthDate' | 'occupation' | 'employer';
@@ -138,7 +143,11 @@ export function StrikeList({
   jurors,
   onJurorsLoaded,
   onProceed,
-  generateSampleJurors
+  generateSampleJurors,
+  panelPrognosis,
+  prognosisLoading,
+  prognosisError,
+  onRetryPrognosis,
 }: StrikeListProps) {
   const [pasteData, setPasteData] = useState('');
   const [isParsing, setIsParsing] = useState(false);
@@ -449,6 +458,18 @@ export function StrikeList({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         className="flex-1 flex flex-col min-h-0">
+
+          {(panelPrognosis || prognosisLoading || prognosisError) && (
+            <div className="mb-3 shrink-0">
+              <PanelPrognosisPanel
+                prognosis={panelPrognosis || null}
+                loading={!!prognosisLoading}
+                error={prognosisError}
+                onRetry={onRetryPrognosis}
+                defaultExpanded={false}
+              />
+            </div>
+          )}
 
           {reviewCount > 0 && (
             <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 text-sm">

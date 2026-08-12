@@ -1,5 +1,13 @@
 import { getStrategyModule } from "./strategyModules";
-import { claudeJson, CLAUDE_OPUS } from "./anthropic";
+import { claudeJson, CLAUDE_OPUS, AIOutputError } from "./anthropic";
+import { detectConcededOrWeakLiability } from "./jurorFlags";
+import {
+  enforceVoirDireContract,
+  fatalViolationsAfterEnforce,
+  validateVoirDireDraft,
+  type DamagesLockIns,
+  type ProtectListEntry,
+} from "./voirDireContract";
 
 interface CaseContext {
   areaOfLaw: string;
@@ -51,6 +59,8 @@ export interface VoirDireDocument {
     primaryConcern: string;
     recommendation: string;
   }>;
+  protectList: ProtectListEntry[];
+  damagesLockIns: DamagesLockIns;
 }
 
 const STRATEGY_SYSTEM_PROMPT = `VOIR DIRE STRATEGY AGENT – INSTRUCTION SET
@@ -90,6 +100,33 @@ All questions must:
 • Avoid argument
 • Avoid legal jargon
 Each strike trigger must be explored from multiple angles.
+
+EXPERIENCE QUESTIONS MUST FUNNEL: Never rely on a single global experience
+question ("who has been in a wreck") — in an auto case it will draw the entire
+panel and discriminate nothing. Sequence from broad to valence-resolving:
+involvement → injury → claim brought → satisfaction/grievance → the
+case-specific mirror question ("hurt in a low-speed rear-end collision").
+Budget voir dire time for individually valencing every raise on the mirror
+question — those are the highest-signal jurors in the venire.
+
+DAMAGES MODULE (conceded or weak liability): Generate questions establishing
+(within legal bounds, no verdict-promising) that jurors can return a defense
+verdict if causation fails, can award bills-only, and can weigh treating-record
+entries (treatment gaps, relief notations, prior/subsequent accidents) against
+subjective testimony. Identify which jurors to lock in on the record BEFORE
+opposing counsel's rehabilitation pass, and warn that leading group
+rehabilitation ("can you all be fair?") permanently immunizes claimant-history
+jurors against cause.
+
+PROTECT-LIST DISCIPLINE: For each juror on the PRESERVE list, state explicitly:
+do not ask this juror further open-ended bias questions; if opposing counsel
+builds a cause record, here are the two rehabilitation questions that restore
+them (ability to follow the law as instructed; decide on the evidence). Losing
+a favorable juror to cause costs a seat without costing the opponent a strike.
+Every strikeGuide juror whose recommendation is to keep/preserve MUST have a
+matching protectList entry.
+
+{{LIABILITY_POSTURE}}
 
 {{STRATEGY_MODULE_INJECTION}}
 
@@ -153,8 +190,27 @@ You must return your output as a JSON object with this exact structure:
       "primaryConcern": "What makes this juror risky",
       "recommendation": "Strategic recommendation (strike, cause challenge, keep, etc.)"
     }
-  ]
+  ],
+  "protectList": [
+    {
+      "jurorNumber": 7,
+      "jurorName": "Juror Name",
+      "whyFavorable": "Why this juror is favorable and worth preserving",
+      "discipline": "Explicit instruction: no further open-ended bias questions for this juror",
+      "rehabilitationQuestions": ["The follow-the-law-as-instructed rehabilitation question", "The decide-on-the-evidence rehabilitation question"]
+    }
+  ],
+  "damagesLockIns": {
+    "applicable": true,
+    "questions": ["Lawful lock-in question (no verdict-promising)"],
+    "lockInFirstJurors": [
+      { "jurorNumber": 5, "jurorName": "Juror Name", "why": "Why to lock this juror in on the record BEFORE opposing counsel's rehabilitation pass" }
+    ],
+    "groupRehabWarning": "Warning that leading group rehabilitation immunizes claimant-history jurors against cause"
+  }
 }
+
+protectList is required for every juror the strikeGuide recommends keeping/preserving. damagesLockIns.applicable must be true only when liability is conceded or weak (see LIABILITY POSTURE above); when not applicable, return it with applicable false and empty arrays.
 
 Organize questions in deliberate sequence:
 1. Experience-based questions (least threatening)
@@ -231,12 +287,21 @@ export async function generateFullVoirDire(
 
   const normalizedSide: 'plaintiff' | 'defense' = (caseInfo.side === 'defense' || caseInfo.side === 'Defense') ? 'defense' : 'plaintiff';
   const strategyModuleText = getStrategyModule(caseInfo.areaOfLaw, normalizedSide);
-  const systemPrompt = STRATEGY_SYSTEM_PROMPT.replace('{{STRATEGY_MODULE_INJECTION}}', strategyModuleText);
+  const concededOrWeak = detectConcededOrWeakLiability(caseInfo.summary);
+  const liabilityPostureText = concededOrWeak
+    ? "LIABILITY POSTURE (computed from the case summary — do not second-guess): CONCEDED OR WEAK. The DAMAGES MODULE applies: damagesLockIns.applicable must be true, with lawful lock-in questions and the jurors to lock in before opposing counsel's rehabilitation pass."
+    : "LIABILITY POSTURE (computed from the case summary — do not second-guess): DISPUTED. The DAMAGES MODULE does not apply: return damagesLockIns with applicable false and empty arrays. Standard damages-comfort questions still belong in the main question sequence.";
+  const systemPrompt = STRATEGY_SYSTEM_PROMPT
+    .replace('{{STRATEGY_MODULE_INJECTION}}', strategyModuleText)
+    .replace('{{LIABILITY_POSTURE}}', liabilityPostureText);
 
   interface VoirDireQuestionJson { id?: unknown; originalText?: unknown; rephrase?: unknown; followUps?: unknown; module?: unknown }
   interface JurorFollowUpJson { jurorNumber?: unknown; jurorName?: unknown; questions?: unknown; rationale?: unknown }
   interface CauseFlagJson { jurorNumber?: unknown; jurorName?: unknown; riskSummary?: unknown; lockDownQuestions?: unknown; inabilityQuestion?: unknown }
   interface StrikeGuideJson { jurorNumber?: unknown; jurorName?: unknown; riskLevel?: unknown; primaryConcern?: unknown; recommendation?: unknown }
+  interface ProtectListJson { jurorNumber?: unknown; jurorName?: unknown; whyFavorable?: unknown; discipline?: unknown; rehabilitationQuestions?: unknown }
+  interface LockInJurorJson { jurorNumber?: unknown; jurorName?: unknown; why?: unknown }
+  interface DamagesLockInsJson { applicable?: unknown; questions?: unknown; lockInFirstJurors?: LockInJurorJson[]; groupRehabWarning?: unknown }
   interface VoirDireResponseJson {
     opening?: unknown; caseOverview?: unknown;
     questions?: VoirDireQuestionJson[];
@@ -244,24 +309,14 @@ export async function generateFullVoirDire(
     causeFlags?: CauseFlagJson[];
     rehabilitationOptions?: unknown;
     strikeGuide?: StrikeGuideJson[];
-  }
-
-  const { parsed } = await claudeJson<VoirDireResponseJson>({
-    model: CLAUDE_OPUS,
-    system: systemPrompt,
-    userPrompt: `Generate a complete, courtroom-ready voir dire for this case.\n\n${context}`,
-    temperature: 0.3,
-    maxTokens: 16000,
-  });
-
-  if (!parsed) {
-    throw new Error("AI returned invalid response. Please try again.");
+    protectList?: ProtectListJson[];
+    damagesLockIns?: DamagesLockInsJson;
   }
 
   const toStr = (v: unknown) => typeof v === 'string' ? v : '';
   const toStrArr = (v: unknown): string[] => Array.isArray(v) ? v.map(String) : [];
 
-  return {
+  const buildDoc = (parsed: VoirDireResponseJson): VoirDireDocument => ({
     opening: toStr(parsed.opening),
     caseOverview: toStr(parsed.caseOverview),
     questions: (parsed.questions || []).map((q, i) => ({
@@ -294,7 +349,68 @@ export async function generateFullVoirDire(
       primaryConcern: toStr(sg.primaryConcern),
       recommendation: toStr(sg.recommendation),
     })),
+    protectList: (parsed.protectList || [])
+      .map((p) => ({
+        jurorNumber: Number(p.jurorNumber),
+        jurorName: toStr(p.jurorName),
+        whyFavorable: toStr(p.whyFavorable),
+        discipline: toStr(p.discipline),
+        rehabilitationQuestions: toStrArr(p.rehabilitationQuestions),
+      }))
+      .filter((p) => Number.isFinite(p.jurorNumber)),
+    damagesLockIns: {
+      applicable: parsed.damagesLockIns?.applicable === true,
+      questions: toStrArr(parsed.damagesLockIns?.questions),
+      lockInFirstJurors: (parsed.damagesLockIns?.lockInFirstJurors || [])
+        .map((l) => ({
+          jurorNumber: Number(l?.jurorNumber),
+          jurorName: toStr(l?.jurorName),
+          why: toStr(l?.why),
+        }))
+        .filter((l) => Number.isFinite(l.jurorNumber)),
+      groupRehabWarning: toStr(parsed.damagesLockIns?.groupRehabWarning),
+    },
+  });
+
+  const basePrompt = `Generate a complete, courtroom-ready voir dire for this case.\n\n${context}`;
+  const runOnce = async (correction?: string): Promise<VoirDireDocument> => {
+    const { parsed } = await claudeJson<VoirDireResponseJson>({
+      model: CLAUDE_OPUS,
+      system: systemPrompt,
+      userPrompt: correction ? `${basePrompt}${correction}` : basePrompt,
+      temperature: 0.3,
+      maxTokens: 16000,
+    });
+    if (!parsed) {
+      throw new AIOutputError("AI returned invalid JSON for voir dire generation. Please try again.");
+    }
+    return buildDoc(parsed);
   };
+
+  const jurorNumbers = new Set(jurors.map((j) => j.number));
+  const jurorNamesByNumber = new Map(jurors.map((j) => [j.number, j.name] as [number, string]));
+
+  let doc = await runOnce();
+  const violations = validateVoirDireDraft(doc, { jurorNumbers });
+  if (violations.length > 0) {
+    console.warn(`[VoirDire] Contract violations on first pass, retrying once:\n- ${violations.join("\n- ")}`);
+    doc = await runOnce(
+      `\n\nYOUR PREVIOUS RESPONSE VIOLATED THE VOIR DIRE CONTRACT. Corrections required:\n- ${violations.join("\n- ")}\n\nReturn the complete corrected JSON document (all sections, not just the corrected parts).`,
+    );
+  }
+
+  const { doc: enforced, notes } = enforceVoirDireContract(doc, { concededOrWeak, jurorNamesByNumber });
+  if (notes.length > 0) {
+    console.warn(`[VoirDire] Code-enforced contract corrections: ${notes.join(" | ")}`);
+  }
+  const finalDoc: VoirDireDocument = { ...doc, protectList: enforced.protectList, damagesLockIns: enforced.damagesLockIns };
+
+  const fatal = fatalViolationsAfterEnforce(finalDoc);
+  if (fatal.length > 0) {
+    throw new AIOutputError(fatal.join(" "));
+  }
+
+  return finalDoc;
 }
 
 export async function refineUserQuestions(

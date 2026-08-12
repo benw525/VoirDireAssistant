@@ -1,0 +1,1 @@
+ALTER TABLE "cases" ADD COLUMN "panel_prognosis" jsonb DEFAULT 'null'::jsonb;

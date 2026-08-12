@@ -90,8 +90,10 @@ export function VoirDireQuestions({
     questions: true,
     jurorFollowUps: true,
     causeFlags: false,
+    damagesLockIns: false,
     rehabilitation: false,
     strikeGuide: false,
+    protectList: false,
   });
 
   const toggleSection = (key: string) => {
@@ -876,6 +878,50 @@ export function VoirDireQuestions({
               </CollapsibleSection>
             )}
 
+            {voirDireDoc && voirDireDoc.damagesLockIns && voirDireDoc.damagesLockIns.applicable && (
+              <CollapsibleSection
+                title="Damages Lock-Ins — Conceded/Weak Liability"
+                icon={<Lock className="w-4 h-4" />}
+                sectionKey="damagesLockIns"
+                expanded={expandedSections.damagesLockIns}
+                onToggle={toggleSection}
+                badge={null}
+              >
+                <div className="p-4 space-y-4" data-testid="section-damages-lock-ins">
+                  <p className="text-xs text-slate-500">
+                    Liability is conceded or weak — voir dire must protect the damages case. Ask these lawful commitment questions verbatim.
+                  </p>
+                  <ul className="space-y-2">
+                    {voirDireDoc.damagesLockIns.questions.map((q, i) => (
+                      <li key={i} className="text-sm text-slate-800 flex items-start bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <span className="text-amber-600 font-bold mr-2 mt-0.5">{i + 1}.</span>
+                        {q}
+                      </li>
+                    ))}
+                  </ul>
+                  {voirDireDoc.damagesLockIns.lockInFirstJurors.length > 0 && (
+                    <div>
+                      <label className="text-xs font-semibold text-amber-700 uppercase tracking-wider">
+                        Lock in FIRST — before opposing counsel rehabilitates
+                      </label>
+                      <div className="mt-2 space-y-2">
+                        {voirDireDoc.damagesLockIns.lockInFirstJurors.map((j) => (
+                          <div key={j.jurorNumber} className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm" data-testid={`card-lock-in-first-${j.jurorNumber}`}>
+                            <span className="font-bold text-slate-900">#{j.jurorNumber} {j.jurorName}</span>
+                            <span className="text-slate-700"> — {j.why}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3" data-testid="text-group-rehab-warning">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-900">{voirDireDoc.damagesLockIns.groupRehabWarning}</p>
+                  </div>
+                </div>
+              </CollapsibleSection>
+            )}
+
             {voirDireDoc && voirDireDoc.rehabilitationOptions.length > 0 && (
               <CollapsibleSection
                 title="Rehabilitation Options"
@@ -945,6 +991,46 @@ export function VoirDireQuestions({
                       </tbody>
                     </table>
                   </div>
+                </div>
+              </CollapsibleSection>
+            )}
+
+            {voirDireDoc && voirDireDoc.protectList && voirDireDoc.protectList.length > 0 && (
+              <CollapsibleSection
+                title="Protect List — Favorable Jurors"
+                icon={<Shield className="w-4 h-4" />}
+                sectionKey="protectList"
+                expanded={expandedSections.protectList}
+                onToggle={toggleSection}
+                badge={null}
+              >
+                <div className="p-4 space-y-3" data-testid="section-protect-list">
+                  <p className="text-xs text-slate-500">
+                    Stop developing bad facts on these jurors — no more open-ended bias questions. If opposing counsel moves to strike for cause, rehabilitate with the two questions below.
+                  </p>
+                  {voirDireDoc.protectList.map((p) => (
+                    <div key={p.jurorNumber} className="bg-emerald-50 border border-emerald-200 rounded-lg p-4" data-testid={`card-protect-${p.jurorNumber}`}>
+                      <div className="flex items-center mb-2">
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-600 text-white text-xs font-bold mr-2">
+                          #{p.jurorNumber}
+                        </span>
+                        <span className="font-semibold text-emerald-900">{p.jurorName}</span>
+                      </div>
+                      <p className="text-sm text-emerald-900 mb-2">{p.whyFavorable}</p>
+                      <p className="text-xs text-slate-600 italic mb-3">{p.discipline}</p>
+                      <label className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">
+                        Rehabilitation questions (if attacked for cause)
+                      </label>
+                      <ul className="space-y-1 mt-1">
+                        {p.rehabilitationQuestions.map((q, qi) => (
+                          <li key={qi} className="text-sm text-emerald-900 flex items-start">
+                            <span className="text-emerald-500 mr-2 mt-0.5">{qi + 1}.</span>
+                            {q}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
               </CollapsibleSection>
             )}

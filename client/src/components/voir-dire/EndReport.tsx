@@ -24,8 +24,9 @@ import {
   AlertTriangle,
   Flag,
 } from 'lucide-react';
-import { CaseInfo, Juror, JurorResponse, VoirDireQuestion, FlagRollupResult } from '../../types';
+import { CaseInfo, Juror, JurorResponse, VoirDireQuestion, FlagRollupResult, PanelPrognosis } from '../../types';
 import { FlagRollupPanel } from './FlagRollupPanel';
+import { PanelPrognosisPanel } from './PanelPrognosisPanel';
 import * as api from '../../lib/api';
 import type { StrikeForCauseResult, BatsonAnalysisResult } from '../../lib/api';
 import { ApiErrorBanner } from '../ApiErrorBanner';
@@ -123,6 +124,10 @@ interface EndReportProps {
   batsonAnalyzedAt?: number | null;
   causeAnalyzedAt?: number | null;
   enrichmentDemographicFlags?: Record<string, string>;
+  panelPrognosis?: PanelPrognosis | null;
+  prognosisLoading?: boolean;
+  prognosisError?: any;
+  onRetryPrognosis?: () => void;
 }
 
 export function EndReport({
@@ -141,6 +146,10 @@ export function EndReport({
   batsonAnalyzedAt,
   causeAnalyzedAt,
   enrichmentDemographicFlags,
+  panelPrognosis,
+  prognosisLoading,
+  prognosisError,
+  onRetryPrognosis,
 }: EndReportProps) {
   const [sortField, setSortField] = useState<SortField>('number');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -859,6 +868,17 @@ export function EndReport({
                 ) : null}
               </div>
             )}
+          </section>
+        )}
+
+        {(panelPrognosis || prognosisLoading || prognosisError) && (
+          <section data-testid="section-panel-prognosis">
+            <PanelPrognosisPanel
+              prognosis={panelPrognosis || null}
+              loading={!!prognosisLoading}
+              error={prognosisError}
+              onRetry={onRetryPrognosis}
+            />
           </section>
         )}
 

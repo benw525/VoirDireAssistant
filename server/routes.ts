@@ -17,6 +17,9 @@ import { triggerEnrichmentForJurors, getEnrichedDataForCase, cancelEnrichmentFor
 import { getAnalysisTraits } from "./strategyModules";
 import { claudeJson, CLAUDE_SONNET, respondWithAnthropicError } from "./anthropic";
 import { computeCaseFlags, classifyResponseTopics, detectConcededOrWeakLiability } from "./jurorFlags";
+import { computePanelMetrics } from "./panelMetrics";
+import { generatePanelPrognosis } from "./panelPrognosis";
+import { DAMAGES_LOCK_IN_QUESTIONS } from "./voirDireContract";
 
 /**
  * When a new response or follow-up answer is recorded for a juror whose
@@ -47,11 +50,13 @@ const VALENCE_SET = [
   "Were you satisfied with how it was handled?",
 ];
 
-/** Lawful commitment-style set for conceded/weak-liability cases. */
-const COMMITMENT_SET = [
-  "If the evidence does not prove the collision caused the claimed injuries, could you return a verdict for the defendant?",
-  "Could you award only the medical bills you find were actually caused by the collision?",
-];
+/**
+ * Lawful commitment-style set for conceded/weak-liability cases.
+ * Single-sourced from the voir dire contract's canonical damages lock-ins
+ * (first two entries; the third is the treating-records question used only
+ * in the generated voir dire document).
+ */
+const COMMITMENT_SET = DAMAGES_LOCK_IN_QUESTIONS.slice(0, 2);
 
 async function generateFollowUpSuggestionsViaClaude(opts: {
   areaOfLaw: string;
@@ -501,7 +506,10 @@ export async function registerRoutes(
   app.patch("/api/cases/:id", async (req, res) => {
     const existing = await storage.getCase(req.params.id);
     if (!existing || existing.userId !== req.user!.id) return res.status(404).json({ message: "Case not found" });
-    const c = await storage.updateCase(req.params.id, req.body);
+    // panelPrognosis is server-written only (atomic merge in storage) — never
+    // let a client payload overwrite it.
+    const { panelPrognosis: _ignoredPanelPrognosis, ...patch } = (req.body ?? {}) as Record<string, unknown>;
+    const c = await storage.updateCase(req.params.id, patch);
 
     if (req.body.lastPhase !== undefined && req.body.lastPhase !== existing.lastPhase) {
       const activeSession = await storage.getActiveSessionByCase(req.params.id);
@@ -712,6 +720,95 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Flag rollup error:", err);
       res.status(500).json({ message: err.message || "Failed to compute flag rollup" });
+    }
+  });
+
+  // --- Panel prognosis (Lewis/Whigham Section 6) ---
+  // Generated when the panel loads and again when responses close. Densities,
+  // strike arithmetic, and the settlement-posture warning are computed in
+  // code; the model writes reasoning from those numbers only.
+  app.post("/api/cases/:caseId/panel-prognosis", async (req, res) => {
+    if (!(await verifyCaseOwnership(req, res))) return;
+    try {
+      const caseId = req.params.caseId;
+      const stageParse = z.object({ stage: z.enum(["panel_load", "responses_closed"]) }).safeParse(req.body);
+      if (!stageParse.success) {
+        return res.status(400).json({ message: "stage must be 'panel_load' or 'responses_closed'" });
+      }
+      const stage = stageParse.data.stage;
+      const c = await storage.getCase(caseId);
+      if (!c) return res.status(404).json({ message: "Case not found" });
+      const [jurorsForCase, responsesForCase, questionsForCase] = await Promise.all([
+        storage.getJurorsByCase(caseId),
+        storage.getResponsesByCase(caseId),
+        storage.getQuestionsByCase(caseId),
+      ]);
+      if (jurorsForCase.length === 0) {
+        return res.status(400).json({ message: "No jurors loaded for this case yet" });
+      }
+
+      const flagResult = computeCaseFlags({
+        caseSummary: c.summary || "",
+        jurors: jurorsForCase.map((j) => ({ number: j.number, name: j.name })),
+        questions: questionsForCase.map((q) => ({
+          questionNumber: q.questionNumber,
+          originalText: q.originalText,
+          rephrase: q.rephrase,
+        })),
+        responses: responsesForCase.map((r) => ({
+          jurorNumber: r.jurorNumber,
+          questionId: r.questionId,
+          responseText: r.responseText,
+          questionSummary: r.questionSummary,
+          followUps: r.followUps,
+        })),
+        courtDismissed: c.courtDismissed ?? [],
+      });
+
+      const metrics = computePanelMetrics({
+        jurors: jurorsForCase.map((j) => ({
+          number: j.number,
+          name: j.name,
+          occupation: j.occupation,
+          employer: j.employer,
+        })),
+        flags: flagResult.flags.map((f) => ({ jurorNumber: f.jurorNumber, topicId: f.topic, resolved: f.resolved })),
+        courtDismissed: c.courtDismissed ?? [],
+      });
+
+      const flagLines = flagResult.flags.map(
+        (f) => `#${f.jurorNumber} ${f.jurorName}: ${f.label}${f.resolved ? " (resolved)" : " (UNRESOLVED)"}`,
+      );
+
+      const prognosis = await generatePanelPrognosis({
+        stage,
+        caseInfo: {
+          areaOfLaw: c.areaOfLaw,
+          summary: c.summary,
+          side: c.side,
+          favorableTraits: c.favorableTraits || [],
+          riskTraits: c.riskTraits || [],
+        },
+        jurors: jurorsForCase.map((j) => ({
+          number: j.number,
+          name: j.name,
+          sex: j.sex,
+          race: j.race,
+          birthDate: j.birthDate,
+          occupation: j.occupation,
+          employer: j.employer,
+        })),
+        metrics,
+        flagLines,
+        courtDismissed: c.courtDismissed ?? [],
+      });
+
+      await storage.mergePanelPrognosis(caseId, stage === "panel_load" ? "panelLoad" : "responsesClosed", prognosis);
+
+      res.json(prognosis);
+    } catch (err: any) {
+      console.error("Panel prognosis error:", err);
+      respondWithAnthropicError(res, err, "Failed to generate panel prognosis");
     }
   });
 

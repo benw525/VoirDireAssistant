@@ -93,6 +93,59 @@ export interface VoirDireDocument {
     primaryConcern: string;
     recommendation: string;
   }>;
+  protectList: Array<{
+    jurorNumber: number;
+    jurorName: string;
+    whyFavorable: string;
+    discipline: string;
+    rehabilitationQuestions: string[];
+  }>;
+  damagesLockIns: {
+    applicable: boolean;
+    questions: string[];
+    lockInFirstJurors: Array<{ jurorNumber: number; jurorName: string; why: string }>;
+    groupRehabWarning: string;
+  };
+}
+
+// --- Panel prognosis (Lewis/Whigham Section 6) ---
+// Metrics are computed deterministically server-side; the AI writes the
+// reasoning (assets, strike targets, best-case jury, narrative) from them.
+export interface PanelMetrics {
+  panelSize: number;
+  dismissedCount: number;
+  jurySize: number;
+  strikesPerSide: number;
+  claimantHistory: { count: number; density: number; jurorNumbers: number[] };
+  clinicalAdvocacy: {
+    count: number;
+    density: number;
+    matches: Array<{ jurorNumber: number; jurorName: string; category: 'clinical' | 'advocacy'; matched: string }>;
+  };
+  unresolvedFlagCount: number;
+  adverseSurvivalFloor: number;
+  settlementPostureWarning: string | null;
+}
+
+export type PrognosisStage = 'panel_load' | 'responses_closed';
+
+export interface PanelPrognosis {
+  stage: PrognosisStage;
+  generatedAt: number;
+  metrics: PanelMetrics;
+  assets: Array<{ jurorNumber: number; jurorName: string; why: string; fragility: string }>;
+  strikeTargets: {
+    ours: Array<{ jurorNumber: number; jurorName: string; reason: string }>;
+    theirs: Array<{ jurorNumber: number; jurorName: string; reason: string }>;
+  };
+  bestCaseSeatedJury: { jurorNumbers: number[]; assessment: string };
+  narrative: string;
+  settlementPostureWarning: string | null;
+}
+
+export interface PanelPrognosisBundle {
+  panelLoad?: PanelPrognosis | null;
+  responsesClosed?: PanelPrognosis | null;
 }
 
 export interface SeatingConfig {
@@ -130,6 +183,7 @@ export interface SavedCase {
   demographicsChangedAt?: number | null;
   batsonAnalyzedAt?: number | null;
   causeAnalyzedAt?: number | null;
+  panelPrognosis?: PanelPrognosisBundle | null;
 }
 // --- Unresolved-flag queue (Lewis/Whigham Section 5) ---
 export interface FlagSource {

@@ -9,6 +9,8 @@ import {
   JurorResponse,
   SavedCase,
   SeatingConfig,
+  PanelPrognosisBundle,
+  PrognosisStage,
 } from '../types';
 import { Sidebar } from '../components/voir-dire/Sidebar';
 import { WelcomeScreen } from '../components/voir-dire/WelcomeScreen';
@@ -115,6 +117,9 @@ export default function VoirDireApp() {
   const [demographicsChangedAt, setDemographicsChangedAt] = useState<number | null>(null);
   const [batsonAnalyzedAt, setBatsonAnalyzedAt] = useState<number | null>(null);
   const [causeAnalyzedAt, setCauseAnalyzedAt] = useState<number | null>(null);
+  const [panelPrognosis, setPanelPrognosis] = useState<PanelPrognosisBundle | null>(null);
+  const [prognosisLoading, setPrognosisLoading] = useState<PrognosisStage | null>(null);
+  const [prognosisError, setPrognosisError] = useState<any>(null);
   const [seatingConfig, setSeatingConfig] = useState<SeatingConfig | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
@@ -191,6 +196,9 @@ export default function VoirDireApp() {
       setBatsonAnalyzedAt(fullCase.batsonAnalyzedAt || null);
       setCauseAnalyzedAt(fullCase.causeAnalyzedAt || null);
       setSeatingConfig(fullCase.seatingConfig || null);
+      setPanelPrognosis(fullCase.panelPrognosis || null);
+      setPrognosisLoading(null);
+      setPrognosisError(null);
       setTriggerAutoAnalyze(false);
     } catch (err) {
       console.error('Failed to load case:', err);
@@ -222,6 +230,9 @@ export default function VoirDireApp() {
     setMattrmindrCaseId(null);
     setSavedCourtDismissed([]);
     setSeatingConfig(null);
+    setPanelPrognosis(null);
+    setPrognosisLoading(null);
+    setPrognosisError(null);
     setTriggerAutoAnalyze(false);
     setCurrentPhase(1);
   };
@@ -275,12 +286,37 @@ export default function VoirDireApp() {
     }
   };
 
+  // Panel prognosis (Lewis/Whigham Section 6): generated when the panel
+  // loads and again when responses close. Requires jurors persisted
+  // server-side first — the server computes densities/strike arithmetic
+  // from saved panel data.
+  const runPanelPrognosis = useCallback(async (stage: PrognosisStage, caseId?: string | null) => {
+    const id = caseId ?? activeCaseId;
+    if (!id) return;
+    setPrognosisLoading(stage);
+    setPrognosisError(null);
+    try {
+      const prognosis = await api.generatePanelPrognosis(id, stage);
+      setPanelPrognosis(prev => ({
+        ...(prev || {}),
+        [stage === 'panel_load' ? 'panelLoad' : 'responsesClosed']: prognosis,
+      }));
+    } catch (err) {
+      console.error('Panel prognosis failed:', err);
+      setPrognosisError(err);
+    } finally {
+      setPrognosisLoading(null);
+    }
+  }, [activeCaseId]);
+
   const handleJurorsLoaded = async (j: Juror[]) => {
     setJurors(j);
     if (j.length > 0) markPhaseComplete(3);
     if (activeCaseId) {
       try {
         await api.saveJurors(activeCaseId, j);
+        // Panel just loaded — generate the panel-load prognosis in the background.
+        if (j.length > 0) void runPanelPrognosis('panel_load', activeCaseId);
       } catch (err) {
         console.error('Failed to save jurors:', err);
       }
@@ -334,6 +370,24 @@ export default function VoirDireApp() {
     ));
   }, []);
 
+  // In-flight persistence tracking: the responses_closed prognosis must not
+  // fire while response/follow-up/juror saves are still being written, or the
+  // server would compute it from an incomplete record.
+  const pendingSavesRef = useRef<Promise<unknown>[]>([]);
+  const trackSave = useCallback(function trackSave<T>(p: Promise<T>): Promise<T> {
+    pendingSavesRef.current.push(p.then(() => undefined, () => undefined));
+    return p;
+  }, []);
+  const flushPendingSaves = useCallback(async () => {
+    // Loop: a save that settles may have queued another (e.g. follow-up after
+    // its parent response) before we snapshot the next batch.
+    while (pendingSavesRef.current.length > 0) {
+      const batch = pendingSavesRef.current;
+      pendingSavesRef.current = [];
+      await Promise.all(batch);
+    }
+  }, []);
+
   const handleRecordResponse = async (
     response: Omit<JurorResponse, 'id' | 'timestamp'>
   ) => {
@@ -347,7 +401,7 @@ export default function VoirDireApp() {
 
     if (activeCaseId) {
       try {
-        const saved = await api.saveResponse(activeCaseId, newResponse);
+        const saved = await trackSave(api.saveResponse(activeCaseId, newResponse));
         if (saved && saved.id) {
           setResponses(prev => prev.map(r => r.id === newResponse.id ? { ...r, id: saved.id } : r));
         }
@@ -403,7 +457,7 @@ export default function VoirDireApp() {
       )
     );
     try {
-      await api.addFollowUp(responseId, followUp);
+      await trackSave(api.addFollowUp(responseId, followUp));
     } catch (err) {
       console.error('Failed to save follow-up:', err);
     }
@@ -424,7 +478,7 @@ export default function VoirDireApp() {
     setJurors(prev => prev.map(j => (j.number === jurorNumber ? { ...j, ...updates } : j)));
     if (activeCaseId) {
       try {
-        await api.updateJurorOnServer(activeCaseId, jurorNumber, updates);
+        await trackSave(api.updateJurorOnServer(activeCaseId, jurorNumber, updates));
       } catch (err) {
         console.error('Failed to update juror:', err);
       }
@@ -525,6 +579,10 @@ export default function VoirDireApp() {
             onJurorsLoaded={handleJurorsLoaded}
             onProceed={() => proceedToPhase(4)}
             generateSampleJurors={generateSampleJurors}
+            panelPrognosis={panelPrognosis?.panelLoad || null}
+            prognosisLoading={prognosisLoading === 'panel_load'}
+            prognosisError={prognosisError}
+            onRetryPrognosis={activeCaseId ? () => runPanelPrognosis('panel_load') : undefined}
           />
         );
       case 4:
@@ -541,7 +599,20 @@ export default function VoirDireApp() {
               setJurors(prev => prev.map(j => j.number === jurorNumber ? { ...j, notes } : j));
             }}
             onAddFollowUp={handleAddFollowUp}
-            onProceed={() => { setTriggerAutoAnalyze(true); proceedToPhase(5); }}
+            onProceed={() => {
+              setTriggerAutoAnalyze(true);
+              // Responses just closed — regenerate the prognosis with raise/flag data.
+              if (activeCaseId && jurors.length > 0) {
+                const caseId = activeCaseId;
+                void (async () => {
+                  // Let in-flight response/follow-up/juror saves settle so the
+                  // responses_closed prognosis reads the full record.
+                  await flushPendingSaves();
+                  await runPanelPrognosis('responses_closed', caseId);
+                })();
+              }
+              proceedToPhase(5);
+            }}
             onUpdateJuror={handleUpdateJuror}
             caseInfo={caseInfo || { name: '', areaOfLaw: '', summary: '', side: 'plaintiff', favorableTraits: [], riskTraits: [] }}
             caseId={activeCaseId}
@@ -580,6 +651,10 @@ export default function VoirDireApp() {
             demographicsChangedAt={demographicsChangedAt}
             batsonAnalyzedAt={batsonAnalyzedAt}
             causeAnalyzedAt={causeAnalyzedAt}
+            panelPrognosis={panelPrognosis?.responsesClosed || panelPrognosis?.panelLoad || null}
+            prognosisLoading={prognosisLoading === 'responses_closed'}
+            prognosisError={prognosisError}
+            onRetryPrognosis={activeCaseId ? () => runPanelPrognosis('responses_closed') : undefined}
           />
         );
       default:

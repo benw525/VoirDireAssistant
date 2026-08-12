@@ -97,6 +97,39 @@ function buildPlainText(
     });
   }
 
+  if (doc.damagesLockIns && doc.damagesLockIns.applicable) {
+    lines.push('DAMAGES LOCK-INS (conceded/weak liability)');
+    lines.push(subDivider);
+    doc.damagesLockIns.questions.forEach((q, i) => {
+      lines.push(`${i + 1}. ${q}`);
+    });
+    if (doc.damagesLockIns.lockInFirstJurors.length > 0) {
+      lines.push('');
+      lines.push('Lock in FIRST — before opposing counsel rehabilitates:');
+      doc.damagesLockIns.lockInFirstJurors.forEach((j) => {
+        lines.push(`   Juror #${j.jurorNumber} — ${j.jurorName}: ${j.why}`);
+      });
+    }
+    lines.push('');
+    lines.push(`WARNING: ${doc.damagesLockIns.groupRehabWarning}`);
+    lines.push('');
+  }
+
+  if (doc.protectList && doc.protectList.length > 0) {
+    lines.push(`PROTECT LIST (${doc.protectList.length} jurors)`);
+    lines.push(subDivider);
+    doc.protectList.forEach((p) => {
+      lines.push(`Juror #${p.jurorNumber} — ${p.jurorName}`);
+      lines.push(`   Why favorable: ${p.whyFavorable}`);
+      lines.push(`   Discipline: ${p.discipline}`);
+      lines.push('   Rehabilitation questions (if attacked for cause):');
+      p.rehabilitationQuestions.forEach((q, i) => {
+        lines.push(`     ${i + 1}. ${q}`);
+      });
+      lines.push('');
+    });
+  }
+
   lines.push(divider);
   lines.push(`Generated on ${new Date().toLocaleDateString()}`);
 
@@ -293,6 +326,42 @@ export function exportAsPdf(
     });
   }
 
+  if (doc.damagesLockIns && doc.damagesLockIns.applicable) {
+    addDivider();
+    addTitle('Damages Lock-Ins (Conceded/Weak Liability)', 14);
+    addSpacer(2);
+    doc.damagesLockIns.questions.forEach((q, i) => {
+      addBody(`${i + 1}. ${q}`);
+    });
+    if (doc.damagesLockIns.lockInFirstJurors.length > 0) {
+      addSpacer(2);
+      addSubtitle('Lock in FIRST — before opposing counsel rehabilitates');
+      doc.damagesLockIns.lockInFirstJurors.forEach((j) => {
+        addBody(`Juror #${j.jurorNumber} — ${j.jurorName}: ${j.why}`, 4);
+      });
+    }
+    addSpacer(2);
+    addBody(`WARNING: ${doc.damagesLockIns.groupRehabWarning}`);
+    addSpacer();
+  }
+
+  if (doc.protectList && doc.protectList.length > 0) {
+    addDivider();
+    addTitle(`Protect List (${doc.protectList.length})`, 14);
+    addSpacer(2);
+    doc.protectList.forEach((p) => {
+      checkPage(24);
+      addSubtitle(`Juror #${p.jurorNumber} — ${p.jurorName}`);
+      addBody(`Why favorable: ${p.whyFavorable}`, 4);
+      addBody(`Discipline: ${p.discipline}`, 4);
+      addBody('Rehabilitation questions (if attacked for cause):', 4);
+      p.rehabilitationQuestions.forEach((q, i) => {
+        addBody(`${i + 1}. ${q}`, 8);
+      });
+      addSpacer(3);
+    });
+  }
+
   addDivider();
   pdf.setFont('helvetica', 'italic');
   pdf.setFontSize(8);
@@ -403,6 +472,35 @@ export async function exportAsWord(
       children.push(body(`Risk Level: ${sg.riskLevel}`, { indent: 360 }));
       children.push(body(`Concern: ${sg.primaryConcern}`, { indent: 360 }));
       children.push(body(`Recommendation: ${sg.recommendation}`, { indent: 360 }));
+    });
+  }
+
+  if (doc.damagesLockIns && doc.damagesLockIns.applicable) {
+    children.push(divider());
+    children.push(heading('Damages Lock-Ins (Conceded/Weak Liability)', HeadingLevel.HEADING_2));
+    doc.damagesLockIns.questions.forEach((q, i) => {
+      children.push(body(`${i + 1}. ${q}`));
+    });
+    if (doc.damagesLockIns.lockInFirstJurors.length > 0) {
+      children.push(body('Lock in FIRST — before opposing counsel rehabilitates:', { bold: true }));
+      doc.damagesLockIns.lockInFirstJurors.forEach((j) => {
+        children.push(body(`Juror #${j.jurorNumber} — ${j.jurorName}: ${j.why}`, { indent: 360 }));
+      });
+    }
+    children.push(body(`WARNING: ${doc.damagesLockIns.groupRehabWarning}`, { bold: true }));
+  }
+
+  if (doc.protectList && doc.protectList.length > 0) {
+    children.push(divider());
+    children.push(heading(`Protect List (${doc.protectList.length})`, HeadingLevel.HEADING_2));
+    doc.protectList.forEach((p) => {
+      children.push(body(`Juror #${p.jurorNumber} — ${p.jurorName}`, { bold: true }));
+      children.push(body(`Why favorable: ${p.whyFavorable}`, { indent: 360 }));
+      children.push(body(`Discipline: ${p.discipline}`, { indent: 360 }));
+      children.push(body('Rehabilitation questions (if attacked for cause):', { italic: true, indent: 360 }));
+      p.rehabilitationQuestions.forEach((q, i) => {
+        children.push(body(`${i + 1}. ${q}`, { indent: 720 }));
+      });
     });
   }
 
