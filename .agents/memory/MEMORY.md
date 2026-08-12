@@ -1,3 +1,4 @@
 - [Claude model quirks](claude-model-quirks.md) — 5-series Claude deprecates `temperature`; probe new models + re-run simulate-trial harness on every model swap.
 - [Analysis fail-loud contract](analysis-fail-loud-contract.md) — no silent AI defaults; ALWAYS-directives enforced in code not prompts; stale-marking on answer recording; exports gated by integrity check.
 - [jsonb merge vs JSON-null defaults](jsonb-merge-null-default.md) — guard atomic `||` merges with jsonb_typeof; drizzle-kit push can default jsonb columns to JSON null, turning merges into arrays.
+- [Enrichment confidence gating](enrichment-confidence-gating.md) — auto-confirm needs API-cited URL + name-variant overlap; smoke-test lead gating via evidence snippets, not names (common-name collisions).

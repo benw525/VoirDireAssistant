@@ -874,6 +874,17 @@ export async function pushJuryAnalysisToMattrMindr(
 //   formData.append('file', file);
 //   const res = await fetch(`${API_BASE}/import-enrichment/${caseId}`, {
 //     method: 'POST',
+export interface CandidateMatchView {
+  id: string;
+  category: 'registry' | 'news' | 'social';
+  name: string;
+  confidence: 'confirmed' | 'probable' | 'possible';
+  discriminator: string;
+  evidence: string;
+  sourceUrl: string | null;
+  decision: 'confirmed' | 'rejected' | null;
+}
+
 export interface EnrichmentStatusItem {
   jurorNumber: number;
   jurorName: string;
@@ -882,6 +893,8 @@ export interface EnrichmentStatusItem {
   createdAt: number;
   completedAt: number | null;
   hasData: boolean;
+  matches?: CandidateMatchView[];
+  leads?: { confirmed: number; pendingReview: number };
 }
 
 export interface EnrichmentStatusResponse {
@@ -893,11 +906,27 @@ export interface EnrichmentStatusResponse {
     completed: number;
     failed: number;
     error: number;
+    pendingReview?: number;
+    docketAvailable?: boolean;
+    docketNote?: string | null;
   };
 }
 
 export async function getEnrichmentStatus(caseId: string): Promise<EnrichmentStatusResponse> {
   return fetchJson<EnrichmentStatusResponse>(`${API_BASE}/cases/${caseId}/enrichment-status`);
+}
+
+export async function postMatchDecision(
+  caseId: string,
+  enrichmentId: string,
+  matchId: string,
+  decision: 'confirmed' | 'rejected' | 'clear'
+): Promise<{ candidateMatches: CandidateMatchView[]; text: string }> {
+  return fetchJson(`${API_BASE}/cases/${caseId}/enrichments/${enrichmentId}/match-decision`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ matchId, decision }),
+  });
 }
 
 export async function getEnrichmentData(caseId: string): Promise<Record<string, Record<string, any>>> {

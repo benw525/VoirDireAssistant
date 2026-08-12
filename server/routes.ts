@@ -13,7 +13,8 @@ import { broadcastToSession, disconnectAllInSession, getConnectedParticipants } 
 import { loginToMattrMindr, verifyMattrMindrToken, fetchMattrMindrCases, fetchMattrMindrCase, pushJuryAnalysis } from "./mattrmindr";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalSession, handleWebhook } from "./billing";
-import { triggerEnrichmentForJurors, getEnrichedDataForCase, cancelEnrichmentForCase } from "./perplexityEnrichment";
+import { triggerEnrichmentForJurors, getEnrichedDataForCase, cancelEnrichmentForCase, applyMatchDecision, type EnrichedDataV2 } from "./perplexityEnrichment";
+import { getDocketCapability } from "./alacourtDocket";
 import { getAnalysisTraits } from "./strategyModules";
 import { claudeJson, CLAUDE_SONNET, respondWithAnthropicError } from "./anthropic";
 import { computeCaseFlags, classifyResponseTopics, detectConcededOrWeakLiability } from "./jurorFlags";
@@ -361,7 +362,7 @@ export async function registerRoutes(
 
   app.get("/api/cases/:caseId/enrichment-status", authMiddleware, async (req, res) => {
     try {
-      const { caseId } = req.params;
+      const caseId = String(req.params.caseId);
       const caseRecord = await storage.getCase(caseId);
       if (!caseRecord || caseRecord.userId !== req.user!.id) {
         return res.status(404).json({ message: "Case not found" });
@@ -374,15 +375,36 @@ export async function registerRoutes(
         jurorNamesById[j.id] = j.name;
         jurorNamesByNumber[j.number] = j.name;
       }
-      const allItems = enrichments.map(e => ({
-        jurorNumber: e.jurorNumber,
-        jurorName: (e.jurorId && jurorNamesById[e.jurorId]) || jurorNamesByNumber[e.jurorNumber] || `Juror #${e.jurorNumber}`,
-        status: e.status,
-        enrichmentId: e.enrichmentId,
-        createdAt: e.createdAt,
-        completedAt: e.completedAt,
-        hasData: !!(e.enrichedData && (e.enrichedData as any).text),
-      }));
+      const allItems = enrichments.map(e => {
+        const ed: any = e.enrichedData || {};
+        const matches = Array.isArray(ed.candidateMatches)
+          ? ed.candidateMatches.map((m: any) => ({
+              id: m.id,
+              category: m.category,
+              name: m.name,
+              confidence: m.confidence,
+              discriminator: m.discriminator,
+              evidence: m.evidence,
+              sourceUrl: m.sourceUrl ?? null,
+              decision: m.decision ?? null,
+            }))
+          : [];
+        const leads = {
+          confirmed: matches.filter((m: any) => m.decision === "confirmed" || (m.confidence === "confirmed" && m.decision !== "rejected")).length,
+          pendingReview: matches.filter((m: any) => !m.decision && m.confidence !== "confirmed").length,
+        };
+        return {
+          jurorNumber: e.jurorNumber,
+          jurorName: (e.jurorId && jurorNamesById[e.jurorId]) || jurorNamesByNumber[e.jurorNumber] || `Juror #${e.jurorNumber}`,
+          status: e.status,
+          enrichmentId: e.enrichmentId,
+          createdAt: e.createdAt,
+          completedAt: e.completedAt,
+          hasData: !!(e.enrichedData && (e.enrichedData as any).text),
+          matches,
+          leads,
+        };
+      });
       const statusPriority: Record<string, number> = { completed: 0, dispatched: 1, pending: 2, failed: 3, error: 4, cancelled: 5 };
       allItems.sort((a, b) => (statusPriority[a.status] ?? 99) - (statusPriority[b.status] ?? 99));
       const seenNames = new Set<string>();
@@ -392,6 +414,7 @@ export async function registerRoutes(
         seenNames.add(key);
         return true;
       });
+      const docket = getDocketCapability();
       const summary = {
         total: items.length,
         pending: items.filter(i => i.status === "pending").length,
@@ -399,6 +422,9 @@ export async function registerRoutes(
         completed: items.filter(i => i.status === "completed").length,
         failed: items.filter(i => i.status === "failed").length,
         error: items.filter(i => i.status === "error").length,
+        pendingReview: items.reduce((acc, i) => acc + (i.leads?.pendingReview || 0), 0),
+        docketAvailable: docket.available,
+        docketNote: docket.available ? null : docket.note,
       };
       res.json({ items, summary });
     } catch (err: any) {
@@ -409,7 +435,7 @@ export async function registerRoutes(
 
   app.get("/api/cases/:caseId/enrichment-data", authMiddleware, async (req, res) => {
     try {
-      const { caseId } = req.params;
+      const caseId = String(req.params.caseId);
       const caseRecord = await storage.getCase(caseId);
       if (!caseRecord || caseRecord.userId !== req.user!.id) {
         return res.status(404).json({ message: "Case not found" });
@@ -422,9 +448,44 @@ export async function registerRoutes(
     }
   });
 
+  // Attorney one-tap confirm/reject of a candidate match. Confirming promotes
+  // the lead into the analysis-facing text; rejecting removes it everywhere.
+  app.post("/api/cases/:caseId/enrichments/:enrichmentId/match-decision", authMiddleware, async (req, res) => {
+    try {
+      const caseId = String(req.params.caseId);
+      const enrichmentId = String(req.params.enrichmentId);
+      const caseRecord = await storage.getCase(caseId);
+      if (!caseRecord || caseRecord.userId !== req.user!.id) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+      const parsed = z.object({
+        matchId: z.string().min(1),
+        decision: z.enum(["confirmed", "rejected", "clear"]),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid decision payload" });
+
+      const enrichment = await storage.getJurorEnrichmentById(enrichmentId);
+      if (!enrichment || enrichment.caseId !== caseId) {
+        return res.status(404).json({ message: "Enrichment not found" });
+      }
+      const data = enrichment.enrichedData as EnrichedDataV2 | null;
+      if (!data || !Array.isArray(data.candidateMatches)) {
+        return res.status(409).json({ message: "This enrichment has no reviewable candidate matches" });
+      }
+      const updated = applyMatchDecision(data, parsed.data.matchId, parsed.data.decision);
+      if (!updated) return res.status(404).json({ message: "Candidate match not found" });
+
+      await storage.updateJurorEnrichment(enrichmentId, { enrichedData: updated as unknown as Record<string, any> });
+      res.json({ candidateMatches: updated.candidateMatches, text: updated.text });
+    } catch (err: any) {
+      console.error("[Enrichment] Match decision error:", err);
+      res.status(500).json({ message: "Failed to record match decision" });
+    }
+  });
+
   app.post("/api/cases/:caseId/stop-enrichment", authMiddleware, async (req, res) => {
     try {
-      const { caseId } = req.params;
+      const caseId = String(req.params.caseId);
       const caseRecord = await storage.getCase(caseId);
       if (!caseRecord || caseRecord.userId !== req.user!.id) {
         return res.status(404).json({ message: "Case not found" });
