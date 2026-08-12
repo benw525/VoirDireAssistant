@@ -1044,3 +1044,7 @@ export async function collabSuggestFollowups(questionText: string, responseText:
   return result.suggestions;
 }
 
+
+export async function getFlagRollup(caseId: string): Promise<import('../types').FlagRollupResult> {
+  return fetchJson(`${API_BASE}/cases/${caseId}/flag-rollup`);
+}

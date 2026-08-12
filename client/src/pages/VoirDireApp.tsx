@@ -674,6 +674,12 @@ export default function VoirDireApp() {
             caseInfo={caseInfo}
             jurors={jurors}
             currentPhase={currentPhase}
+            activeCaseId={activeCaseId}
+            moduleStatus={{
+              causeRun: !!(savedStrikesForCause && savedStrikesForCause.length > 0),
+              batsonRun: !!savedBatsonAnalysis,
+            }}
+            dataRevision={responses.length + responses.reduce((n, r) => n + (r.followUps?.length || 0), 0)}
           />
         )}
       </AnimatePresence>

@@ -22,8 +22,10 @@ import {
   ShieldQuestion,
   ShieldOff,
   AlertTriangle,
+  Flag,
 } from 'lucide-react';
-import { CaseInfo, Juror, JurorResponse, VoirDireQuestion } from '../../types';
+import { CaseInfo, Juror, JurorResponse, VoirDireQuestion, FlagRollupResult } from '../../types';
+import { FlagRollupPanel } from './FlagRollupPanel';
 import * as api from '../../lib/api';
 import type { StrikeForCauseResult, BatsonAnalysisResult } from '../../lib/api';
 import { ApiErrorBanner } from '../ApiErrorBanner';
@@ -171,6 +173,28 @@ export function EndReport({
   const [isAnalyzingBatson, setIsAnalyzingBatson] = useState(false);
   const [batsonError, setBatsonError] = useState<any>(null);
   const [batsonCollapsed, setBatsonCollapsed] = useState(false);
+  // Unresolved-flag queue (Lewis/Whigham Section 5): shown automatically on
+  // entry to the strike phase — an unvalenced raise is unknown risk, and no
+  // strike decision should be made while case-critical flags sit unresolved.
+  const [flagRollup, setFlagRollup] = useState<FlagRollupResult | null>(null);
+  const [flagRollupError, setFlagRollupError] = useState('');
+  const [flagRollupCollapsed, setFlagRollupCollapsed] = useState(false);
+  // Bumped after a court-dismissal change is PERSISTED, so the queue is
+  // recomputed from saved data and dismissed jurors drop out immediately.
+  const [flagRollupVersion, setFlagRollupVersion] = useState(0);
+
+  useEffect(() => {
+    // Clear stale data first so a case switch never shows the previous
+    // case's queue while the new fetch is in flight.
+    setFlagRollup(null);
+    setFlagRollupError('');
+    if (!activeCaseId) return;
+    let cancelled = false;
+    api.getFlagRollup(activeCaseId)
+      .then(d => { if (!cancelled) { setFlagRollup(d); setFlagRollupError(''); } })
+      .catch(e => { if (!cancelled) setFlagRollupError(e?.message || 'Failed to load the unresolved-flag rollup'); });
+    return () => { cancelled = true; };
+  }, [activeCaseId, flagRollupVersion]);
   // Preview-mode Batson (suggested strike order, before any strike is
   // exercised). Kept SEPARATE from batsonResult: a preview never persists,
   // never resolves the 'no-batson' integrity issue, and never auto-pushes.
@@ -227,7 +251,9 @@ export function EndReport({
         setDefenseStrikes(d => { const nd = new Set(d); nd.delete(jurorNumber); return nd; });
       }
       if (activeCaseId) {
-        api.updateCase(activeCaseId, { courtDismissed: Array.from(next) }).catch(console.error);
+        api.updateCase(activeCaseId, { courtDismissed: Array.from(next) })
+          .then(() => setFlagRollupVersion(v => v + 1))
+          .catch(console.error);
       }
       return next;
     });
@@ -801,6 +827,41 @@ export function EndReport({
       </div>
 
       <div className="flex-1 overflow-y-auto space-y-8 pb-12 print-content">
+        {(flagRollupError || (flagRollup && flagRollup.totalUnresolved > 0)) && (
+          <section className="bg-amber-50 rounded-2xl border border-amber-300 shadow-sm p-6" data-testid="section-flag-rollup">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between text-left"
+              onClick={() => setFlagRollupCollapsed(c => !c)}
+              data-testid="button-toggle-flag-rollup"
+            >
+              <h3 className="text-lg font-bold text-amber-900 flex items-center">
+                <Flag className="w-5 h-5 mr-2 text-amber-600" />
+                Unresolved Flags Before Strikes
+                {flagRollup && (
+                  <span className="ml-2 text-sm font-semibold text-amber-700">({flagRollup.totalUnresolved})</span>
+                )}
+              </h3>
+              {flagRollupCollapsed ? (
+                <ChevronDown className="w-5 h-5 text-amber-700" />
+              ) : (
+                <ChevronUp className="w-5 h-5 text-amber-700" />
+              )}
+            </button>
+            {!flagRollupCollapsed && (
+              <div className="mt-4">
+                {flagRollupError ? (
+                  <div className="text-sm text-red-700" data-testid="text-flag-rollup-error">
+                    {flagRollupError} — do not assume the panel is clean; open the rollup from the recording phase or retry.
+                  </div>
+                ) : flagRollup ? (
+                  <FlagRollupPanel data={flagRollup} />
+                ) : null}
+              </div>
+            )}
+          </section>
+        )}
+
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h3 className="text-lg font-bold text-slate-900 flex items-center mb-4 border-b border-slate-100 pb-4">
             <Scale className="w-5 h-5 mr-2 text-slate-500" />

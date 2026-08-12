@@ -26,3 +26,8 @@ Rule: preview-mode Batson runs (suggested strike order, zero strikes exercised) 
 Rule: when a structured field is required only for some entries (e.g. lock-in questions only for "Possible" cause ratings), a zod .default() silently swallows the violation — validate the condition post-parse, retry once with a targeted correction suffix, then throw AIOutputError.
 **Why:** code review caught .default([]) turning "model ignored a REQUIRED field" into an empty list the UI renders as nothing.
 **How to apply:** every schema default on LLM output needs the question "is absence legitimate for ALL entries?"; if not, add category-aware post-validation.
+
+## ALWAYS-directives are enforced in code, not prompts (added 2026-08-12)
+Rule: when a requirement says output must ALWAYS contain specific content, compute that content deterministically outside the model and merge it in code; model output is optional enrichment. On model failure, return the deterministic content (loudly logged) if it applies; otherwise rethrow — never fabricate.
+**Why:** prompt-level "always include X" is model compliance, not a guarantee — and merging only after a successful model call means an AI outage erases the guaranteed content entirely.
+**How to apply:** every "must always include/behave" product rule needs a code path that works when the AI path is down.

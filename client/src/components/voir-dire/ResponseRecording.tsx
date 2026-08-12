@@ -29,9 +29,11 @@ import {
   Link2Off,
   Wifi,
   WifiOff,
+  Flag,
 } from 'lucide-react';
-import { Juror, VoirDireQuestion, JurorResponse, CaseInfo, SeatingConfig } from '../../types';
+import { Juror, VoirDireQuestion, JurorResponse, CaseInfo, SeatingConfig, FlagRollupResult } from '../../types';
 import { JurySeatingGrid } from './JurySeatingGrid';
+import { FlagRollupPanel } from './FlagRollupPanel';
 import { ReactionText } from './ReactionText';
 import * as api from '../../lib/api';
 import { useCollaborativeSession } from '../../hooks/useCollaborativeSession';
@@ -113,6 +115,10 @@ export function ResponseRecording({
   const [expandedMarked, setExpandedMarked] = useState<Record<string, boolean>>({});
   const [showMarkedSection, setShowMarkedSection] = useState(true);
   const [showNotesPrompt, setShowNotesPrompt] = useState(false);
+  const [showFlagRollup, setShowFlagRollup] = useState(false);
+  const [flagRollup, setFlagRollup] = useState<FlagRollupResult | null>(null);
+  const [flagRollupLoading, setFlagRollupLoading] = useState(false);
+  const [flagRollupError, setFlagRollupError] = useState('');
   const [notesWalkthroughIdx, setNotesWalkthroughIdx] = useState(0);
   const [walkthroughNotes, setWalkthroughNotes] = useState<Record<number, string>>({});
   const [walkthroughTags, setWalkthroughTags] = useState<Record<number, string[]>>({});
@@ -542,6 +548,29 @@ export function ResponseRecording({
               Share Session
             </button>
           )}
+          <button
+            onClick={async () => {
+              setShowFlagRollup(true);
+              if (!caseId) {
+                setFlagRollupError('Save the case first to compute the flag rollup.');
+                return;
+              }
+              setFlagRollupLoading(true);
+              setFlagRollupError('');
+              try {
+                setFlagRollup(await api.getFlagRollup(caseId));
+              } catch (e: any) {
+                setFlagRollupError(e?.message || 'Failed to load the flag rollup');
+              } finally {
+                setFlagRollupLoading(false);
+              }
+            }}
+            data-testid="button-flag-rollup"
+            className="inline-flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-800 border border-amber-200 text-sm font-medium rounded-lg hover:bg-amber-100 transition-colors"
+          >
+            <Flag className="w-4 h-4" />
+            Unresolved Flags
+          </button>
           <button
             onClick={() => setShowNotesPrompt(true)}
             data-testid="button-proceed-review"
@@ -1571,6 +1600,43 @@ export function ResponseRecording({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {showFlagRollup && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          data-testid="modal-flag-rollup"
+          onClick={() => setShowFlagRollup(false)}
+        >
+          <div
+            className="bg-amber-50 border border-amber-200 rounded-2xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Flag className="w-5 h-5 text-amber-600" />
+                Unresolved Flag Queue
+              </h3>
+              <button
+                onClick={() => setShowFlagRollup(false)}
+                data-testid="button-close-flag-rollup"
+                className="p-1 rounded hover:bg-amber-100"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+            {flagRollupLoading ? (
+              <div className="flex items-center gap-2 text-slate-600 text-sm">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Deriving flags from recorded responses…
+              </div>
+            ) : flagRollupError ? (
+              <div className="text-sm text-red-700" data-testid="text-flag-rollup-error">{flagRollupError}</div>
+            ) : flagRollup ? (
+              <FlagRollupPanel data={flagRollup} />
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

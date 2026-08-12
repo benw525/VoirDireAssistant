@@ -16,6 +16,7 @@ import { canCreateCase, getUserBillingInfo, createCheckoutSession, createPortalS
 import { triggerEnrichmentForJurors, getEnrichedDataForCase, cancelEnrichmentForCase } from "./perplexityEnrichment";
 import { getAnalysisTraits } from "./strategyModules";
 import { claudeJson, CLAUDE_SONNET, respondWithAnthropicError } from "./anthropic";
+import { computeCaseFlags, classifyResponseTopics, detectConcededOrWeakLiability } from "./jurorFlags";
 
 /**
  * When a new response or follow-up answer is recorded for a juror whose
@@ -34,36 +35,107 @@ async function markJurorAnalysisStale(caseId: string, jurorNumber: number): Prom
   }
 }
 
+/**
+ * Canonical four-question valence set (Lewis/Whigham Section 5, verbatim).
+ * For accident/claim raises these are ALWAYS included — appended
+ * deterministically, never left to model compliance.
+ */
+const VALENCE_SET = [
+  "Were you the driver who was struck, or the one who struck?",
+  "Were you hurt — did you treat, and how soon?",
+  "Did you or anyone make a claim or hire a lawyer?",
+  "Were you satisfied with how it was handled?",
+];
+
+/** Lawful commitment-style set for conceded/weak-liability cases. */
+const COMMITMENT_SET = [
+  "If the evidence does not prove the collision caused the claimed injuries, could you return a verdict for the defendant?",
+  "Could you award only the medical bills you find were actually caused by the collision?",
+];
+
 async function generateFollowUpSuggestionsViaClaude(opts: {
   areaOfLaw: string;
   side: string;
+  caseSummary: string;
   jurorNumber: number;
   jurorName: string;
   questionText: string;
   responseText: string;
 }): Promise<string[]> {
-  const { areaOfLaw, side, jurorNumber, jurorName, questionText, responseText } = opts;
-  const system = `You are a trial attorney assistant. Based on a juror's response during voir dire, suggest 2-3 brief follow-up questions that would help assess this juror further. The case is a ${areaOfLaw} case where you represent the ${side}. Keep each question to one sentence. Return ONLY a JSON array of strings, no other text.`;
+  const { areaOfLaw, side, caseSummary, jurorNumber, jurorName, questionText, responseText } = opts;
+  const concededOrWeak = detectConcededOrWeakLiability(caseSummary);
+  const system = `You are a trial attorney assistant. Based on a juror's response during voir dire, suggest 2-3 brief follow-up questions that would help assess this juror further. The case is a ${areaOfLaw} case where you represent the ${side}. Keep each question to one sentence. Return ONLY a JSON array of strings, no other text.
+
+For accident/claim raises, always include the four-question valence set:
+(1) Were you the driver who was struck, or the one who struck?
+(2) Were you hurt — did you treat, and how soon?
+(3) Did you or anyone make a claim or hire a lawyer?
+(4) Were you satisfied with how it was handled?
+
+When liability is conceded or weak, include commitment-style follow-ups within
+legal bounds: whether the juror can return a verdict for the defendant if
+causation fails; whether they can award only the medical bills they find were
+caused by the collision. Flag for counsel which jurors gave NO damages-posture
+answer.
+
+LIABILITY POSTURE for this case: ${concededOrWeak ? "conceded/weak — apply the commitment-style set" : "disputed — the commitment-style set does not apply"}.`;
   const userPrompt = `Juror #${jurorNumber} (${jurorName}) was asked: "${questionText}"\n\nTheir response: "${responseText}"\n\nSuggest 2-3 targeted follow-up questions.`;
+
+  // Deterministic guarantee (Lewis/Whigham Section 5): accident/claim raises
+  // ALWAYS carry the four-question valence set, and conceded/weak-liability
+  // cases append the commitment set. These are doc-mandated questions computed
+  // WITHOUT the model, so a model failure cannot erase them — model output is
+  // optional enrichment only, never the carrier of the guarantee.
+  const topics = classifyResponseTopics(questionText, responseText);
+  const isAccidentOrClaim = topics.includes("accident-history") || topics.includes("injury-claim");
+  const commitmentApplies =
+    concededOrWeak &&
+    (isAccidentOrClaim || topics.includes("medical-treatment") || topics.includes("disability-filing"));
+  const canonical = [
+    ...(isAccidentOrClaim ? VALENCE_SET : []),
+    ...(commitmentApplies ? COMMITMENT_SET : []),
+  ];
 
   type FollowUpJson = string[] | { questions?: unknown; followUps?: unknown; suggestions?: unknown };
 
-  const { parsed } = await claudeJson<FollowUpJson>({
-    model: CLAUDE_SONNET,
-    system,
-    userPrompt,
-    temperature: 0.6,
-    maxTokens: 600,
-  });
+  let modelSuggestions: string[] = [];
+  try {
+    const { parsed } = await claudeJson<FollowUpJson>({
+      model: CLAUDE_SONNET,
+      system,
+      userPrompt,
+      temperature: 0.6,
+      maxTokens: 600,
+    });
 
-  const onlyStrings = (xs: unknown): string[] =>
-    Array.isArray(xs) ? xs.filter((s): s is string => typeof s === 'string') : [];
+    const onlyStrings = (xs: unknown): string[] =>
+      Array.isArray(xs) ? xs.filter((s): s is string => typeof s === 'string') : [];
 
-  if (Array.isArray(parsed)) return onlyStrings(parsed);
-  if (parsed && typeof parsed === 'object') {
-    return onlyStrings(parsed.questions ?? parsed.followUps ?? parsed.suggestions ?? []);
+    modelSuggestions = Array.isArray(parsed)
+      ? onlyStrings(parsed)
+      : parsed && typeof parsed === 'object'
+        ? onlyStrings(parsed.questions ?? parsed.followUps ?? parsed.suggestions ?? [])
+        : [];
+  } catch (err) {
+    // No canonical set applies → nothing deterministic to offer; fail loud
+    // rather than fabricate suggestions.
+    if (canonical.length === 0) throw err;
+    console.error(
+      `Follow-up model call failed for Juror #${jurorNumber}; returning the canonical Lewis/Whigham set without model extras:`,
+      err,
+    );
+    return canonical;
   }
-  return [];
+
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const canonicalNorms = new Set(canonical.map(normalize));
+  const extras = modelSuggestions.filter((s) => !canonicalNorms.has(normalize(s)));
+  const maxExtras = canonicalNorms.size > 0 ? 2 : 6;
+  return [
+    ...(isAccidentOrClaim ? VALENCE_SET : []),
+    ...extras.slice(0, maxExtras),
+    ...(commitmentApplies ? COMMITMENT_SET : []),
+  ];
 }
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
@@ -605,6 +677,44 @@ export async function registerRoutes(
     res.json(responses);
   });
 
+  // --- Unresolved-flag queue (Lewis/Whigham Section 5) ---
+  // Derives, deterministically, every raise/note on a case-critical topic that
+  // still lacks a valence-resolving answer, plus the ranked panel rollup.
+  app.get("/api/cases/:caseId/flag-rollup", async (req, res) => {
+    if (!(await verifyCaseOwnership(req, res))) return;
+    try {
+      const caseId = req.params.caseId;
+      const c = await storage.getCase(caseId);
+      if (!c) return res.status(404).json({ message: "Case not found" });
+      const [jurorsForCase, responsesForCase, questionsForCase] = await Promise.all([
+        storage.getJurorsByCase(caseId),
+        storage.getResponsesByCase(caseId),
+        storage.getQuestionsByCase(caseId),
+      ]);
+      const result = computeCaseFlags({
+        caseSummary: c.summary || "",
+        jurors: jurorsForCase.map((j) => ({ number: j.number, name: j.name })),
+        questions: questionsForCase.map((q) => ({
+          questionNumber: q.questionNumber,
+          originalText: q.originalText,
+          rephrase: q.rephrase,
+        })),
+        responses: responsesForCase.map((r) => ({
+          jurorNumber: r.jurorNumber,
+          questionId: r.questionId,
+          responseText: r.responseText,
+          questionSummary: r.questionSummary,
+          followUps: r.followUps,
+        })),
+        courtDismissed: c.courtDismissed ?? [],
+      });
+      res.json(result);
+    } catch (err: any) {
+      console.error("Flag rollup error:", err);
+      res.status(500).json({ message: err.message || "Failed to compute flag rollup" });
+    }
+  });
+
   app.post("/api/cases/:caseId/responses", async (req, res) => {
     if (!(await verifyCaseOwnership(req, res))) return;
     const caseId = req.params.caseId;
@@ -643,6 +753,7 @@ export async function registerRoutes(
             const suggestions = await generateFollowUpSuggestionsViaClaude({
               areaOfLaw: caseRecord.areaOfLaw,
               side: caseRecord.side,
+              caseSummary: caseRecord.summary || "",
               jurorNumber,
               jurorName: juror.name,
               questionText,
@@ -1020,6 +1131,7 @@ export async function registerRoutes(
       const suggestions = await generateFollowUpSuggestionsViaClaude({
         areaOfLaw: caseInfo.areaOfLaw,
         side: caseInfo.side,
+        caseSummary: caseInfo.summary,
         jurorNumber,
         jurorName,
         questionText,
@@ -1816,6 +1928,7 @@ export async function registerRoutes(
             const suggestions = await generateFollowUpSuggestionsViaClaude({
               areaOfLaw: caseRecord.areaOfLaw,
               side: caseRecord.side,
+              caseSummary: caseRecord.summary || "",
               jurorNumber,
               jurorName: juror.name,
               questionText,
@@ -1944,6 +2057,7 @@ export async function registerRoutes(
       const suggestions = await generateFollowUpSuggestionsViaClaude({
         areaOfLaw: caseRecord.areaOfLaw,
         side: caseRecord.side,
+        caseSummary: caseRecord.summary || "",
         jurorNumber,
         jurorName,
         questionText,

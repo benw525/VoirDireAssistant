@@ -131,3 +131,38 @@ export interface SavedCase {
   batsonAnalyzedAt?: number | null;
   causeAnalyzedAt?: number | null;
 }
+// --- Unresolved-flag queue (Lewis/Whigham Section 5) ---
+export interface FlagSource {
+  kind: string;
+  text: string;
+  question: string;
+}
+
+export interface JurorTopicFlag {
+  jurorNumber: number;
+  jurorName: string;
+  topic: string;
+  label: string;
+  priority: number;
+  resolved: boolean;
+  resolvedBy?: string;
+  sources: FlagSource[];
+}
+
+export interface FlagTopicRollup {
+  topic: string;
+  label: string;
+  priority: number;
+  phrase: string;
+  unresolvedCount: number;
+  resolvedCount: number;
+  unresolvedJurors: Array<{ number: number; name: string }>;
+}
+
+export interface FlagRollupResult {
+  posture: 'conceded-or-weak-liability' | 'disputed';
+  summaryLine: string;
+  totalUnresolved: number;
+  topics: FlagTopicRollup[];
+  flags: JurorTopicFlag[];
+}

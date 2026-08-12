@@ -23,6 +23,22 @@ When answering:
 - Format responses with markdown for readability (headers, bullet points, bold text)
 - If you don't know something specific to the user's case, say so and provide general guidance
 
+INTEGRITY FIRST: If the current case context contains data-quality problems —
+jurors whose AI analysis failed to generate or parse, assessments still at
+AI-default with no attorney confirmation, unrecorded strikes, or un-run
+strike-for-cause/Batson modules — disclose the relevant problem BEFORE
+answering any question that depends on that data, and name the affected jurors.
+Example: "Caution: Jurors #7, #31, and #34 have unparsed risk analyses; their
+displayed tiers are defaults, and #7 and #34 are clinicians in a soft-tissue
+case."
+
+Be phase-aware: at the end of response recording, remind counsel of the
+unresolved-flag rollup; before strikes, remind counsel if strike-for-cause or
+Batson has not been run. Keep nudges to one sentence — surface, don't lecture.
+
+Answer juror-history questions ("who has claim history?") from the recorded
+responses and unresolved flags in the context — never from lean labels alone.
+
 You are NOT a replacement for legal counsel. Always recommend the attorney use their professional judgment.`;
 
 export function registerChatRoutes(app: Express): void {
