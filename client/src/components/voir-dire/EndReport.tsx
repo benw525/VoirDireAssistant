@@ -38,6 +38,67 @@ function getPlaintiffLabel(areaOfLaw: string): string {
   return isCriminalCase(areaOfLaw) ? 'Prosecution' : 'Plaintiff';
 }
 
+function ComparatorTable({ rows, jurorNumber }: { rows: Array<{ seatedJurorNumber: number; seatedJurorName: string; sharedTraits: string; distinguishingFact: string }>; jurorNumber: number }) {
+  if (!rows || rows.length === 0) return null;
+  return (
+    <div className="mb-2" data-testid={`batson-comparators-${jurorNumber}`}>
+      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Seated Comparators (Miller-El)</span>
+      <div className="mt-1 overflow-x-auto">
+        <table className="w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
+          <thead className="bg-slate-100">
+            <tr>
+              <th className="text-left px-2 py-1.5 font-bold text-slate-600">Seated Juror</th>
+              <th className="text-left px-2 py-1.5 font-bold text-slate-600">Shared Traits</th>
+              <th className="text-left px-2 py-1.5 font-bold text-slate-600">Distinguishing Fact</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((row, ri) => (
+              <tr key={ri} className="bg-white">
+                <td className="px-2 py-1.5 font-semibold text-slate-800 whitespace-nowrap">#{row.seatedJurorNumber} {row.seatedJurorName}</td>
+                <td className="px-2 py-1.5 text-slate-700">{row.sharedTraits}</td>
+                <td className={`px-2 py-1.5 ${/^\s*none/i.test(row.distinguishingFact || '') ? 'text-rose-700 font-semibold' : 'text-slate-700'}`}>{row.distinguishingFact}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function WorkProductFlags({ flags }: { flags?: Array<{ jurorNumber: number; jurorName: string; source: string; quote: string; replacement: string }> }) {
+  if (!flags || flags.length === 0) return null;
+  return (
+    <div className="rounded-xl border-2 border-red-300 overflow-hidden" data-testid="batson-work-product-section">
+      <div className="bg-red-50 px-4 py-3 border-b border-red-200">
+        <h4 className="font-bold text-sm text-red-900 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4" />
+          Work-Product Sanitation — do NOT echo these at sidebar
+          <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">{flags.length}</span>
+        </h4>
+      </div>
+      <div className="divide-y divide-red-100">
+        {flags.map((f, i) => (
+          <div key={i} className="p-4 bg-white" data-testid={`work-product-flag-${f.jurorNumber}-${i}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-bold text-sm text-slate-900">#{f.jurorNumber} {f.jurorName}</span>
+              <span className="text-[10px] font-bold uppercase text-red-700 bg-red-100 px-2 py-0.5 rounded-full">{f.source}</span>
+            </div>
+            <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-lg p-2 mb-1 italic">"{f.quote}"</p>
+            {f.replacement && (
+              <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2">
+                <span className="text-[10px] font-bold uppercase text-emerald-700 block mb-0.5">Say instead</span>
+                {f.replacement}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 type SortField = 'number' | 'name' | 'lean' | 'riskTier';
 type SortDir = 'asc' | 'desc';
 
@@ -110,6 +171,12 @@ export function EndReport({
   const [isAnalyzingBatson, setIsAnalyzingBatson] = useState(false);
   const [batsonError, setBatsonError] = useState<any>(null);
   const [batsonCollapsed, setBatsonCollapsed] = useState(false);
+  // Preview-mode Batson (suggested strike order, before any strike is
+  // exercised). Kept SEPARATE from batsonResult: a preview never persists,
+  // never resolves the 'no-batson' integrity issue, and never auto-pushes.
+  const [batsonPreview, setBatsonPreview] = useState<BatsonAnalysisResult | null>(null);
+  const [isPreviewingBatson, setIsPreviewingBatson] = useState(false);
+  const [batsonPreviewError, setBatsonPreviewError] = useState<any>(null);
 
   useEffect(() => {
     if (savedBatsonAnalysis && !batsonResult) {
@@ -420,6 +487,47 @@ export function EndReport({
       setCauseAnalysisError(err);
     } finally {
       setIsAnalyzingCause(false);
+    }
+  };
+
+  // Auto-run strike-for-cause when the report opens (Whigham lesson: the
+  // module never ran at all, and a former patient of a trial witness
+  // deliberated). Triggers when cause has never been run, or when responses
+  // were recorded after the last run. Fires at most once per mount and never
+  // retries an in-flight or failed run automatically.
+  const causeAutoRunRef = React.useRef(false);
+  useEffect(() => {
+    if (causeAutoRunRef.current) return;
+    if (isAnalyzingCause || causeAnalysisError) return;
+    const activeWithResponses = jurors.filter(j => !courtDismissed.has(j.number));
+    if (activeWithResponses.length === 0 || responses.length === 0) return;
+    const latestResponseAt = responses.reduce((max, r) => Math.max(max, r.timestamp || 0), 0);
+    const neverRun = causeStrikes.length === 0;
+    const staleRun = !neverRun && !!causeAnalyzedAt && latestResponseAt > causeAnalyzedAt;
+    if (neverRun || staleRun) {
+      causeAutoRunRef.current = true;
+      console.log(`[EndReport] Auto-running strike-for-cause analysis (${neverRun ? 'never run' : 'responses recorded after last run'})`);
+      handleAnalyzeCauseStrikes();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleBatsonPreview = async () => {
+    if (strikeOrder.length === 0) return;
+    setIsPreviewingBatson(true);
+    setBatsonPreviewError(null);
+    try {
+      const activeJurors = jurors.filter(j => !courtDismissed.has(j.number));
+      const previewNums = strikeOrder.slice(0, 8).map(j => j.number);
+      // Preview runs with NO executed strikes — the server analyzes the
+      // suggested order as if exercised. Result is session-only.
+      const result = await api.analyzeBatson(caseInfo, activeJurors, [], [], { previewStrikeOrder: previewNums });
+      setBatsonPreview(result);
+    } catch (err: any) {
+      console.error('Failed to run Batson strike-order preview:', err);
+      setBatsonPreviewError(err);
+    } finally {
+      setIsPreviewingBatson(false);
     }
   };
 
@@ -1183,6 +1291,27 @@ export function EndReport({
                   {batsonResult.overallRisk} Risk
                 </span>
               )}
+              {plaintiffStrikes.size === 0 && defenseStrikes.size === 0 && strikeOrder.length > 0 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setBatsonCollapsed(false); handleBatsonPreview(); }}
+                  disabled={isPreviewingBatson}
+                  data-testid="button-batson-preview"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-white text-violet-700 border border-violet-300 text-sm font-bold rounded-lg hover:bg-violet-50 transition-colors disabled:opacity-50 shadow-sm"
+                  title="Pattern-check the suggested strike order before any strike is exercised"
+                >
+                  {isPreviewingBatson ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Previewing...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="w-4 h-4" />
+                      Preview Strike Order
+                    </>
+                  )}
+                </button>
+              )}
               <button
                 onClick={(e) => { e.stopPropagation(); handleBatsonCheck(); }}
                 disabled={isAnalyzingBatson || (plaintiffStrikes.size === 0 && defenseStrikes.size === 0)}
@@ -1234,9 +1363,88 @@ export function EndReport({
                     </div>
                   )}
 
-                  {!batsonResult && !isAnalyzingBatson && !batsonError && (
+                  {batsonPreviewError && (
+                    <div className="mb-4">
+                      <ApiErrorBanner
+                        error={batsonPreviewError}
+                        fallback="Failed to run the strike-order preview."
+                        onRetry={handleBatsonPreview}
+                        onDismiss={() => setBatsonPreviewError(null)}
+                        isRetrying={isPreviewingBatson}
+                        testIdPrefix="batson-preview-error"
+                      />
+                    </div>
+                  )}
+
+                  {isPreviewingBatson && !batsonPreview && (
+                    <div className="mb-4 bg-violet-50 rounded-xl border border-violet-200 p-6 flex items-center justify-center" data-testid="batson-preview-loading">
+                      <Loader2 className="w-5 h-5 animate-spin text-violet-500 mr-3" />
+                      <span className="text-sm text-violet-600 font-medium">Pattern-checking the suggested strike order...</span>
+                    </div>
+                  )}
+
+                  {batsonPreview && (
+                    <div className="mb-4 rounded-xl border-2 border-violet-300 overflow-hidden" data-testid="batson-preview-section">
+                      <div className="bg-violet-100 px-4 py-3 flex items-center justify-between">
+                        <h4 className="font-bold text-sm text-violet-900 flex items-center gap-2">
+                          <ShieldAlert className="w-4 h-4" />
+                          Strike-Order Preview — no strikes exercised yet
+                        </h4>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                          batsonPreview.overallRisk === 'High' ? 'bg-rose-100 text-rose-700' :
+                          batsonPreview.overallRisk === 'Moderate' ? 'bg-amber-100 text-amber-700' :
+                          'bg-emerald-100 text-emerald-700'
+                        }`} data-testid="text-batson-preview-risk">
+                          {batsonPreview.overallRisk} Risk
+                        </span>
+                      </div>
+                      <div className="p-4 bg-white space-y-3">
+                        <p className="text-xs text-violet-700 font-medium">
+                          Pattern analysis of the top suggested strikes as if exercised. Preview only — it is not saved and does not replace the Batson Check on actual strikes.
+                        </p>
+                        <p className="text-sm text-slate-800 leading-relaxed" data-testid="text-batson-preview-summary">{batsonPreview.summary}</p>
+                        {batsonPreview.defensive.map((d, i) => (
+                          <div key={i} className="rounded-lg border border-violet-200 p-3" data-testid={`batson-preview-entry-${d.jurorNumber}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-bold text-sm text-slate-900">#{d.jurorNumber} {d.jurorName}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full">{d.protectedClass}</span>
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                  d.riskLevel === 'High' ? 'bg-rose-100 text-rose-700' :
+                                  d.riskLevel === 'Moderate' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-emerald-100 text-emerald-700'
+                                }`}>{d.riskLevel}</span>
+                              </div>
+                            </div>
+                            {d.statisticalFlag && (
+                              <div className="mb-2">
+                                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Statistical Pattern</span>
+                                <p className="text-sm text-slate-700 mt-0.5">{d.statisticalFlag}</p>
+                              </div>
+                            )}
+                            {d.comparativeConcern && (
+                              <div className="mb-2">
+                                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Comparative Concern</span>
+                                <p className="text-sm text-slate-700 mt-0.5">{d.comparativeConcern}</p>
+                              </div>
+                            )}
+                            <ComparatorTable rows={d.comparatorTable || []} jurorNumber={d.jurorNumber} />
+                            {d.suggestedAlternates && (
+                              <div className="mt-1 p-2 bg-emerald-50 border border-emerald-200 rounded-lg" data-testid={`batson-preview-alternates-${d.jurorNumber}`}>
+                                <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide block mb-0.5">Record-Based Alternates</span>
+                                <p className="text-sm text-emerald-800">{d.suggestedAlternates}</p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        <WorkProductFlags flags={batsonPreview.workProductFlags} />
+                      </div>
+                    </div>
+                  )}
+
+                  {!batsonResult && !batsonPreview && !isPreviewingBatson && !isAnalyzingBatson && !batsonError && !batsonPreviewError && (
                     <div className="bg-slate-50 rounded-xl border border-slate-200 p-8 text-center text-slate-500" data-testid="text-batson-empty">
-                      Mark peremptory strikes above, then click <span className="font-semibold text-violet-600">Batson Check</span> to analyze strike patterns for potential Batson v. Kentucky challenges.
+                      Mark peremptory strikes above, then click <span className="font-semibold text-violet-600">Batson Check</span> to analyze strike patterns for potential Batson v. Kentucky challenges.{strikeOrder.length > 0 ? ' No strikes marked yet? Use Preview Strike Order to pattern-check the suggested order before striking.' : ''}
                     </div>
                   )}
 
@@ -1302,6 +1510,7 @@ export function EndReport({
                                     <p className="text-sm text-slate-700 mt-0.5">{d.comparativeConcern}</p>
                                   </div>
                                 )}
+                                <ComparatorTable rows={d.comparatorTable || []} jurorNumber={d.jurorNumber} />
                                 {d.currentJustification && (
                                   <div className="mb-2">
                                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Current Justification</span>
@@ -1313,6 +1522,14 @@ export function EndReport({
                                     <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Recommended Articulation</span>
                                     <div className="mt-1 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
                                       <p className="text-sm text-emerald-800">{d.recommendedArticulation}</p>
+                                    </div>
+                                  </div>
+                                )}
+                                {d.suggestedAlternates && (
+                                  <div className="mb-2" data-testid={`batson-alternates-${d.jurorNumber}`}>
+                                    <span className="text-xs font-semibold text-sky-700 uppercase tracking-wide">Record-Based Alternates</span>
+                                    <div className="mt-1 p-3 bg-sky-50 border border-sky-200 rounded-lg">
+                                      <p className="text-sm text-sky-800">{d.suggestedAlternates}</p>
                                     </div>
                                   </div>
                                 )}
@@ -1329,6 +1546,8 @@ export function EndReport({
                           </div>
                         </div>
                       )}
+
+                      <WorkProductFlags flags={batsonResult.workProductFlags} />
 
                       {batsonResult.offensive.length > 0 && (
                         <div className="rounded-xl border border-blue-200 overflow-hidden" data-testid="batson-offensive-section">
@@ -1531,6 +1750,18 @@ export function EndReport({
                                       <p className="text-sm text-slate-600 leading-relaxed italic">
                                         {strike.reasoning}
                                       </p>
+                                    </div>
+                                  )}
+                                  {strike.lockInQuestions && strike.lockInQuestions.length > 0 && (
+                                    <div className="mb-2" data-testid={`cause-lockins-${strike.jurorNumber}`}>
+                                      <div className="text-[10px] font-bold uppercase text-indigo-600 mb-1 tracking-wide">Lock-In Questions — ask BEFORE rehabilitation</div>
+                                      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+                                        <ol className="list-decimal list-inside space-y-1">
+                                          {strike.lockInQuestions.map((q, qi) => (
+                                            <li key={qi} className="text-sm text-slate-800 leading-relaxed">{q}</li>
+                                          ))}
+                                        </ol>
+                                      </div>
                                     </div>
                                   )}
                                   {showScript ? (

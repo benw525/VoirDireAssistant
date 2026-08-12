@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getArchetypesAndBias } from "./strategyModules";
 import { AIOutputError, claudeComplete, claudeJson, CLAUDE_OPUS } from "./anthropic";
+import { computeBatsonStats, formatBatsonStatsBlock } from "./batsonStats";
 
 /**
  * Appended to the user prompt on the single retry after a parse/validation
@@ -56,44 +57,124 @@ You MUST respond with valid JSON in this exact format:
   "aiRiskTier": "low" | "medium" | "high",
   "suggestedLean": "favorable" | "neutral" | "unfavorable" | "unknown",
   "leanConfidence": "high" | "moderate" | "low",
-  "analysis": "<your full 3-5 paragraph analysis as a single string>"
+  "informationLevel": "well-developed" | "partial" | "minimal",
+  "provisional": <boolean — true when the record is too thin for a settled score>,
+  "keyFollowUp": "<when provisional: the ONE follow-up question that would most change the score; otherwise empty string>",
+  "damagesAnchor": "<when liability is conceded or weak: the damages-anchor assessment described below; otherwise empty string>",
+  "analysis": "<your analysis as a single string — length proportional to signal>"
 }
 
 RISK SCORE (1-100): Assign a numeric risk score reflecting how dangerous this juror is to the attorney's case. 1 = ideal juror, 100 = worst possible juror.
 
-RISK SCORE WEIGHTING — This is critical:
-- Recorded voir dire responses are the PRIMARY signal (60-70% weight). What the juror actually said during questioning — their tone, hedging, strong opinions, specific statements about the case issues — matters most.
-- Enrichment/background data is the SECONDARY signal (15-25% weight). Employment history, legal issues, community involvement, business ties found through research.
-- Demographics alone (occupation, age, race, sex) are a TERTIARY signal (10-15% weight). Demographics inform context but should NOT drive the score by themselves. A healthcare worker or teacher is not automatically high-risk — their responses determine that.
-- A juror with zero recorded responses should score between 30-60 (moderate uncertainty), NOT automatically high.
+CASE-POSTURE CONDITIONING: Before weighting any occupational or experiential
+trait, determine which side owns the objective evidence. If the defense theory
+rests on documentation, physics, or imaging chronology (disputed impact, EDR
+data, pre-existing findings), records-literate and analytically trained jurors —
+including medical-records, pharmacy, compliance, and claims personnel — are
+neutral-to-favorable for the defense, not adverse. If liability is conceded and
+the fight is subjective injury and damages, clinical and caregiving jurors who
+professionally credit self-reported pain (treating clinicians, therapists,
+home-health, mental-health) are strongly adverse, and their influence multiplies
+because they become the room's unsworn medical expert. Never apply a flat
+"medical field = plaintiff-leaning" rule.
+
+SIGNAL WEIGHTING (strongest to weakest):
+(1) the juror's own explicit statements of position or inability;
+(2) active claims, open litigation, or unresolved grievances (including barred
+    claims);
+(3) claimant history weighted by recency and resemblance to the case fact
+    pattern (a low-speed rear-end injury in a low-speed rear-end case outweighs
+    a generic prior claim);
+(4) occupations whose daily FUNCTION is advocacy or crediting self-report
+    (caseworker, outreach nurse, case manager) — weight the job's function, not
+    its industry;
+(5) generic occupation categories;
+(6) demographics — near-zero predictive weight, and they MUST NEVER appear as a
+    stated risk rationale.
+A settled prior claim accompanied by an unequivocal denial of bias is a
+peremptory consideration to note, not a dominant risk driver.
+
+SEPARATE ADVERSITY FROM UNCERTAINTY: Output two distinct measures —
+riskScore (0-100, driven ONLY by affirmative evidence; if no substantive
+responses exist, anchor near 50 and say so) and informationLevel
+("well-developed" | "partial" | "minimal"). Never let missing information
+inflate riskScore. A silent juror and a juror with adverse admissions must not
+share a score band; if the record is minimal, state that the score is
+provisional and name the ONE follow-up question that would most change it.
+
+PROHIBITED RATIONALES: Never cite race, sex, age, or their statistical
+correlation with verdicts as a reason for any risk classification or strike
+recommendation. These rationales are legally impermissible under Batson/J.E.B.,
+discoverable in work product, and empirically weak. Express every risk driver
+as a record-based, demographic-neutral fact (occupation function, stated
+experience, specific response).
+
+DAMAGES ANCHOR (when liability is conceded or weak): Include a damagesAnchor
+assessment — is this juror likely to treat claimed specials as a floor, a
+ceiling, or a reference point? Note occupational and experiential anchors
+(hourly wage-earners and claims-adjacent jurors anchor low; repeat claimants
+and clinicians anchor high). State whether this juror could sign a defense
+verdict or a bills-only award if causation fails.
+
+ENRICHMENT NULLS: If background research returned no verified match, state
+that in ONE sentence and move on. Do not narrate per-category nulls, and do
+not characterize an absence of records as reassuring — for common names and
+younger jurors it is simply the absence of data.
 
 AI RISK TIER: Based on your score, assign "high" (score 70-100), "medium" (score 35-69), or "low" (score 1-34).
 
 SUGGESTED LEAN: Based on all available evidence, recommend whether this juror leans "favorable" (good for the attorney's case), "unfavorable" (bad for the attorney's case), "neutral" (genuinely mixed signals or ambiguous), or "unknown" (insufficient information to classify). Do NOT force a binary favorable/unfavorable classification when the evidence is ambiguous — use "neutral" when signals genuinely cut both ways. Use "unknown" only when the juror has barely spoken and demographics alone are insufficient.
 
-LEAN CONFIDENCE: Rate your confidence in the suggested lean: "high" (strong, consistent signals — clear responses, corroborating background data), "moderate" (some evidence but mixed or limited), or "low" (very little evidence, mostly demographic inference).
+LEAN CONFIDENCE: Rate your confidence in the suggested lean: "high" (strong, consistent signals — clear responses, corroborating background data), "moderate" (some evidence but mixed or limited), or "low" (very little evidence, mostly occupational inference).
 
-ANALYSIS: Produce a concise, strategic analysis covering:
-- RISK ASSESSMENT — Why this juror received this risk score. Reference specific responses first, then background data, then demographics. If the attorney's current tier disagrees with yours, explain the discrepancy.
-- KEY CONCERNS — The 2-3 most important things the attorney should know. Flag responses suggesting bias, strong feelings, or potential cause challenges.
+INFORMATION LEVEL: "well-developed" (substantive responses on case-relevant topics), "partial" (some responses but key topics undeveloped), "minimal" (silent or near-silent record). Report it as this structured field — never as an opening caveat paragraph.
+
+PROVISIONAL + KEY FOLLOW-UP: When informationLevel is "minimal" (and usually "partial"), set provisional=true and put the ONE question that would most change the score in keyFollowUp. When the record is well-developed, set provisional=false and keyFollowUp to "".
+
+ANALYSIS: Produce a strategic analysis covering, in order:
+- RISK ASSESSMENT — Why this juror received this risk score, citing the strongest signals first per the SIGNAL WEIGHTING hierarchy. If the attorney's current tier disagrees with yours, explain the discrepancy.
+- KEY CONCERNS — The most important things the attorney should know. Flag responses suggesting bias, strong feelings, or potential cause challenges.
 - STRATEGIC RECOMMENDATION — Keep, strike for cause (with basis), or use peremptory strike. Explain reasoning.
+
+NO BOILERPLATE: Do not restate case facts the attorney already knows; reference
+a case fact only when tied to a specific juror signal. Do not open with
+data-limitation caveats — report informationLevel as a structured field and
+move on. Do not narrate what is absent (no enrichment, no responses) beyond one
+clause. Every sentence must contain juror-specific information or an actionable
+recommendation. If the record is thin, the analysis should be SHORT — three
+sentences, not five paragraphs of hedged inference. Length must be proportional
+to signal, not fixed. HARD CAP for minimal-information records (no responses,
+no verified background): at most 4 sentences total. State the anchor, the one
+occupational or profile note if any, and stop — the keyFollowUp field carries
+the next step, not the prose.
 
 Rules:
 - Be direct and practical — this is a working tool for a trial attorney
 - Reference specific responses by quoting them when relevant
-- Consider how the juror's occupation, background, and responses interact with the case facts
-- If the juror has no recorded responses, note that more information is needed and score conservatively (do NOT default to high risk)
-- If the juror has fewer than 3 recorded responses, begin your analysis by explicitly noting that the assessment is based on limited data and should be treated with caution. Avoid strong keep/strike recommendations for jurors with minimal response records. Mark leanConfidence as "low" in such cases.
-- Keep the analysis to 3-5 short paragraphs
-- Do not use headers, bullet points, or markdown formatting in the analysis — write in flowing prose paragraphs
+- Consider how the juror's occupation FUNCTION, background, and responses interact with the case posture
+- Avoid strong keep/strike recommendations for jurors with minimal response records; mark leanConfidence "low" and provisional=true instead of hedging in prose
+- Do not use headers, bullet points, or markdown formatting in the analysis — write in flowing prose
 - Always frame analysis from the perspective of the attorney's side
-- IMPORTANT: If enriched background data is provided below the juror profile, you MUST reference at least one finding from it in your analysis. Do not ignore enrichment data when it is present.
+- If enriched background data contains verified findings, reference at least one in your analysis; if it returned no verified match, apply the ENRICHMENT NULLS rule (one sentence, no reassurance)
 - NON-VERBAL REACTIONS: Responses prefixed with [Hand], [Nod], [Shake], or [Note] are non-verbal behavioral observations. A hand raise on a sensitive question (e.g., "Has anyone been a victim of a crime?") is meaningful data. Head nods and shakes indicate agreement or disagreement. Reference specific reactions by question when they reveal bias, sympathy, or concern.
 - SILENCE RECORDS: Responses marked "[Silent] No response" indicate the juror was explicitly asked and chose not to respond. Deliberate silence on a specific question can be as telling as a verbal answer — consider what the question was and whether non-response suggests discomfort, disengagement, or caution.`;
 
-const BRIEF_SUMMARY_PROMPT = `You are a Juror Risk Assessment Analyst. Given case context and a juror's profile with their voir dire responses, produce a brief 1-2 sentence summary explaining why this juror is classified at their current lean and risk tier. Be specific — reference their occupation, key responses, or demographic factors that drive the classification. If enriched background data is provided, you MUST incorporate at least one relevant finding (employment history, business ties, community involvement, legal history) into the summary. Write from the attorney's perspective. No headers, no bullet points — just 1-2 flowing sentences.
+const BRIEF_SUMMARY_PROMPT = `You are a Juror Risk Assessment Analyst. Given case context and a juror's profile with their voir dire responses, produce the summary below. Write from the attorney's perspective. No headers, no bullet points.
 
-IMPORTANT: If the juror's responses and demographics provide insufficient evidence to determine a lean, or if the signals are genuinely mixed (favorable on some issues but unfavorable on others), recommend a Neutral lean. Do not force a favorable or unfavorable classification when the data is ambiguous. If the juror has barely spoken or provided no meaningful responses, recommend keeping them at Unknown.`;
+Write EXACTLY two sentences and finish them. Sentence one: the strongest
+record-based signal driving the classification (quote or paraphrase a specific
+response where one exists). Sentence two: the single most important unresolved
+item, or the strategic posture (keep / develop / peremptory candidate). Never
+end mid-thought; if space is tight, cut detail, not the conclusion.
+
+If the juror gave any substantive response or meaningful hand raise, it takes
+priority over occupational inference. Occupation-only summaries are acceptable
+solely for silent jurors, and must say the record is undeveloped.
+
+Never cite race, sex, age, or demographic-statistical verdict patterns as a
+reason for a classification.
+
+NO BOILERPLATE: Do not restate case facts the attorney already knows. If enriched background data contains a verified finding relevant to the classification, it may supply sentence one's signal; if research returned nothing verified, do not narrate that beyond one clause.`;
 
 export async function generateBriefSummary(
   caseContext: CaseContext,
@@ -140,33 +221,73 @@ ${enrichmentSection}
 Responses:
 ${responsesText}
 
-Write a 1-2 sentence summary explaining this juror's classification.`;
+Write the two-sentence summary (exactly two complete sentences).`;
 
-  let text = (await claudeComplete({
+  const attemptSummary = async (suffix: string): Promise<string> => (await claudeComplete({
     model: CLAUDE_OPUS,
     system: BRIEF_SUMMARY_PROMPT,
-    userPrompt,
+    userPrompt: userPrompt + suffix,
     temperature: 0.3,
     maxTokens: 300,
   })).trim();
 
-  if (!text) {
-    // Retry once with an explicit instruction, then fail loudly — never
-    // return placeholder text that could be mistaken for a real summary.
-    text = (await claudeComplete({
-      model: CLAUDE_OPUS,
-      system: BRIEF_SUMMARY_PROMPT,
-      userPrompt: userPrompt + "\n\nIMPORTANT: Your previous response was empty. You must return the 1-2 sentence summary text now.",
-      temperature: 0.3,
-      maxTokens: 300,
-    })).trim();
-  }
+  // Fail-loud: the two-sentence contract is validated, not just prompted.
+  // Retry once with a targeted correction, then throw — never return
+  // truncated or run-on text that could be mistaken for a compliant summary.
+  const summaryProblem = (text: string): string | null => {
+    if (!text) return "response was empty";
+    const n = countSentences(text);
+    if (n !== 2) return `response contained ${n} sentence(s) instead of exactly two`;
+    if (!/[.!?]["'”’)\]]*$/.test(text)) return "response did not end with terminal punctuation (incomplete final sentence)";
+    return null;
+  };
 
-  if (!text) {
-    throw new AIOutputError(`Summary generation for Juror #${juror.number} (${juror.name}) returned no text after retry. Re-run summary generation for this juror.`);
+  let text = await attemptSummary("");
+  let problem = summaryProblem(text);
+  if (problem) {
+    console.warn(`[generateBriefSummary] Juror #${juror.number}: ${problem}; retrying once`);
+    text = await attemptSummary(`\n\nIMPORTANT: Your previous ${problem}. Return EXACTLY two complete sentences — finish both and end with a period.`);
+    problem = summaryProblem(text);
+  }
+  if (problem) {
+    throw new AIOutputError(`Summary generation for Juror #${juror.number} (${juror.name}) failed the two-sentence contract after a retry (${problem}). Re-run summary generation for this juror.`);
   }
 
   return text;
+}
+
+/**
+ * Sentence counter for the exact-two-sentence summary contract. Normalizes
+ * legal-text period noise (multi-initial citations like J.E.B., honorifics
+ * like Dr./Mr., "v."/"vs.", and decimals like 11,542.50) before counting
+ * terminal punctuation. Exported for tests.
+ */
+export function countSentences(text: string): number {
+  const normalized = text
+    .replace(/\b(?:[A-Z]\.){2,}/g, m => m.replace(/\./g, ""))
+    .replace(/\b(Dr|Mr|Mrs|Ms|Jr|Sr|vs|v|No|Nos|approx|etc|Inc|Co|St|Ph\.D)\./g, "$1")
+    .replace(/(\d)\.(\d)/g, "$1$2");
+  return (normalized.match(/[.!?]+["'”’)\]]*(\s|$)/g) || []).length;
+}
+
+/**
+ * Conditional output-contract checks that zod defaults cannot express:
+ * a "minimal" record must be provisional, and a provisional score must name
+ * the ONE follow-up question that would settle it. Exported for tests.
+ */
+export function analysisContractViolations(r: {
+  informationLevel: "well-developed" | "partial" | "minimal";
+  provisional: boolean;
+  keyFollowUp: string;
+}): string[] {
+  const v: string[] = [];
+  if (r.informationLevel === "minimal" && !r.provisional) {
+    v.push('informationLevel "minimal" requires provisional=true');
+  }
+  if (r.provisional && r.keyFollowUp.trim().length === 0) {
+    v.push("provisional=true requires a non-empty keyFollowUp question");
+  }
+  return v;
 }
 
 export interface AnalysisResult {
@@ -175,6 +296,10 @@ export interface AnalysisResult {
   aiRiskTier: 'low' | 'medium' | 'high';
   suggestedLean: 'favorable' | 'neutral' | 'unfavorable' | 'unknown';
   leanConfidence: 'high' | 'moderate' | 'low';
+  informationLevel: 'well-developed' | 'partial' | 'minimal';
+  provisional: boolean;
+  keyFollowUp: string;
+  damagesAnchor: string;
 }
 
 export async function analyzeJuror(
@@ -238,7 +363,7 @@ export async function analyzeJuror(
   }
 
   const dataSufficiency = responses.length < 2 || (verbalResponses.length === 0 && totalChars < 150)
-    ? `\nDATA SUFFICIENCY WARNING: This juror has limited response data (${verbalResponses.length} verbal responses, ${reactionResponses.length} reactions, ${totalChars} total characters). Base your assessment primarily on what data exists, but explicitly note the limitation and avoid strong recommendations.\n`
+    ? `\nDATA SUFFICIENCY NOTE: This juror has limited response data (${verbalResponses.length} verbal responses, ${reactionResponses.length} reactions, ${totalChars} total characters). Report this via informationLevel/provisional/keyFollowUp — do NOT open the analysis with a limitation caveat, do NOT let the thin record inflate riskScore (anchor near 50 absent affirmative evidence), and keep the analysis short.\n`
     : '';
 
   let enrichmentSection = '';
@@ -278,6 +403,10 @@ Provide your risk assessment analysis for this juror.`;
     aiRiskTier: z.enum(["low", "medium", "high"]),
     suggestedLean: z.enum(["favorable", "neutral", "unfavorable", "unknown"]),
     leanConfidence: z.enum(["high", "moderate", "low"]),
+    informationLevel: z.enum(["well-developed", "partial", "minimal"]),
+    provisional: z.boolean(),
+    keyFollowUp: z.string().default(""),
+    damagesAnchor: z.string().default(""),
     analysis: z.string().min(20),
   });
 
@@ -302,13 +431,24 @@ Provide your risk assessment analysis for this juror.`;
   // an explicit complete-JSON instruction, then throw. NEVER return default
   // values (50/medium/unknown) — that is exactly how two high-risk Whigham
   // jurors were buried in the strike order and ended up deliberating.
+  // Conditional contract (provisional/keyFollowUp coupling) is validated
+  // post-parse: a zod default must never swallow a missing required-when
+  // field.
   let result = await attempt("");
-  if (!result) {
-    console.warn(`[analyzeJuror] Juror #${juror.number}: invalid output on first attempt, retrying once with explicit JSON instruction`);
-    result = await attempt(JSON_RETRY_SUFFIX);
+  let violations = result ? analysisContractViolations(result) : [];
+  if (!result || violations.length > 0) {
+    const suffix = !result
+      ? JSON_RETRY_SUFFIX
+      : `\n\nIMPORTANT: Your previous response violated the output contract: ${violations.join("; ")}. Return the complete corrected JSON now — when the record is too thin for a settled score, provisional must be true and keyFollowUp must contain the ONE question that would most change the score.`;
+    console.warn(`[analyzeJuror] Juror #${juror.number}: ${!result ? 'invalid output' : `contract violation (${violations.join('; ')})`} on first attempt, retrying once`);
+    result = await attempt(suffix);
+    violations = result ? analysisContractViolations(result) : [];
   }
   if (!result) {
     throw new AIOutputError(`Analysis for Juror #${juror.number} (${juror.name}) was invalid or incomplete after a retry. No default score was applied — regenerate this analysis before relying on any ranking.`);
+  }
+  if (violations.length > 0) {
+    throw new AIOutputError(`Analysis for Juror #${juror.number} (${juror.name}) violated the output contract after a retry (${violations.join("; ")}). No defaults were applied — regenerate this analysis before relying on it.`);
   }
 
   return {
@@ -317,6 +457,10 @@ Provide your risk assessment analysis for this juror.`;
     aiRiskTier: result.aiRiskTier,
     suggestedLean: result.suggestedLean,
     leanConfidence: result.leanConfidence,
+    informationLevel: result.informationLevel,
+    provisional: result.provisional,
+    keyFollowUp: result.keyFollowUp,
+    damagesAnchor: result.damagesAnchor,
   };
 }
 
@@ -326,6 +470,24 @@ export interface StrikeForCauseEntry {
   reasoning: string;
   argument: string;
   basis: string;
+  // 1-2 open-court questions that cement the disqualifying answer before
+  // rehabilitation (REQUIRED for "Possible"; empty for "Unlikely").
+  lockInQuestions: string[];
+}
+
+/**
+ * Juror numbers of "Possible" cause entries that lack at least one non-empty
+ * lock-in question. Such entries are invalid AI output: without lock-ins the
+ * attorney walks into rehabilitation with nothing on the record (the exact
+ * failure that seated a witness's former patient in Whigham). Exported for
+ * tests.
+ */
+export function possiblesMissingLockIns(
+  entries: Array<Pick<StrikeForCauseEntry, "jurorNumber" | "category" | "lockInQuestions">>,
+): number[] {
+  return entries
+    .filter(e => e.category === "Possible" && (e.lockInQuestions ?? []).filter(q => q.trim().length > 0).length === 0)
+    .map(e => e.jurorNumber);
 }
 
 interface JurorWithResponses extends JurorData {
@@ -354,6 +516,48 @@ For each juror, categorize them as:
 - "Possible" — Some concerning indicators exist. The juror's responses or background raise questions about impartiality, but the grounds may need further development or rehabilitation might cure the issue.
 - "Unlikely" — No significant cause basis identified. The juror appears capable of being fair and impartial based on available information.
 
+LEGAL SUFFICIENCY GATE: Every category assignment must pass the question "would
+a judge actually grant this challenge on this record?" — not "is this juror
+strategically concerning?". Keep legal cause and strategic concern separate:
+strategic concerns (sympathetic occupation, general attitudes, thin records)
+belong in the reasoning as peremptory considerations, never as the basis for
+"Highly Likely". Hardship (work, childcare, health inconvenience) is a matter
+for the court's discretion, not a party's cause challenge — do not classify
+hardship-only jurors above "Unlikely" unless the hardship demonstrably prevents
+attention or fairness.
+
+GRANTABILITY ANCHORS (Alabama civil practice):
+GRANTABLE — explicit statements of fixed opinion or inability to be fair that
+survive rehabilitation; disqualifying relationships to parties, counsel, or
+witnesses; a live personal stake in the same kind of dispute (e.g., an active
+injury claim as plaintiff, or a current client relationship with a party's law
+firm).
+NOT GRANTABLE STANDING ALONE — a medical diagnosis the juror shares with a
+party; a prior resolved claim or lawsuit accompanied by a denial of bias;
+employment in healthcare or any occupation; general sympathy inferences.
+Classify those as Unlikely for cause and note the peremptory concern in the
+reasoning instead.
+
+DIRECTION MATTERS: Before recommending a cause challenge, state WHOSE case the
+bias damages. A juror biased toward your side is opposing counsel's cause
+material — your options are quiet rehabilitation or silence, never your own
+challenge. If a record contains statements cutting both directions, list them
+in two columns, identify which side has the stronger cause argument, and advise
+accordingly (including the risk that opposing counsel removes the juror for
+free).
+
+REHABILITATION: Treat a bare nod to a leading "can you be unbiased?" question
+as non-curative for assessment purposes, but assume the COURT will treat it as
+curative. For every "Possible" juror, output the 1-2 lock-in questions that
+would convert the concern into a grantable record BEFORE opposing counsel
+rehabilitates, and flag when mass-rehabilitation moments (group nods) have
+already immunized jurors you would otherwise challenge.
+
+WITNESS/PARTY RELATIONSHIPS: Any disclosed relationship to a party, counsel,
+or witness (including having been a witness-physician's patient) must be
+classified at minimum "Possible" with the exact development questions —
+never left unresolved.
+
 You MUST respond with valid JSON in this exact format:
 {
   "strikes": [
@@ -362,10 +566,17 @@ You MUST respond with valid JSON in this exact format:
       "category": "Highly Likely" | "Possible" | "Unlikely",
       "reasoning": "<Plain-English explanation of WHY you assigned this category. What specific statements, facts, behavioral indicators, or patterns from the juror's responses and profile led to this classification. Be analytical and specific.>",
       "argument": "<See instructions below based on category>",
-      "basis": "<Short 2-5 word label for the grounds, e.g., 'Stated bias', 'Personal connection to victim', 'Cannot follow law', 'Prior lawsuit experience', 'Fixed opinion on guilt', 'No significant basis'>"
+      "basis": "<Short 2-5 word label for the grounds, e.g., 'Stated bias', 'Personal connection to victim', 'Cannot follow law', 'Prior lawsuit experience', 'Fixed opinion on guilt', 'No significant basis'>",
+      "lockInQuestions": ["<lock-in question 1>", "<lock-in question 2>"]
     }
   ]
 }
+
+lockInQuestions: REQUIRED (1-2 questions) for every "Possible" juror per the
+REHABILITATION rule — the exact questions, phrased for open court, that would
+cement the disqualifying answer before rehabilitation. Also include them for
+"Highly Likely" jurors where the record still needs one answer locked in.
+Use an empty array [] for "Unlikely" jurors.
 
 ARGUMENT FORMAT BY CATEGORY:
 
@@ -448,6 +659,7 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
     reasoning: z.string().default(""),
     argument: z.string().default(""),
     basis: z.string().default(""),
+    lockInQuestions: z.array(z.string()).default([]),
   });
   const strikesResponseSchema = z.object({ strikes: z.array(strikeEntrySchema) });
 
@@ -479,6 +691,7 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
         reasoning: s.reasoning,
         argument: s.argument,
         basis: s.basis,
+        lockInQuestions: s.lockInQuestions,
       });
     }
     return entries;
@@ -487,21 +700,35 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
   // Fail-loud contract: parse + validate, retry once, then throw. If the
   // response is valid but omits some jurors, DO NOT fabricate "Unlikely"
   // entries for them — return only the jurors the AI actually evaluated and
-  // let the UI surface the gap.
+  // let the UI surface the gap. A "Possible" entry without lock-in questions
+  // is also invalid output (the lock-in workflow is the point), so it gets a
+  // targeted retry and then a hard failure — never a silent empty list.
   let entries = await attempt("");
-  if (entries === null || entries.length < jurors.length) {
+  const firstMissingLockIns = entries === null ? [] : possiblesMissingLockIns(entries);
+  if (entries === null || entries.length < jurors.length || firstMissingLockIns.length > 0) {
     const retrySuffix = entries === null
       ? JSON_RETRY_SUFFIX
-      : `\n\nIMPORTANT: Your previous response omitted ${jurors.length - entries.length} juror(s). Return complete, valid JSON with an entry in "strikes" for EVERY juror listed above (all ${jurors.length} of them). No truncation, no prose, no markdown.`;
-    console.warn(`[analyzeStrikesForCause] ${entries === null ? 'Invalid output' : `Incomplete coverage (${entries.length}/${jurors.length})`} on first attempt, retrying once`);
+      : entries.length < jurors.length
+        ? `\n\nIMPORTANT: Your previous response omitted ${jurors.length - entries.length} juror(s). Return complete, valid JSON with an entry in "strikes" for EVERY juror listed above (all ${jurors.length} of them). No truncation, no prose, no markdown.`
+        : `\n\nIMPORTANT: Your previous response rated juror(s) ${firstMissingLockIns.map(n => `#${n}`).join(', ')} as "Possible" but provided no lockInQuestions. Every "Possible" entry MUST include 1-2 lock-in questions to ask BEFORE any rehabilitation attempt. Return the complete, valid JSON again with lockInQuestions populated for every "Possible" juror.`;
+    console.warn(`[analyzeStrikesForCause] ${entries === null ? 'Invalid output' : entries.length < jurors.length ? `Incomplete coverage (${entries.length}/${jurors.length})` : `"Possible" entries missing lock-in questions (${firstMissingLockIns.map(n => `#${n}`).join(', ')})`} on first attempt, retrying once`);
     const second = await attempt(retrySuffix);
-    if (second !== null && (entries === null || second.length > entries.length)) {
-      entries = second;
+    if (second !== null) {
+      const better =
+        entries === null ||
+        second.length > entries.length ||
+        (second.length === entries.length && possiblesMissingLockIns(second).length < possiblesMissingLockIns(entries).length);
+      if (better) entries = second;
     }
   }
 
   if (entries === null) {
     throw new AIOutputError(`Strike-for-cause analysis returned invalid or incomplete output after a retry. No juror was defaulted to "Unlikely" — run the analysis again.`);
+  }
+
+  const stillMissingLockIns = possiblesMissingLockIns(entries);
+  if (stillMissingLockIns.length > 0) {
+    throw new AIOutputError(`Strike-for-cause analysis rated juror(s) ${stillMissingLockIns.map(n => `#${n}`).join(', ')} as "Possible" without the required lock-in questions, even after a retry. No empty defaults were applied — run the analysis again.`);
   }
 
   if (entries.length < jurors.length) {
@@ -519,6 +746,13 @@ Evaluate every juror for potential strikes for cause and return the JSON result.
   return entries;
 }
 
+export interface BatsonComparatorRow {
+  seatedJurorNumber: number;
+  seatedJurorName: string;
+  sharedTraits: string;
+  distinguishingFact: string;
+}
+
 interface BatsonDefensiveEntry {
   jurorNumber: number;
   jurorName: string;
@@ -529,6 +763,18 @@ interface BatsonDefensiveEntry {
   currentJustification: string;
   recommendedArticulation: string;
   warning?: string;
+  /** Preview mode: record-based alternate strikes outside the protected class. */
+  suggestedAlternates?: string;
+  /** Miller-El comparator table — required structured output for every flagged strike. */
+  comparatorTable: BatsonComparatorRow[];
+}
+
+export interface BatsonWorkProductFlag {
+  jurorNumber: number;
+  jurorName: string;
+  source: string;
+  quote: string;
+  replacement: string;
 }
 
 interface BatsonOffensiveEntry {
@@ -544,8 +790,12 @@ interface BatsonOffensiveEntry {
 export interface BatsonAnalysisResult {
   overallRisk: string;
   summary: string;
+  /** 'preview' = run against a suggested strike order before any strike was exercised. */
+  mode: 'executed' | 'preview';
   defensive: BatsonDefensiveEntry[];
   offensive: BatsonOffensiveEntry[];
+  /** Work-product sanitation: demographic rationales found in stored summaries/analyses/notes. */
+  workProductFlags: BatsonWorkProductFlag[];
 }
 
 const BATSON_PROMPT = `You are a Batson Challenge Analyst. You evaluate peremptory strike patterns for potential Batson v. Kentucky (1986) violations and its progeny (J.E.B. v. Alabama, 1994; Flowers v. Mississippi, 2019).
@@ -562,21 +812,36 @@ You must perform TWO analyses:
 Evaluate whether any of the attorney's own strikes could be vulnerable to a Batson challenge from opposing counsel.
 
 For each protected class (race, sex):
-1. Count how many members of that group were in the full panel
-2. Count how many were struck by your side
-3. Calculate strike rate per group vs. overall strike rate
-4. For each potentially problematic strike, find seated jurors outside the protected class who share similar characteristics (occupation, attitudes, responses) — this is the "comparative juror analysis" from Miller-El v. Dretke (2005)
-5. Review the attorney's notes/AI summary for each struck juror to assess whether there is a legitimate race/sex-neutral justification
+1. Use the COMPUTED STRIKE STATISTICS block in the user message. Panel counts, struck counts, and strike rates are computed deterministically in code — quote those numbers verbatim and do NOT recount or recalculate anything.
+2. For each potentially problematic strike, identify seated jurors outside the protected class who share similar characteristics (occupation, attitudes, responses) — the "comparative juror analysis" from Miller-El v. Dretke (2005). Deterministic trait-match candidates are provided in the statistics block; select the true comparators from them (and any others the record supports) and supply the distinguishing record facts.
+3. Review the attorney's notes/AI summary for each struck juror to assess whether there is a legitimate race/sex-neutral justification
 
 For each flagged strike, output:
 - jurorNumber, jurorName
 - protectedClass: which class triggers concern (e.g., "Race - Black", "Sex - Female")
 - riskLevel: "High" / "Moderate" / "Low"
-- statisticalFlag: the disparity numbers (e.g., "3 of 4 Black jurors struck (75%) vs. 2 of 8 White jurors (25%)")
+- statisticalFlag: the disparity numbers, quoted from the computed statistics (e.g., "3 of 4 Black jurors struck (75%) vs. 2 of 8 White jurors (25%)")
 - comparativeConcern: which seated jurors have similar profiles but were not struck
+- comparatorTable: REQUIRED for every flagged strike — one row per similarly-situated seated juror: { "seatedJurorNumber": number, "seatedJurorName": string, "sharedTraits": "<record traits shared with the struck juror>", "distinguishingFact": "<the record-based fact that legitimately distinguishes the seated juror from the struck one — if none exists, state 'None — this is the Batson problem'>" }
 - currentJustification: what the attorney's notes suggest as reasoning
 - recommendedArticulation: a stronger race/sex-neutral justification the attorney could prepare, IF one legitimately exists based on the record
 - warning: if no legitimate justification exists, state this clearly (optional field, only include when warranted)
+- suggestedAlternates: in PREVIEW MODE, record-based alternate strikes with equivalent risk profiles outside the protected class (optional otherwise)
+
+PREVIEW MODE: When given a suggested strike order rather than executed strikes,
+run the same statistical and comparative analysis on the TOP N suggested
+strikes as if exercised. If the suggested pattern skews by race or sex against
+the panel baseline, say so before any strike is made, identify which suggested
+strikes drive the skew, and identify record-based alternates with equivalent
+risk profiles outside the protected class.
+
+WORK-PRODUCT SANITATION: As part of every defensive analysis, scan the panel's
+stored AI summaries, analyses, and notes for demographic rationales attached to
+any struck or strike-listed juror. List each instance verbatim with its juror,
+flag it as material that must not be echoed at sidebar, and supply the
+record-based articulation that replaces it.
+
+Report each work-product finding in "workProductFlags": { "jurorNumber": number, "jurorName": string, "source": "<'AI Summary' | 'AI Analysis' | 'Notes'>", "quote": "<the verbatim demographic rationale>", "replacement": "<the record-based articulation to use instead>" }. If none are found, return an empty array.
 
 ## OFFENSIVE ANALYSIS (Their Strikes)
 Evaluate whether opposing counsel's strikes show a pattern that could support a Batson challenge.
@@ -605,42 +870,76 @@ Return valid JSON with this exact structure:
 {
   "overallRisk": "Low" | "Moderate" | "High",
   "summary": "string",
-  "defensive": [ { "jurorNumber": number, "jurorName": "string", "protectedClass": "string", "riskLevel": "string", "statisticalFlag": "string", "comparativeConcern": "string", "currentJustification": "string", "recommendedArticulation": "string", "warning": "string (optional)" } ],
-  "offensive": [ { "jurorNumber": number, "jurorName": "string", "protectedClass": "string", "strengthOfChallenge": "string", "statisticalPattern": "string", "comparativeEvidence": "string", "suggestedArgument": "string" } ]
+  "defensive": [ { "jurorNumber": number, "jurorName": "string", "protectedClass": "string", "riskLevel": "string", "statisticalFlag": "string", "comparativeConcern": "string", "comparatorTable": [ { "seatedJurorNumber": number, "seatedJurorName": "string", "sharedTraits": "string", "distinguishingFact": "string" } ], "currentJustification": "string", "recommendedArticulation": "string", "warning": "string (optional)", "suggestedAlternates": "string (preview mode)" } ],
+  "offensive": [ { "jurorNumber": number, "jurorName": "string", "protectedClass": "string", "strengthOfChallenge": "string", "statisticalPattern": "string", "comparativeEvidence": "string", "suggestedArgument": "string" } ],
+  "workProductFlags": [ { "jurorNumber": number, "jurorName": "string", "source": "string", "quote": "string", "replacement": "string" } ]
 }`;
 
 export async function analyzeBatson(
   caseContext: CaseContext,
-  jurors: Array<JurorData & { aiSummary?: string }>,
+  jurors: Array<JurorData & { aiSummary?: string; aiAnalysis?: string }>,
   yourStrikes: number[],
-  theirStrikes: number[]
+  theirStrikes: number[],
+  options?: { previewStrikeOrder?: number[] }
 ): Promise<BatsonAnalysisResult> {
+  // PREVIEW MODE (Whigham lesson: the suggested strike order skewed 5 women /
+  // 3 Black jurors in the top 7 and was never pattern-checked because no
+  // strike was ever recorded). When no strikes have been exercised by the
+  // attorney, a suggested order can be analyzed as if exercised.
+  const previewList = options?.previewStrikeOrder ?? [];
+  const isPreview = yourStrikes.length === 0 && previewList.length > 0;
+  const effectiveYourStrikes = isPreview ? previewList : yourStrikes;
+  const mode: 'executed' | 'preview' = isPreview ? 'preview' : 'executed';
+
+  const stats = computeBatsonStats(jurors, effectiveYourStrikes, theirStrikes);
+  const statsBlock = formatBatsonStatsBlock(stats);
+
+  const strikeListed = new Set([...effectiveYourStrikes, ...theirStrikes]);
   const jurorsText = jurors.map(j => {
-    const struckBy = yourStrikes.includes(j.number) ? 'YOUR SIDE' : theirStrikes.includes(j.number) ? 'OPPOSING SIDE' : 'NOT STRUCK (SEATED)';
+    const struckBy = effectiveYourStrikes.includes(j.number)
+      ? (isPreview ? 'SUGGESTED STRIKE (PREVIEW — not yet exercised)' : 'YOUR SIDE')
+      : theirStrikes.includes(j.number) ? 'OPPOSING SIDE' : 'NOT STRUCK (SEATED)';
+    // Work-product sanitation needs the stored full analysis, but only for
+    // struck / strike-listed jurors — that is the material at sidebar risk.
+    const workProduct = strikeListed.has(j.number) && j.aiAnalysis
+      ? `\n  STORED FULL ANALYSIS (work product — scan for demographic rationales): ${j.aiAnalysis.length > 1500 ? j.aiAnalysis.slice(0, 1500) + ' …[truncated]' : j.aiAnalysis}`
+      : '';
     return `JUROR #${j.number}: ${j.name}
   Sex: ${j.sex} | Race: ${j.race} | DOB: ${j.birthDate}
   Occupation: ${j.occupation} | Employer: ${j.employer}
   Lean: ${j.lean} | Risk: ${j.riskTier}
   Notes: ${j.notes || 'None'}
   AI Summary: ${j.aiSummary || 'None'}
-  STRIKE STATUS: ${struckBy}`;
+  STRIKE STATUS: ${struckBy}${workProduct}`;
   }).join('\n\n---\n\n');
+
+  const modeBanner = isPreview
+    ? `\nMODE: PREVIEW — No strikes have been exercised. "YOUR STRIKES" below is the attorney's SUGGESTED strike order (top ${effectiveYourStrikes.length}). Apply the PREVIEW MODE instructions: analyze the suggested strikes as if exercised, flag any race/sex skew before a single strike is made, and populate suggestedAlternates for flagged entries.\n`
+    : '';
 
   const userPrompt = `CASE CONTEXT:
 Case: ${caseContext.name}
 Area of Law: ${caseContext.areaOfLaw}
 Summary: ${caseContext.summary}
 Representing: ${caseContext.side}
-
+${modeBanner}
 FULL PANEL (${jurors.length} jurors):
 
 ${jurorsText}
 
-YOUR STRIKES (${yourStrikes.length}): Jurors ${yourStrikes.length > 0 ? yourStrikes.map(n => `#${n}`).join(', ') : 'None'}
+${statsBlock}
+
+${isPreview ? `YOUR SUGGESTED STRIKES (PREVIEW, ${effectiveYourStrikes.length})` : `YOUR STRIKES (${effectiveYourStrikes.length})`}: Jurors ${effectiveYourStrikes.length > 0 ? effectiveYourStrikes.map(n => `#${n}`).join(', ') : 'None'}
 OPPOSING STRIKES (${theirStrikes.length}): Jurors ${theirStrikes.length > 0 ? theirStrikes.map(n => `#${n}`).join(', ') : 'None'}
 
 Perform the full Batson analysis and return the JSON result.`;
 
+  const batsonComparatorRowSchema = z.object({
+    seatedJurorNumber: z.number(),
+    seatedJurorName: z.string().default(""),
+    sharedTraits: z.string().default(""),
+    distinguishingFact: z.string().default(""),
+  });
   const batsonDefensiveSchema = z.object({
     jurorNumber: z.number(),
     jurorName: z.string().default(""),
@@ -648,9 +947,14 @@ Perform the full Batson analysis and return the JSON result.`;
     riskLevel: z.enum(["Low", "Moderate", "High"]),
     statisticalFlag: z.string().default(""),
     comparativeConcern: z.string().default(""),
+    // REQUIRED (no default): an omitted comparator table is invalid output and
+    // must fail loud. An explicitly empty [] is legitimate when no seated
+    // juror shares traits with the struck juror.
+    comparatorTable: z.array(batsonComparatorRowSchema),
     currentJustification: z.string().default(""),
     recommendedArticulation: z.string().default(""),
     warning: z.string().optional(),
+    suggestedAlternates: z.string().optional(),
   });
   const batsonOffensiveSchema = z.object({
     jurorNumber: z.number(),
@@ -661,11 +965,19 @@ Perform the full Batson analysis and return the JSON result.`;
     comparativeEvidence: z.string().default(""),
     suggestedArgument: z.string().default(""),
   });
+  const batsonWorkProductFlagSchema = z.object({
+    jurorNumber: z.number(),
+    jurorName: z.string().default(""),
+    source: z.string().default(""),
+    quote: z.string().default(""),
+    replacement: z.string().default(""),
+  });
   const batsonResponseSchema = z.object({
     overallRisk: z.enum(["Low", "Moderate", "High"]),
     summary: z.string().min(1),
     defensive: z.array(batsonDefensiveSchema).default([]),
     offensive: z.array(batsonOffensiveSchema).default([]),
+    workProductFlags: z.array(batsonWorkProductFlagSchema).default([]),
   });
 
   const attempt = async (suffix: string): Promise<BatsonAnalysisResult | null> => {
@@ -685,6 +997,14 @@ Perform the full Batson analysis and return the JSON result.`;
     return {
       overallRisk: validated.data.overallRisk,
       summary: validated.data.summary,
+      mode,
+      workProductFlags: validated.data.workProductFlags.map(w => ({
+        jurorNumber: w.jurorNumber,
+        jurorName: w.jurorName || `Juror #${w.jurorNumber}`,
+        source: w.source,
+        quote: w.quote,
+        replacement: w.replacement,
+      })),
       defensive: validated.data.defensive.map(d => ({
         jurorNumber: d.jurorNumber,
         jurorName: d.jurorName || `Juror #${d.jurorNumber}`,
@@ -692,9 +1012,11 @@ Perform the full Batson analysis and return the JSON result.`;
         riskLevel: d.riskLevel,
         statisticalFlag: d.statisticalFlag,
         comparativeConcern: d.comparativeConcern,
+        comparatorTable: d.comparatorTable,
         currentJustification: d.currentJustification,
         recommendedArticulation: d.recommendedArticulation,
         ...(d.warning ? { warning: d.warning } : {}),
+        ...(d.suggestedAlternates ? { suggestedAlternates: d.suggestedAlternates } : {}),
       })),
       offensive: validated.data.offensive.map(o => ({
         jurorNumber: o.jurorNumber,

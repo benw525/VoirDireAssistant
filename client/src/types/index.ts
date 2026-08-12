@@ -44,6 +44,14 @@ export interface Juror {
   aiAnalysis: string;
   /** 'none' = never analyzed, 'ok' = valid analysis, 'failed' = failed after retry (no defaults shown), 'stale' = new responses since last analysis */
   analysisStatus?: 'none' | 'ok' | 'failed' | 'stale';
+  /** How developed the voir dire record was at analysis time ('' = not assessed). */
+  informationLevel?: 'well-developed' | 'partial' | 'minimal' | '';
+  /** True when the record was too thin for a settled score. */
+  analysisProvisional?: boolean;
+  /** The ONE follow-up question that would most change a provisional score. */
+  keyFollowUp?: string;
+  /** Damages-anchor assessment (conceded/weak liability cases). */
+  damagesAnchor?: string;
 }
 
 export interface VoirDireQuestion {
@@ -104,14 +112,20 @@ export interface SavedCase {
   responses: JurorResponse[];
   completedPhases: number[];
   mattrmindrCaseId?: string | null;
-  strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string }>;
+  strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string; lockInQuestions?: string[] }>;
   courtDismissed?: number[];
   seatingConfig?: SeatingConfig | null;
   batsonAnalysis?: {
     overallRisk: string;
     summary: string;
-    defensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string }>;
+    mode?: 'executed' | 'preview';
+    defensive: Array<{
+      jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string;
+      comparatorTable?: Array<{ seatedJurorNumber: number; seatedJurorName: string; sharedTraits: string; distinguishingFact: string }>;
+      suggestedAlternates?: string;
+    }>;
     offensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; strengthOfChallenge: string; statisticalPattern: string; comparativeEvidence: string; suggestedArgument: string }>;
+    workProductFlags?: Array<{ jurorNumber: number; jurorName: string; source: string; quote: string; replacement: string }>;
   } | null;
   demographicsChangedAt?: number | null;
   batsonAnalyzedAt?: number | null;

@@ -130,6 +130,10 @@ export function JurorReview({
         riskTier: result.aiRiskTier,
         lean: result.suggestedLean,
         leanConfidence: result.leanConfidence,
+        informationLevel: result.informationLevel,
+        analysisProvisional: result.provisional,
+        keyFollowUp: result.keyFollowUp,
+        damagesAnchor: result.damagesAnchor,
         analysisStatus: responseCountNow > responseCountAtStart ? 'stale' : 'ok',
       };
       onUpdateJuror(juror.number, jurorUpdates);
@@ -823,11 +827,54 @@ export function JurorReview({
                         New responses were recorded after this analysis was generated. Re-analyze to refresh it.
                       </div>
                     )}
+                    {(() => {
+                      const liveJuror = jurors.find(j => j.number === selectedJuror.number);
+                      if (!liveJuror) return null;
+                      const levelStyles: Record<string, string> = {
+                        'well-developed': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                        'partial': 'bg-amber-100 text-amber-700 border-amber-200',
+                        'minimal': 'bg-slate-100 text-slate-600 border-slate-300',
+                      };
+                      return (
+                        <>
+                          {(liveJuror.informationLevel || liveJuror.analysisProvisional) && (
+                            <div className="flex flex-wrap items-center gap-2 mb-2" data-testid={`analysis-meta-${selectedJuror.number}`}>
+                              {liveJuror.informationLevel && (
+                                <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${levelStyles[liveJuror.informationLevel] || levelStyles['minimal']}`} data-testid={`chip-info-level-${selectedJuror.number}`}>
+                                  Record: {liveJuror.informationLevel}
+                                </span>
+                              )}
+                              {liveJuror.analysisProvisional && (
+                                <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border bg-sky-100 text-sky-700 border-sky-200" data-testid={`chip-provisional-${selectedJuror.number}`}>
+                                  Provisional score
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {liveJuror.analysisProvisional && liveJuror.keyFollowUp && (
+                            <div className="p-3 rounded-xl text-xs bg-sky-50 border border-sky-200 text-sky-800 mb-2" data-testid={`key-follow-up-${selectedJuror.number}`}>
+                              <span className="font-bold uppercase tracking-wide">Key follow-up to settle this score:</span>
+                              <p className="mt-1 text-sm leading-relaxed">{liveJuror.keyFollowUp}</p>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                     <div className="bg-violet-50 border border-violet-200 rounded-xl p-4">
                       <div className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
                         {aiAnalysis[selectedJuror.number]}
                       </div>
                     </div>
+                    {(() => {
+                      const liveJuror = jurors.find(j => j.number === selectedJuror.number);
+                      if (!liveJuror?.damagesAnchor) return null;
+                      return (
+                        <div className="mt-2 p-3 rounded-xl bg-indigo-50 border border-indigo-200" data-testid={`damages-anchor-${selectedJuror.number}`}>
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-indigo-700">Damages Anchor</span>
+                          <p className="mt-1 text-sm text-slate-800 leading-relaxed">{liveJuror.damagesAnchor}</p>
+                        </div>
+                      );
+                    })()}
                   </>
                 ) : analyzingJurors.has(selectedJuror.number) ? (
                   <div className="bg-violet-50 border border-violet-200 rounded-xl p-6 flex items-center justify-center">

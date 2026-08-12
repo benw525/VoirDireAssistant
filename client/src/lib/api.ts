@@ -106,14 +106,16 @@ interface DbCase {
   questionsLocked: boolean;
   savedAt: number;
   mattrmindrCaseId?: string | null;
-  strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string }>;
+  strikesForCause?: Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string; lockInQuestions?: string[] }>;
   courtDismissed?: number[];
   seatingConfig?: { rows: number; direction: 'bottom-right-first' | 'top-left-first' | 'bottom-left-first'; seatsPerRow?: number[] } | null;
   batsonAnalysis?: {
     overallRisk: string;
     summary: string;
-    defensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string }>;
+    mode?: 'executed' | 'preview';
+    defensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string; suggestedAlternates?: string; comparatorTable?: Array<{ seatedJurorNumber: number; seatedJurorName: string; sharedTraits: string; distinguishingFact: string }> }>;
     offensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; strengthOfChallenge: string; statisticalPattern: string; comparativeEvidence: string; suggestedArgument: string }>;
+    workProductFlags?: Array<{ jurorNumber: number; jurorName: string; source: string; quote: string; replacement: string }>;
   } | null;
   demographicsChangedAt?: number | null;
   batsonAnalyzedAt?: number | null;
@@ -141,6 +143,10 @@ interface DbJuror {
   aiSummary: string;
   aiAnalysis: string;
   analysisStatus?: string;
+  informationLevel?: string;
+  analysisProvisional?: boolean;
+  keyFollowUp?: string;
+  damagesAnchor?: string;
 }
 
 interface DbQuestion {
@@ -224,6 +230,10 @@ function dbJurorToJuror(j: DbJuror): Juror {
     aiSummary: j.aiSummary || '',
     aiAnalysis: j.aiAnalysis || '',
     analysisStatus: (j.analysisStatus || 'none') as Juror['analysisStatus'],
+    informationLevel: (j.informationLevel || '') as Juror['informationLevel'],
+    analysisProvisional: j.analysisProvisional || false,
+    keyFollowUp: j.keyFollowUp || '',
+    damagesAnchor: j.damagesAnchor || '',
   };
 }
 
@@ -513,6 +523,10 @@ export interface AnalysisResult {
   aiRiskTier: 'low' | 'medium' | 'high';
   suggestedLean: 'favorable' | 'neutral' | 'unfavorable' | 'unknown';
   leanConfidence: 'high' | 'moderate' | 'low';
+  informationLevel: 'well-developed' | 'partial' | 'minimal';
+  provisional: boolean;
+  keyFollowUp: string;
+  damagesAnchor: string;
 }
 
 export async function analyzeJuror(
@@ -529,7 +543,7 @@ export async function analyzeJuror(
     side: r.side,
     followUps: r.followUps || [],
   }));
-  const result = await fetchJson<{ analysis: string; riskScore: number; aiRiskTier: string; suggestedLean?: string; leanConfidence?: string }>(`${API_BASE}/analyze-juror`, {
+  const result = await fetchJson<{ analysis: string; riskScore: number; aiRiskTier: string; suggestedLean?: string; leanConfidence?: string; informationLevel?: string; provisional?: boolean; keyFollowUp?: string; damagesAnchor?: string }>(`${API_BASE}/analyze-juror`, {
     method: 'POST',
     body: JSON.stringify({
       caseInfo,
@@ -558,6 +572,10 @@ export async function analyzeJuror(
     aiRiskTier: result.aiRiskTier as AnalysisResult['aiRiskTier'],
     suggestedLean: result.suggestedLean as AnalysisResult['suggestedLean'],
     leanConfidence: result.leanConfidence as AnalysisResult['leanConfidence'],
+    informationLevel: (result.informationLevel || 'minimal') as AnalysisResult['informationLevel'],
+    provisional: result.provisional ?? false,
+    keyFollowUp: result.keyFollowUp || '',
+    damagesAnchor: result.damagesAnchor || '',
   };
 }
 
@@ -604,6 +622,7 @@ export interface StrikeForCauseResult {
   reasoning: string;
   argument: string;
   basis: string;
+  lockInQuestions?: string[];
 }
 
 export async function analyzeStrikesForCause(
@@ -641,18 +660,37 @@ export async function analyzeStrikesForCause(
   return result.strikes;
 }
 
+export interface BatsonComparatorRow {
+  seatedJurorNumber: number;
+  seatedJurorName: string;
+  sharedTraits: string;
+  distinguishingFact: string;
+}
+
+export interface BatsonWorkProductFlag {
+  jurorNumber: number;
+  jurorName: string;
+  source: string;
+  quote: string;
+  replacement: string;
+}
+
 export interface BatsonAnalysisResult {
   overallRisk: string;
   summary: string;
-  defensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string }>;
+  defensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string; suggestedAlternates?: string; comparatorTable?: BatsonComparatorRow[] }>;
   offensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; strengthOfChallenge: string; statisticalPattern: string; comparativeEvidence: string; suggestedArgument: string }>;
+  /** 'preview' = run against a suggested strike order before any strike was exercised. */
+  mode?: 'executed' | 'preview';
+  workProductFlags?: BatsonWorkProductFlag[];
 }
 
 export async function analyzeBatson(
   caseInfo: CaseInfo,
   jurors: Juror[],
   yourStrikes: number[],
-  theirStrikes: number[]
+  theirStrikes: number[],
+  options?: { previewStrikeOrder?: number[] }
 ): Promise<BatsonAnalysisResult> {
   const jurorData = jurors.map(j => ({
     number: j.number,
@@ -666,10 +704,21 @@ export async function analyzeBatson(
     riskTier: j.riskTier,
     notes: j.notes || '',
     aiSummary: j.aiSummary || '',
+    // Work-product sanitation: the server scans stored analyses of struck /
+    // strike-listed jurors for demographic rationales.
+    aiAnalysis: j.aiAnalysis || '',
   }));
   const result = await fetchJson<BatsonAnalysisResult>(`${API_BASE}/analyze-batson`, {
     method: 'POST',
-    body: JSON.stringify({ caseInfo, jurors: jurorData, yourStrikes, theirStrikes }),
+    body: JSON.stringify({
+      caseInfo,
+      jurors: jurorData,
+      yourStrikes,
+      theirStrikes,
+      ...(options?.previewStrikeOrder && options.previewStrikeOrder.length > 0
+        ? { previewStrikeOrder: options.previewStrikeOrder }
+        : {}),
+    }),
   });
   return result;
 }
@@ -716,6 +765,10 @@ export async function updateJurorOnServer(caseId: string, jurorNumber: number, u
     if (updates.aiSummary !== undefined) patchData.aiSummary = updates.aiSummary;
     if (updates.aiAnalysis !== undefined) patchData.aiAnalysis = updates.aiAnalysis;
     if (updates.analysisStatus !== undefined) patchData.analysisStatus = updates.analysisStatus;
+    if (updates.informationLevel !== undefined) patchData.informationLevel = updates.informationLevel;
+    if (updates.analysisProvisional !== undefined) patchData.analysisProvisional = updates.analysisProvisional;
+    if (updates.keyFollowUp !== undefined) patchData.keyFollowUp = updates.keyFollowUp;
+    if (updates.damagesAnchor !== undefined) patchData.damagesAnchor = updates.damagesAnchor;
     await fetchJson(`${API_BASE}/jurors/${dbJuror.id}`, {
       method: 'PATCH',
       body: JSON.stringify(patchData),

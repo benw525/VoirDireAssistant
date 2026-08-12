@@ -16,3 +16,13 @@ description: Cross-cutting rules for juror AI analysis integrity (statuses, no s
 **How to apply:** When adding prompts/agents (retraining work), new response-recording endpoints, or new export/report features, wire them into: juror `analysisStatus` ('none'|'ok'|'failed'|'stale'), the stale-marking helper, and the report integrity gate.
 
 **Known residual:** freshness is client-guarded for the in-flight-analysis race; a multi-device write race (analysis PATCH 'ok' overwriting server 'stale') is still possible — a server-authoritative revision counter would close it if it ever matters.
+
+## Batson preview separation (added 2026-08-12)
+Rule: preview-mode Batson runs (suggested strike order, zero strikes exercised) live in separate client state, are never persisted to the case record, and never resolve the report-integrity "no Batson check" issue — only an executed-strikes run does.
+**Why:** a preview is advisory pattern-checking; letting it satisfy the integrity gate would let a report ship without the real check on actual strikes.
+**How to apply:** any new surface that consumes Batson results must key off the executed result only; preview results carry mode='preview' end to end.
+
+## Conditional required fields in LLM output (added 2026-08-12)
+Rule: when a structured field is required only for some entries (e.g. lock-in questions only for "Possible" cause ratings), a zod .default() silently swallows the violation — validate the condition post-parse, retry once with a targeted correction suffix, then throw AIOutputError.
+**Why:** code review caught .default([]) turning "model ignored a REQUIRED field" into an empty list the UI renders as nothing.
+**How to apply:** every schema default on LLM output needs the question "is absence legitimate for ALL entries?"; if not, add category-aware post-validation.

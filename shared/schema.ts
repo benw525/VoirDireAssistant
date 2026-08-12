@@ -33,13 +33,15 @@ export const cases = pgTable("cases", {
   questionsLocked: boolean("questions_locked").notNull().default(false),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   mattrmindrCaseId: text("mattrmindr_case_id"),
-  strikesForCause: jsonb("strikes_for_cause").$type<Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string }>>().notNull().default([]),
+  strikesForCause: jsonb("strikes_for_cause").$type<Array<{ jurorNumber: number; category: string; basis: string; reasoning: string; argument: string; lockInQuestions?: string[] }>>().notNull().default([]),
   courtDismissed: jsonb("court_dismissed").$type<number[]>().notNull().default([]),
   batsonAnalysis: jsonb("batson_analysis").$type<{
     overallRisk: string;
     summary: string;
-    defensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string }>;
+    mode?: 'executed' | 'preview';
+    defensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; riskLevel: string; statisticalFlag: string; comparativeConcern: string; currentJustification: string; recommendedArticulation: string; warning?: string; suggestedAlternates?: string; comparatorTable?: Array<{ seatedJurorNumber: number; seatedJurorName: string; sharedTraits: string; distinguishingFact: string }> }>;
     offensive: Array<{ jurorNumber: number; jurorName: string; protectedClass: string; strengthOfChallenge: string; statisticalPattern: string; comparativeEvidence: string; suggestedArgument: string }>;
+    workProductFlags?: Array<{ jurorNumber: number; jurorName: string; source: string; quote: string; replacement: string }>;
   } | null>().default(null),
   seatingConfig: jsonb("seating_config").$type<{
     rows: number;
@@ -75,6 +77,14 @@ export const jurors = pgTable("jurors", {
   aiAnalysis: text("ai_analysis").notNull().default(""),
   // 'none' = never analyzed, 'ok' = valid analysis stored, 'failed' = analysis failed after retry (never show defaults), 'stale' = new responses recorded since last analysis
   analysisStatus: text("analysis_status").notNull().default("none"),
+  // Lewis/Whigham directives: adversity (riskScore) is kept separate from
+  // uncertainty (informationLevel + provisional flag). '' = not yet assessed.
+  informationLevel: text("information_level").notNull().default(""),
+  analysisProvisional: boolean("analysis_provisional").notNull().default(false),
+  // The ONE follow-up question that would most change a provisional score.
+  keyFollowUp: text("key_follow_up").notNull().default(""),
+  // Floor/ceiling/reference-point damages assessment (conceded/weak liability).
+  damagesAnchor: text("damages_anchor").notNull().default(""),
 });
 
 export const questions = pgTable("questions", {

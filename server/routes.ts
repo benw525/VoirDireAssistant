@@ -385,6 +385,7 @@ export async function registerRoutes(
   app.use("/api/analyze-juror", authMiddleware);
   app.use("/api/analyze-jurors-batch", authMiddleware);
   app.use("/api/analyze-strikes-for-cause", authMiddleware);
+  app.use("/api/analyze-batson", authMiddleware);
   app.use("/api/mattrmindr", authMiddleware);
   app.use("/api/conversations", authMiddleware);
 
@@ -1117,7 +1118,17 @@ export async function registerRoutes(
         }
       }
       const result = await analyzeJuror(parsed.data.caseInfo, parsed.data.juror, parsed.data.responses, enrichedData);
-      res.json({ analysis: result.analysis, riskScore: result.riskScore, aiRiskTier: result.aiRiskTier, suggestedLean: result.suggestedLean, leanConfidence: result.leanConfidence });
+      res.json({
+        analysis: result.analysis,
+        riskScore: result.riskScore,
+        aiRiskTier: result.aiRiskTier,
+        suggestedLean: result.suggestedLean,
+        leanConfidence: result.leanConfidence,
+        informationLevel: result.informationLevel,
+        provisional: result.provisional,
+        keyFollowUp: result.keyFollowUp,
+        damagesAnchor: result.damagesAnchor,
+      });
     } catch (err: any) {
       console.error("Juror analysis error:", err);
       respondWithAnthropicError(res, err, "Failed to analyze juror");
@@ -1292,15 +1303,25 @@ export async function registerRoutes(
           riskTier: z.string().default('unassessed'),
           notes: z.string().optional().default(''),
           aiSummary: z.string().optional().default(''),
+          aiAnalysis: z.string().optional().default(''),
         })),
         yourStrikes: z.array(z.number()),
         theirStrikes: z.array(z.number()),
+        // Preview mode: analyze a suggested strike order before any strike is
+        // exercised (only honored when yourStrikes is empty).
+        previewStrikeOrder: z.array(z.number()).optional(),
       }).safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
       }
 
-      const result = await analyzeBatson(parsed.data.caseInfo, parsed.data.jurors, parsed.data.yourStrikes, parsed.data.theirStrikes);
+      const result = await analyzeBatson(
+        parsed.data.caseInfo,
+        parsed.data.jurors,
+        parsed.data.yourStrikes,
+        parsed.data.theirStrikes,
+        { previewStrikeOrder: parsed.data.previewStrikeOrder }
+      );
       res.json(result);
     } catch (err: any) {
       console.error("Batson analysis error:", err);
