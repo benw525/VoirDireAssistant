@@ -16,6 +16,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   updateUser: (updates: Partial<AuthUser>) => void;
+  updateSession: (token: string, updates: Partial<AuthUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -27,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
   register: async () => {},
   logout: () => {},
   updateUser: () => {},
+  updateSession: () => {},
 });
 
 export function useAuth() {
@@ -113,6 +115,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(prev => (prev ? { ...prev, ...updates } : prev));
   }, []);
 
+  const updateSession = useCallback((newToken: string, updates: Partial<AuthUser>) => {
+    setUser(prev => (prev ? { ...prev, ...updates } : prev));
+    setToken(newToken);
+    globalToken = newToken;
+    sessionStorage.setItem('voir_dire_token', newToken);
+  }, []);
+
   return React.createElement(
     AuthContext.Provider,
     {
@@ -125,6 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         logout,
         updateUser,
+        updateSession,
       },
     },
     children

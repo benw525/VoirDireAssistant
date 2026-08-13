@@ -278,6 +278,39 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/auth/change-email", authMiddleware, async (req, res) => {
+    try {
+      const parsed = z.object({
+        newEmail: z.string().email(),
+        password: z.string().min(1),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "A valid email and your password are required" });
+
+      const user = await storage.getUserById(req.user!.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const valid = await comparePassword(parsed.data.password, user.passwordHash);
+      if (!valid) return res.status(401).json({ message: "Password is incorrect" });
+
+      const newEmail = parsed.data.newEmail.toLowerCase();
+      if (newEmail === user.email) {
+        return res.json({ user: { id: user.id, email: user.email, name: user.name } });
+      }
+
+      const existing = await storage.getUserByEmail(newEmail);
+      if (existing) return res.status(409).json({ message: "An account with this email already exists" });
+
+      const updated = await storage.updateUser(req.user!.id, { email: newEmail });
+      if (!updated) return res.status(404).json({ message: "User not found" });
+
+      const token = createToken(updated.id, updated.email);
+      res.json({ token, user: { id: updated.id, email: updated.email, name: updated.name } });
+    } catch (err: any) {
+      console.error("Change email error:", err);
+      res.status(500).json({ message: "Failed to change email" });
+    }
+  });
+
   app.patch("/api/auth/change-password", authMiddleware, async (req, res) => {
     try {
       const parsed = z.object({

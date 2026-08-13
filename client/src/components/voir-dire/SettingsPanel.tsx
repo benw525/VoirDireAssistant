@@ -37,13 +37,20 @@ export function SettingsPanel({
   onAiHiddenChange,
   onConnectionChange,
 }: SettingsPanelProps) {
-  const { user, logout, updateUser } = useAuth();
+  const { user, logout, updateUser, updateSession } = useAuth();
 
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');
   const [nameLoading, setNameLoading] = useState(false);
   const [nameError, setNameError] = useState('');
   const [nameSuccess, setNameSuccess] = useState('');
+
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [emailValue, setEmailValue] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailSuccess, setEmailSuccess] = useState('');
 
   const [mmConnected, setMmConnected] = useState(false);
   const [mmUrl, setMmUrl] = useState('');
@@ -236,6 +243,48 @@ export function SettingsPanel({
     }
   };
 
+  const handleSaveEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = emailValue.trim();
+    if (!trimmed) {
+      setEmailError('Email cannot be empty');
+      return;
+    }
+    if (!emailPassword) {
+      setEmailError('Please enter your password to confirm');
+      return;
+    }
+    setEmailError('');
+    setEmailSuccess('');
+    setEmailLoading(true);
+    try {
+      const token = getAuthToken();
+      const res = await fetch('/api/auth/change-email', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ newEmail: trimmed, password: emailPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to update email');
+      if (data.token) {
+        updateSession(data.token, { email: data.user.email });
+      } else {
+        updateUser({ email: data.user.email });
+      }
+      setEmailSuccess('Email updated');
+      setEditingEmail(false);
+      setEmailPassword('');
+      setTimeout(() => setEmailSuccess(''), 2000);
+    } catch (err: any) {
+      setEmailError(err.message);
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const initials = user?.name
@@ -327,7 +376,66 @@ export function SettingsPanel({
                         </span>
                       )}
                     </div>
-                    <div className="text-sm text-slate-500 truncate" data-testid="text-settings-email">{user?.email}</div>
+                    {editingEmail ? (
+                      <form onSubmit={handleSaveEmail} className="space-y-2 mt-1">
+                        <input
+                          type="email"
+                          value={emailValue}
+                          onChange={e => setEmailValue(e.target.value)}
+                          maxLength={255}
+                          autoFocus
+                          className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          placeholder="New email address"
+                          data-testid="input-settings-edit-email"
+                        />
+                        <input
+                          type="password"
+                          value={emailPassword}
+                          onChange={e => setEmailPassword(e.target.value)}
+                          className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          placeholder="Confirm your password"
+                          data-testid="input-settings-email-password"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="submit"
+                            disabled={emailLoading}
+                            className="px-3 py-1 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-1"
+                            data-testid="button-save-email"
+                          >
+                            {emailLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setEditingEmail(false); setEmailError(''); setEmailPassword(''); }}
+                            className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-slate-800"
+                            data-testid="button-cancel-edit-email"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {emailError && (
+                          <div className="text-xs text-red-600" data-testid="text-email-error">{emailError}</div>
+                        )}
+                      </form>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm text-slate-500 truncate" data-testid="text-settings-email">{user?.email}</div>
+                        <button
+                          onClick={() => { setEmailValue(user?.email || ''); setEditingEmail(true); setEmailSuccess(''); }}
+                          className="text-xs font-semibold text-amber-600 hover:text-amber-700 flex-shrink-0"
+                          data-testid="button-edit-email"
+                        >
+                          Edit
+                        </button>
+                        {emailSuccess && (
+                          <span className="text-xs text-green-600 flex items-center gap-1 flex-shrink-0" data-testid="text-email-success">
+                            <CheckCircle2 className="w-3 h-3" /> {emailSuccess}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
